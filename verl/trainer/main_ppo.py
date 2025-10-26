@@ -31,6 +31,7 @@ from verl.utils.config import validate_config
 from verl.utils.device import is_cuda_available
 from verl.utils.import_utils import load_extern_type
 
+from datetime import datetime
 
 @hydra.main(config_path="config", config_name="ppo_trainer", version_base=None)
 def main(config):
@@ -412,5 +413,23 @@ def create_rl_sampler(data_config, dataset):
     return sampler
 
 
-if __name__ == "__main__":
-    main()
+def time_cul(t1,t2):
+    delta = t2 - t1
+    total_seconds = delta.total_seconds()
+    hours = int(total_seconds // 3600)
+    remaining_seconds = int(total_seconds % 3600)
+    minutes = remaining_seconds // 60
+    seconds = remaining_seconds % 60
+    print(f'start time:{t1} end time:{t2}')
+    print(f"total: {hours}h {minutes}min {seconds}sec")
+    
+if __name__ == '__main__':
+    time1 = datetime.now()
+    try:
+        main()
+
+    finally:
+        time2 = datetime.now()
+        time_cul(time1,time2)
+
+
