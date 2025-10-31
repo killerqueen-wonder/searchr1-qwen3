@@ -64,7 +64,6 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     +actor_rollout_ref.rollout.n_agent=1 \
     actor_rollout_ref.rollout.temperature=1 \
-    +actor_rollout_ref.actor.state_masking=true \
     critic.optim.lr=1e-5 \
     critic.model.use_remove_padding=false \
     critic.optim.lr_warmup_steps_ratio=0.015 \

@@ -1598,6 +1598,7 @@ class RayPPOTrainer:
                         if self.config.trainer.critic_warmup <= self.global_steps:
                             # update actor
                             with _timer('update_actor', timing_raw):
+                                # if self.config.do_search and self.config.actor_rollout_ref.actor.state_masking:
                                 if self.config.do_search and self.config.actor_rollout_ref.actor.state_masking:
                                     batch, metrics = self._create_loss_mask(batch, metrics)
                                 actor_output = self.actor_rollout_wg.update_actor(batch)
