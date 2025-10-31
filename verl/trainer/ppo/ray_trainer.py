@@ -1440,7 +1440,15 @@ class RayPPOTrainer:
             The light-weight advantage computation is done on the driver process.
             """
 
-            logger = self.logger
+            
+            from verl.utils.tracking import Tracking
+
+            logger = Tracking(
+                project_name=self.config.trainer.project_name,
+                experiment_name=self.config.trainer.experiment_name,
+                default_backend=self.config.trainer.logger,
+                config=OmegaConf.to_container(self.config, resolve=True),
+            )
             self.global_steps = 0
             # print('[debug in ray_trainer]: start fitting')
             # perform validation before training
