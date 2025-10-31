@@ -676,8 +676,8 @@ class RayPPOTrainer:
 
         return metric_dict
 
-    #searchr1 validation
-    def _validate(self):
+    
+    def _validate(self):#searchr1 validation
             """
             The training loop of PPO with global metric computation.
             Accumulates metrics across all batches before computing final statistics.
@@ -1432,8 +1432,8 @@ class RayPPOTrainer:
                     # The dataset may be changed after each training batch
                     self.train_dataset.on_batch_end(batch=batch)
 
-    #searchr1 fit
-    def fit(self):
+    
+    def fit(self):#searchr1 fit
             """
             The training loop of PPO.
             The driver process only need to call the compute functions of the worker group through RPC to construct the PPO dataflow.
@@ -1482,7 +1482,7 @@ class RayPPOTrainer:
                     timing_raw = {}
 
                     batch: DataProto = DataProto.from_single_dict(batch_dict)
-                    batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n_agent, interleave=True)
+                    # batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n_agent, interleave=True)
 
                     # pop those keys for generation
                     gen_batch = batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])
@@ -1599,7 +1599,7 @@ class RayPPOTrainer:
                             # update actor
                             with _timer('update_actor', timing_raw):
                                 # if self.config.do_search and self.config.actor_rollout_ref.actor.state_masking:
-                                if self.config.do_search and self.config.actor_rollout_ref.actor.state_masking:
+                                if self.config.do_search:
                                     batch, metrics = self._create_loss_mask(batch, metrics)
                                 actor_output = self.actor_rollout_wg.update_actor(batch)
                             actor_output_metrics = reduce_metrics(actor_output.meta_info['metrics'])
