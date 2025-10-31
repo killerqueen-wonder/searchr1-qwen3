@@ -93,8 +93,8 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.resume_mode=disable \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=/caizhenyang/panghuaiwen/legal_LLM/RL_ckp/$EXPERIMENT_NAME \
-    max_turns=3 \
+    +max_turns=3 \
     ray_kwargs.ray_init.num_cpus=8 \
-    retriever.url="http://127.0.0.1:8006/retrieve" \
-    retriever.topk=3 \
+    +retriever.url="http://127.0.0.1:8006/retrieve" \
+    +retriever.topk=3 \
     2>&1 | tee $EXPERIMENT_NAME.log
