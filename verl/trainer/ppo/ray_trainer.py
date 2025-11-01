@@ -1589,11 +1589,18 @@ class RayPPOTrainer:
                                 batch.batch['token_level_rewards'] = batch.batch['token_level_scores']
 
                             # compute advantages, executed on the driver process
+                            norm_adv_by_std_in_grpo = self.config.algorithm.get(
+                                "norm_adv_by_std_in_grpo", True
+                            )  # GRPO adv normalization factor
+
+                            # compute advantages, executed on the driver process
                             batch = compute_advantage(batch,
                                                     adv_estimator=self.config.algorithm.adv_estimator,
                                                     gamma=self.config.algorithm.gamma,
                                                     lam=self.config.algorithm.lam,
-                                                    num_repeat=self.config.actor_rollout_ref.rollout.n)
+                                                    num_repeat=self.config.actor_rollout_ref.rollout.n,
+                                                    norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
+                                                    config=self.config.algorithm,)
 
                         # update critic
                         if self.use_critic:
