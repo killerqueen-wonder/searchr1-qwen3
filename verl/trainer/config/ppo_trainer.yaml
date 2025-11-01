@@ -50,7 +50,8 @@ actor_rollout_ref:
     layered_summon: False
 
     # for vllm rollout
-    dtype: bfloat16 # should align with FSDP
+    # should align with FSDP
+    dtype: bfloat16 
 
 # custom reward function definition
 custom_reward_function:
