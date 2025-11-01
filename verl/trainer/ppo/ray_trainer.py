@@ -1650,3 +1650,17 @@ class RayPPOTrainer:
                             logger.log(data=val_metrics, step=self.global_steps)
                         return
         
+    def _create_loss_mask(self, batch, metrics):
+        """Create loss mask for state tokens."""
+        response_length = batch.batch['responses'].shape[-1]
+        response_mask = batch.batch['attention_mask'][:, -response_length:]
+        
+        loss_mask = batch.batch['info_mask'][:, -response_length:]
+        batch.batch['loss_mask'] = loss_mask
+
+        metrics.update({
+            'state_tokens/total': loss_mask.sum().item(),
+            'state_tokens/coverage': (loss_mask.sum() / response_mask.sum()).item(),
+        })
+        
+        return batch, metrics
