@@ -230,7 +230,7 @@ class LLMGenerationManager:
         active_num_list = [active_mask.sum().item()]
         rollings = gen_batch
 
-        # print('[debug in run_llm_loop]:generation loop begin')
+        
         # Main generation loop
         for step in range(self.config.max_turns):
             if not active_mask.sum():
