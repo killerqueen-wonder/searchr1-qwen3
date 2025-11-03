@@ -1,0 +1,185 @@
+import transformers
+import torch
+import random
+from datasets import load_dataset
+import requests
+import argparse
+
+
+
+# Define the custom stopping criterion
+class StopOnSequence(transformers.StoppingCriteria):
+    def __init__(self, target_sequences, tokenizer):
+        # Encode the string so we have the exact token-IDs pattern
+        self.target_ids = [tokenizer.encode(target_sequence, add_special_tokens=False) for target_sequence in target_sequences]
+        self.target_lengths = [len(target_id) for target_id in self.target_ids]
+        self._tokenizer = tokenizer
+
+    def __call__(self, input_ids, scores, **kwargs):
+        # Make sure the target IDs are on the same device
+        targets = [torch.as_tensor(target_id, device=input_ids.device) for target_id in self.target_ids]
+
+        if input_ids.shape[1] < min(self.target_lengths):
+            return False
+
+        # Compare the tail of input_ids with our target_ids
+        for i, target in enumerate(targets):
+            if torch.equal(input_ids[0, -self.target_lengths[i]:], target):
+                return True
+
+        return False
+
+def get_query(text):
+    import re
+    pattern = re.compile(r"<search>(.*?)</search>", re.DOTALL)
+    matches = pattern.findall(text)
+    if matches:
+        return matches[-1]
+    else:
+        return None
+
+def search(query: str):
+    if not query or not query.strip():
+        print("[WARNING] Empty query passed to search function.")
+        return ""
+    
+    payload = {
+            "queries": [query],
+            "topk": 3,
+            "return_scores": True
+        }
+    # results = requests.post("http://127.0.0.1:8006/retrieve", json=payload).json()['result']
+    try:
+        response = requests.post("http://127.0.0.1:8006/retrieve", 
+                                json=payload,
+                                proxies={"http": None, "https": None},  # 禁用所有代理 
+                                timeout=10)
+        response.raise_for_status()
+        json_data = response.json()
+        results = json_data.get('result', [])
+    except requests.exceptions.Timeout:
+        print("[ERROR] Search request timed out.")
+        return ""
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] Request failed: {e}")
+        return ""
+    except ValueError as e:
+        print(f"[ERROR] Failed to decode JSON: {e}")
+        print("Response content:", response.text[:500])
+        return ""
+
+    if not results:
+        print("[INFO] No results returned from search.")
+        return ""
+              
+    def _passages2string(retrieval_result):
+        format_reference = ''
+        for idx, doc_item in enumerate(retrieval_result):
+                        
+            content = doc_item['document']['contents']
+            title = content.split("\n")[0]
+            text = "\n".join(content.split("\n")[1:])
+            format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+        return format_reference
+
+    return _passages2string(results[0])
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Args of sft')
+    # Model Args
+    parser.add_argument('--question', default="Mike Barnett negotiated many contracts including which player that went on to become general manager of CSKA Moscow of the Kontinental Hockey League?", type=str)
+    parser.add_argument('--model_path', default="/caizhenyang/panghuaiwen/legal_LLM/RL_ckp/legal_exam-search-r1-ppo-qwen3-8b-em/global_step_100/actor", type=str)
+    parser.add_argument('--result_path', default='/mntcephfs/lab_data/ganruoli/UC_bench/experiment/legal/chatglm3-6b_legal.json', type=str)
+    parser.add_argument("--model_name", type=str, default="gpt-4o-2024-11-20", help="Name of the GPT model to use.")
+    parser.add_argument("--api_key", type=str, required=True, help="OpenAI API key.")
+    parser.add_argument("--api_url", type=str, default="https://api.openai.com/v1/chat/completions", help="OpenAI API URL.")
+    parser.add_argument('--seed', default=42, type=int)
+    args = parser.parse_args()
+
+
+    question =args.question
+    
+    # Model ID and device setup
+    model_id = args.model_path
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    question = question.strip()
+    if question[-1] != '?':
+        question += '?'
+    curr_eos = [151645, 151643] # for Qwen2.5 series models
+
+    curr_search_template = '\n\n{output_text}<information>{search_results}</information>\n\n'
+
+    # Prepare the message
+    prompt = (
+        "根据要求，回答问题。\n"
+        "每次获得新信息后，你必须首先在 <think> 和 </think> 标签内进行推理。\n"
+        "推理完成后，如果你发现自己缺少某些知识，可以通过 <search> 【查询词】 </search> 调用搜索引擎，"
+        "系统将返回最相关的搜索结果，并置于 <information> 和 </information> 标签之间。\n"
+        "你可以根据需要进行多次搜索。\n"
+        "如果你认为无需进一步获取外部知识，即可直接在 <answer> 和 </answer> 标签内提供答案，无需详细说明。"
+        "例如：<answer> 北京 </answer>。\n"
+        f"问题：{question}\n"
+    )
+    # Initialize the tokenizer and model
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_id)
+    model = transformers.AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.bfloat16, device_map="auto")
+
+    #use tokenizer's eos and pad token
+    # eos_token_id=tokenizer.eos_token_id
+    # pad_token_id=tokenizer.pad_token_id
+    # curr_eos=[eos_token_id]
+    # print(f'[debug] eos_token_id={eos_token_id},pad_token_id={pad_token_id}')
+
+
+    # Initialize the stopping criteria
+    target_sequences = ["</search>", " </search>", "</search>\n", " </search>\n", "</search>\n\n", " </search>\n\n"]
+    stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(target_sequences, tokenizer)])
+
+    cnt = 0
+
+    if tokenizer.chat_template:
+        prompt = tokenizer.apply_chat_template([{"role": "user", "content": prompt}], add_generation_prompt=True, tokenize=False)
+
+    print('\n\n################# [Start Reasoning + Searching] ##################\n\n')
+    print(f'**[prompt]:{prompt}')
+    # Encode the chat-formatted prompt and move it to the correct device
+    while True:
+        input_ids = tokenizer.encode(prompt, return_tensors='pt').to(device)
+        attention_mask = torch.ones_like(input_ids)
+        
+        # Generate text with the stopping criteria
+        outputs = model.generate(
+            input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=1024,
+            stopping_criteria=stopping_criteria,
+            pad_token_id=tokenizer.eos_token_id,#for qwen2.5
+            # pad_token_id=pad_token_id,
+            do_sample=True,
+            temperature=0.3
+        )
+
+        if outputs[0][-1].item() in curr_eos:
+            generated_tokens = outputs[0][input_ids.shape[1]:]
+            output_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+            print(f'**after search time {cnt}')
+            print(f"**final result:\n{output_text}")
+            break
+
+        generated_tokens = outputs[0][input_ids.shape[1]:]
+        output_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+        # print(f'[debug] output "{output_text}"...')
+        tmp_query = get_query(tokenizer.decode(outputs[0], skip_special_tokens=True))
+        if tmp_query:
+            
+            print(f'**[debug]start searching\n "{tmp_query}"...')
+            search_results = search(tmp_query)
+            print(f'**[debug]searching result :\n"{search_results}"')
+        else:
+            search_results = ''
+
+        search_text = curr_search_template.format(output_text=output_text, search_results=search_results)
+        prompt += search_text
+        cnt += 1
+        # print(f'[search_text in NO.{cnt}]:{search_text}')

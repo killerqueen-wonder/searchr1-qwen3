@@ -1450,7 +1450,7 @@ class RayPPOTrainer:
                 config=OmegaConf.to_container(self.config, resolve=True),
             )
             self.global_steps = 0
-            # print('[debug in ray_trainer]: start fitting')
+
             # perform validation before training
             # currently, we only support validation using the reward_function.
             if self.val_reward_fn is not None and self.config.trainer.get('val_before_train', True):
@@ -1460,6 +1460,9 @@ class RayPPOTrainer:
                 if self.config.trainer.get('val_only', False):
                     return
 
+            # add tqdm
+            progress_bar = tqdm(total=self.total_training_steps, initial=self.global_steps, desc="Training Progress")
+            
             # we start from step 1
             self.global_steps += 1
 
@@ -1640,6 +1643,7 @@ class RayPPOTrainer:
                     # TODO: make a canonical logger that supports various backend
                     logger.log(data=metrics, step=self.global_steps)
 
+                    progress_bar.update(1)
                     self.global_steps += 1
 
                     if self.global_steps >= self.total_training_steps:
@@ -1649,6 +1653,7 @@ class RayPPOTrainer:
                             val_metrics = self._validate()
                             pprint(f'Final validation metrics: {val_metrics}')
                             logger.log(data=val_metrics, step=self.global_steps)
+                        progress_bar.close()
                         return
         
     def _create_loss_mask(self, batch, metrics):
