@@ -38,7 +38,7 @@ def get_query(text):
     else:
         return None
 
-def search(query: str):
+def search(query: str,retrieve_path: str):
     if not query or not query.strip():
         print("[WARNING] Empty query passed to search function.")
         return ""
@@ -50,7 +50,7 @@ def search(query: str):
         }
     # results = requests.post("http://127.0.0.1:8006/retrieve", json=payload).json()['result']
     try:
-        response = requests.post("http://127.0.0.1:8006/retrieve", 
+        response = requests.post(retrieve_path, 
                                 json=payload,
                                 proxies={"http": None, "https": None},  # 禁用所有代理 
                                 timeout=10)
@@ -89,16 +89,16 @@ if __name__ == '__main__':
     # Model Args
     parser.add_argument('--question', default="Mike Barnett negotiated many contracts including which player that went on to become general manager of CSKA Moscow of the Kontinental Hockey League?", type=str)
     parser.add_argument('--model_path', default="/caizhenyang/panghuaiwen/legal_LLM/RL_ckp/legal_exam-search-r1-ppo-qwen3-8b-em/global_step_100/actor", type=str)
-    parser.add_argument('--result_path', default='/mntcephfs/lab_data/ganruoli/UC_bench/experiment/legal/chatglm3-6b_legal.json', type=str)
-    parser.add_argument("--model_name", type=str, default="gpt-4o-2024-11-20", help="Name of the GPT model to use.")
-    parser.add_argument("--api_key", type=str, required=True, help="OpenAI API key.")
-    parser.add_argument("--api_url", type=str, default="https://api.openai.com/v1/chat/completions", help="OpenAI API URL.")
-    parser.add_argument('--seed', default=42, type=int)
+    parser.add_argument('--retrieve_path', default="http://127.0.0.1:8006/retrieve", type=str)
+    # parser.add_argument("--model_name", type=str, default="gpt-4o-2024-11-20", help="Name of the GPT model to use.")
+    # parser.add_argument("--api_key", type=str, required=True, help="OpenAI API key.")
+    # parser.add_argument("--api_url", type=str, default="https://api.openai.com/v1/chat/completions", help="OpenAI API URL.")
+    # parser.add_argument('--seed', default=42, type=int)
     args = parser.parse_args()
 
 
     question =args.question
-    
+    retrieve_path=args.retrieve_path
     # Model ID and device setup
     model_id = args.model_path
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -174,7 +174,7 @@ if __name__ == '__main__':
         if tmp_query:
             
             print(f'**[debug]start searching\n "{tmp_query}"...')
-            search_results = search(tmp_query)
+            search_results = search(tmp_query,retrieve_path)
             print(f'**[debug]searching result :\n"{search_results}"')
         else:
             search_results = ''
