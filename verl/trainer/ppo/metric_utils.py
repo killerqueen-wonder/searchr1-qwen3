@@ -220,6 +220,23 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> dict[str,
         metrics["tool_call_counts/min"] = tool_call_counts.min()
         metrics["tool_call_counts/max"] = tool_call_counts.max()
         metrics["tool_call_counts/mean"] = tool_call_counts.mean()
+    
+    # # 添加RAG检索统计
+    # if "valid_search_stats" in batch.non_tensor_batch:
+    #     search_stats = batch.non_tensor_batch["valid_search_stats"]
+    #     turns_stats = batch.non_tensor_batch.get("turns_stats", [1] * len(search_stats))
+        
+    #     total_searches = sum(search_stats)
+    #     total_turns = sum(turns_stats)
+    #     num_samples = len(search_stats)
+        
+    #     # 使用直接赋值方式，与其他metrics保持一致
+    #     metrics["rag/search_count_total"] = total_searches
+    #     metrics["rag/search_per_sample_mean"] = total_searches / num_samples if num_samples > 0 else 0
+    #     metrics["rag/search_per_turn_mean"] = total_searches / total_turns if total_turns > 0 else 0
+    #     metrics["rag/search_per_sample_max"] = max(search_stats) if search_stats else 0
+    #     metrics["rag/search_per_sample_min"] = min(search_stats) if search_stats else 0
+    #     metrics["rag/avg_searches_per_dialogue"] = total_searches / num_samples if num_samples > 0 else 0
 
     return metrics
 

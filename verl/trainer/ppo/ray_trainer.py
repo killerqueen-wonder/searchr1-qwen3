@@ -1524,6 +1524,24 @@ class RayPPOTrainer:
                                     gen_batch=gen_batch,
                                     initial_input_ids=first_input_ids,
                                 )
+                            
+                            # 计算RAG统计指标
+                            meta_info = final_gen_batch_output.meta_info
+                            if 'valid_search_stats' in meta_info and 'turns_stats' in meta_info:
+                                search_stats = meta_info['valid_search_stats']
+                                turns_stats = meta_info['turns_stats']
+                                
+                                total_searches = sum(search_stats)
+                                total_turns = sum(turns_stats)
+                                num_samples = len(search_stats)
+                                
+                                # 直接添加到metrics中
+                                metrics['rag/search_count_total'] = total_searches
+                                metrics['rag/search_per_sample_mean'] = total_searches / num_samples if num_samples > 0 else 0
+                                metrics['rag/search_per_turn_mean'] = total_searches / total_turns if total_turns > 0 else 0
+                                metrics['rag/search_per_sample_max'] = max(search_stats) if search_stats else 0
+                                metrics['rag/search_per_sample_min'] = min(search_stats) if search_stats else 0
+                                metrics['rag/avg_searches_per_dialogue'] = total_searches / num_samples if num_samples > 0 else 0
 
                             # final_gen_batch_output.batch.apply(lambda x: x.long(), inplace=True)
                             for key in final_gen_batch_output.batch.keys():
