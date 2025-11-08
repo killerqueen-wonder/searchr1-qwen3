@@ -108,7 +108,7 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
     do_print = random.randint(1, 64) == 1
 
     if do_print:
-        print("--------------------------------")
+        print("---------------start-----------------")
         print(f"Golden answers: {ground_truth['target']}")
         if answer is not None:
             print(f"Extracted answer is not None: {answer}")
