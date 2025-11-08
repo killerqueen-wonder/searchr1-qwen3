@@ -5,7 +5,7 @@ from datasets import load_dataset
 import requests
 import argparse
 import os
-from transformers.integrations import fsdp_utils
+# from transformers.integrations import fsdp_utils
 
 # Define the custom stopping criterion
 class StopOnSequence(transformers.StoppingCriteria):
