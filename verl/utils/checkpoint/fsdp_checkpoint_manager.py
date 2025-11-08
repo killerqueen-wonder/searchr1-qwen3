@@ -302,6 +302,7 @@ class FSDPCheckpointManager(BaseCheckpointManager):
 
         # wait for everyone to dump to local
         torch.distributed.barrier()
+        print(f'[debug]:self.should_save_hf_model={self.should_save_hf_model}')
 
         if self.should_save_hf_model:
             # Only rank 0 will save hf model and,

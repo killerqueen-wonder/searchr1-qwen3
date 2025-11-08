@@ -110,6 +110,9 @@ checkpoint:
   # Whether to save checkpoints asynchronously. Only effective for Megatron as of now.
   async_save: False
 
+  #save tensor or not
+  should_save_hf_model: False
+
 # optimizer configs
 optim:
 
