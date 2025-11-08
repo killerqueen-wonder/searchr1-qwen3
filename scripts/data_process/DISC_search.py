@@ -65,12 +65,19 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", required=True, help="Input JSONL path")
     parser.add_argument("--output_dir", default="./output", help="Directory to save parquet")
     parser.add_argument("--data_name", default="test")
-    parser.add_argument("--data_source", default="legal_exam")
+    parser.add_argument("--data_source", default="DISC")
+    parser.add_argument("--start", default=0,type=int)
+    parser.add_argument("--end", default=None,type=int)
+
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
 
     examples = load_jsonl(args.data_path)
+    assert args.start <= args.end
+    examples=examples[args.start:args.end]
+
+
     records = build_dataset(examples, split=args.data_name, data_source=args.data_source)
 
     # 确保Arrow推断的类型与原始一致

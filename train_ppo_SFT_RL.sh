@@ -71,6 +71,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     critic.optim.lr_warmup_steps_ratio=0.015 \
     critic.model.path=$BASE_MODEL \
     critic.model.enable_gradient_checkpointing=true \
+    critic.ppo_mini_batch_size=48 \
     critic.ppo_micro_batch_size_per_gpu=2 \
     critic.strategy=fsdp \
     critic.model.fsdp_config.param_offload=true \
