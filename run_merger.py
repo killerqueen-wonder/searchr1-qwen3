@@ -1,32 +1,13 @@
-# run_merger.py
-import sys
-import os
+import sys, os
 import argparse
-
-# 添加模型合并器路径到Python路径
 sys.path.append('/caizhenyang/panghuaiwen/legal_LLM/searchr1-qwen3')
 
+from verl.model_merger.base_model_merger import parse_args, generate_config_from_args
 from verl.model_merger.fsdp_model_merger import FSDPModelMerger
-from verl.model_merger.base_model_merger import ModelMergerConfig
 
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument('--local_dir', type=str)
-parser.add_argument('--target_dir',type=str)
-parser.add_argument('--target_dir',type=str)
-args = parser.parse_args()
-
-hf_model_config_path=os.path.join(args.local_dir, "huggingface")
-# 定义配置
-config = ModelMergerConfig(
-    operation= "merge",
-    backend= "fsdp", 
-    local_dir= args.local_dir,
-    target_dir= args.target_dir,
-    hf_model_config_path=hf_model_config_path
-    )
-
-# 创建合并器并运行
-merger = FSDPModelMerger(config)
-merger.merge_and_save()
+if __name__ == "__main__":
+    # 模拟命令: python run_merger.py merge --backend fsdp --local_dir ... --target_dir ...
+    args = parse_args()
+    config = generate_config_from_args(args)
+    merger = FSDPModelMerger(config)
+    merger.merge_and_save()
