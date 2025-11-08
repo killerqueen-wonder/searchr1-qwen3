@@ -17,7 +17,7 @@ def load_jsonl(path):
 
 def make_prefix(dp):
     """Chinese prompt模板"""
-    q = dp["question"].strip()
+    q = dp["input"].strip()
     template = (
         "根据要求，回答问题。\n"
         "每次获得新信息后，你必须首先在 <think> 和 </think> 标签内进行推理。\n"
@@ -31,8 +31,8 @@ def make_prefix(dp):
     return template
 
 def normalize_answer_field(ex):
-    """确保 golden_answers 为 list[str]"""
-    ans = ex.get("golden_answers", [])
+    """确保 output 为 list[str]"""
+    ans = ex.get("output", [])
     if isinstance(ans, str):
         return [ans]
     if isinstance(ans, (list, tuple)):
@@ -44,7 +44,7 @@ def build_dataset(examples, split, data_source):
     for idx, ex in enumerate(examples):
         record = {
             "id": str(ex.get("id", f"{split}_{idx}")),
-            "question": str(ex["question"]),
+            "question": str(ex["input"]),
             "golden_answers": normalize_answer_field(ex),
             "data_source": data_source,
             "prompt": [
