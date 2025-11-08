@@ -14,13 +14,17 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument('--local_dir', type=str)
 parser.add_argument('--target_dir',type=str)
+parser.add_argument('--target_dir',type=str)
 args = parser.parse_args()
+
+hf_model_config_path=os.path.join(args.local_dir, "huggingface")
 # 定义配置
 config = ModelMergerConfig(
     operation= "merge",
     backend= "fsdp", 
     local_dir= args.local_dir,
-    target_dir= args.target_dir
+    target_dir= args.target_dir,
+    hf_model_config_path=hf_model_config_path
     )
 
 # 创建合并器并运行
