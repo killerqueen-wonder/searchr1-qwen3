@@ -50,7 +50,6 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path=/F00120250029/panghuaiwen/legal_LLM/RL_ckp/legal_exam-search-r1-ppo-qwen3-8b-SFT_10k_DISC_10k_crime_em/global_step_100/actor \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.actor.strategy=fsdp \
-    actor_rollout_ref.actor.checkpoint.should_save_hf_model=true \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.model.use_remove_padding=true \
     actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.285 \
