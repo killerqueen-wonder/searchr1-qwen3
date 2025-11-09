@@ -6,6 +6,13 @@ import threading
 from retrying import retry
 import re
 from openai import OpenAI
+import os
+
+api_key = os.getenv("OPENAI_API_KEY")
+gpt_url = os.getenv("OPENAI_BASE_URL")
+
+if not api_key or not gpt_url:
+    raise EnvironmentError("未设置 OPENAI_API_KEY 或 OPENAI_BASE_URL 系统变量。")
 
 
 
@@ -95,7 +102,7 @@ def judge_score(evaluation_result):
         except Exception as e:
             print(e)
             print('error', review)
-            return [-1, -1]
+            return [-1,-1]
         
 def compute_score(solution_str, ground_truth,extra_info, format_score=0.0, score=1.0):
     """The scoring function for LLM judgement.
@@ -110,8 +117,16 @@ def compute_score(solution_str, ground_truth,extra_info, format_score=0.0, score
     """
     needs=extra_info['question']
     _,_,compare_score=call_evaluate(ground_truth,solution_str,needs,evaluation_prompt,api_key,gpt_url)
-    if compare_score[0] <= compare_score[1]:#模型优于ground truth
-        return score
-    else:
-        return format_score
+    
+    if compare_score:
+        if compare_score == [10,0] :#ground truth is better
+            return format_score
+        elif compare_score == [0,10] :#model is better
+            return score
+        elif compare_score == [5,5] :#tie
+            return score
+        elif compare_score == [-1,-1] :#bad case
+            return 0
+        
+    return 0
     

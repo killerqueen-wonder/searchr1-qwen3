@@ -55,7 +55,7 @@ def build_dataset(examples, split, data_source):
                 "ground_truth": {"target": normalize_answer_field(ex)},
                 "style": "rule"
             },
-            "extra_info": {"index": idx, "split": split},
+            "extra_info": {"question":str(ex["input"]),"index": idx, "split": split},
         }
         data.append(record)
     return data
