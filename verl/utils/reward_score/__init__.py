@@ -108,7 +108,7 @@ def default_compute_score(
     ]:
         from . import LLM_judgement
 
-        res = LLM_judgement.compute_score(solution_str, ground_truth)
+        res = LLM_judgement.compute_score(solution_str, ground_truth,extra_info)
 
     else:
         raise NotImplementedError(f"Reward function is not implemented for {data_source=}")

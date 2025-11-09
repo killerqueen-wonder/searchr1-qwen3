@@ -60,32 +60,58 @@ def response(message,api_key,gpt_url):
     return response_text
 
 ## score 中 ，第一个分数是 ground_truth ， 第二个分数是 model 
-def call_evaluate(ground_truth,model_dialogue,evaluation_prompt,api_key,gpt_url):
+def call_evaluate(ground_truth,model_dialogue,needs,evaluation_prompt,api_key,gpt_url):
 
     if random.random() < 0.5:
-        input = evaluation_prompt.format(dialogue1=ground_truth,dialogue2=model_dialogue)
+        input = evaluation_prompt.format(dialogue1=ground_truth,dialogue2=model_dialogue,needs=needs)
         input = input.strip()
         evaluation_result = response(input,api_key,gpt_url)
         score = judge_score(evaluation_result)
     else:
-        input = evaluation_prompt.format(dialogue1=model_dialogue,dialogue2=ground_truth)
+        input = evaluation_prompt.format(dialogue1=model_dialogue,dialogue2=ground_truth,needs=needs)
         input = input.strip()
         evaluation_result = response(input,api_key,gpt_url)
         score = judge_score(evaluation_result)
         score[0],score[1] = score[1] , score[0]
     return input , evaluation_result ,  score
 
-def compute_score(solution_str, ground_truth, method="strict", format_score=0.0, score=1.0):
+def judge_score(evaluation_result):
+        review = evaluation_result
+        try:
+            label_content = review.strip()
+            label = re.findall(r"\[\[(\d)\]\]", label_content)
+            if label:
+                label = label[-1]
+                if label == "1" :
+                    return [10,0]
+                elif label == "2" :
+                    return [0,10]
+                elif label == "3" :
+                    return [5,5]
+                else:
+                    return [-1,-1]
+            else:
+                return [-1,-1]
+        except Exception as e:
+            print(e)
+            print('error', review)
+            return [-1, -1]
+        
+def compute_score(solution_str, ground_truth,extra_info, format_score=0.0, score=1.0):
     """The scoring function for LLM judgement.
 
     Args:
         solution_str: the solution text
         ground_truth: the ground truth
-        method: the method to extract the solution, choices are 'strict' and 'flexible'
+        
         format_score: the score for the format
         score: the score for the correct answer
 
     """
-    call_evaluate(ground_truth,solution_str)
-
-    return score
+    needs=extra_info['question']
+    _,_,compare_score=call_evaluate(ground_truth,solution_str,needs,evaluation_prompt,api_key,gpt_url)
+    if compare_score[0] <= compare_score[1]:#模型优于ground truth
+        return score
+    else:
+        return format_score
+    
