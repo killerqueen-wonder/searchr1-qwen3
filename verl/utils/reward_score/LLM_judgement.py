@@ -116,6 +116,8 @@ def compute_score(solution_str, ground_truth,extra_info, format_score=0.0, score
 
     """
     needs=extra_info['question']
+    if len(needs) ==0:
+        print('[debug] cant read questions' )
     _,_,compare_score=call_evaluate(ground_truth,solution_str,needs,evaluation_prompt,api_key,gpt_url)
     
     if compare_score:
