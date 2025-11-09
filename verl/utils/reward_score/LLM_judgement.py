@@ -12,7 +12,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 gpt_url = os.getenv("OPENAI_BASE_URL")
 
 if not api_key or not gpt_url:
-    raise EnvironmentError("未设置 OPENAI_API_KEY 或 OPENAI_BASE_URL 系统变量。")
+    raise EnvironmentError("please set OPENAI_API_KEY or OPENAI_BASE_URL .")
 
 
 
