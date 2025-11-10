@@ -164,7 +164,7 @@ if __name__ == '__main__':
         outputs = model.generate(
             input_ids,
             attention_mask=attention_mask,
-            max_new_tokens=1024,
+            max_new_tokens=2500,
             stopping_criteria=stopping_criteria,
             pad_token_id=tokenizer.eos_token_id,#for qwen2.5
             # pad_token_id=pad_token_id,
@@ -181,7 +181,7 @@ if __name__ == '__main__':
 
         generated_tokens = outputs[0][input_ids.shape[1]:]
         output_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-        print(f'[debug] output "{output_text}"...')
+        print(f'[debug] **output "{output_text}"...')
         tmp_query = get_query(tokenizer.decode(outputs[0], skip_special_tokens=True))
         if tmp_query:
             
