@@ -171,7 +171,7 @@ if __name__ == '__main__':
             temperature=0.3
         )
 
-        if outputs[0][-1].item() in curr_eos:
+        if outputs[0][-1].item() in curr_eos or cnt > 5:
             generated_tokens = outputs[0][input_ids.shape[1]:]
             output_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
             print(f'**after search time {cnt}')

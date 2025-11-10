@@ -395,9 +395,12 @@ class LLMGenerationManager:
                     valid_action.append(1)
                     is_search.append(1)
                 else:
-                    next_obs.append(f'\nMy previous action is invalid. \
-If I want to search, I should put the query between <search> and </search>. \
-If I want to give the final answer, I should put the answer between <answer> and </answer>. Let me try again.\n')
+                    next_obs.append(f'\n我先前的操作有问题。 \
+如果我想搜索，应该把关键词放在<search> 和 </search>之间。 \
+如果我想给出最终回答，应该把答案放在 <answer> 和 </answer>之间。让我重新思考。\n')
+#                     next_obs.append(f'\nMy previous action is invalid. \
+# If I want to search, I should put the query between <search> and </search>. \
+# If I want to give the final answer, I should put the answer between <answer> and </answer>. Let me try again.\n')
                     dones.append(0)
                     valid_action.append(0)
                     is_search.append(0)
