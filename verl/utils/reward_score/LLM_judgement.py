@@ -119,8 +119,8 @@ def compute_score(solution_str, ground_truth,extra_info, format_score=0.0, score
     if len(needs) ==0:
         print('[debug] cant read questions' )
     input,evaluation_result,compare_score=call_evaluate(ground_truth,solution_str,needs,evaluation_prompt,api_key,gpt_url)
-    # print(f'[debug]input:{input}')
-    # print(f'[debug]evaluation_result:{evaluation_result}')
+    print(f'[debug]input:{input}')
+    print(f'[debug]evaluation_result:{evaluation_result}')
     if compare_score:
         if compare_score == [10,0] :#ground truth is better
             return format_score
