@@ -199,7 +199,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel
 import re
 import requests
 
-from utils.user_simulator import GPTPerson
 
 
 #从本地模型输出各评测集的回答，支持retriever
