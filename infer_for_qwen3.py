@@ -413,7 +413,7 @@ class LLM_retriever:
             "检索：请把需要检索的关键词放在 <search> 和 </search> 标签之间，调用搜索引擎。例如：<search> 民法典 盗窃罪 </search>。\n"
             "系统将返回最相关的搜索结果，并置于 <information> 和 </information> 标签之间。根据返回的结果，继续下一步思考。\n"
             "再次思考：基于检索结果，继续对问题进行推理。如果没有帮助，则修改关键词重新检索；如果有把握得到最终答案，则进入回答。\n"
-            "回答：在 <answer> 和 </answer> 标签内提供最终答案。\n"
+            "回答：在 <answer> 和 </answer> 标签内提供最终答案。例如：<answer> 北京 </answer>\n"
             f"以下是需要回答的问题：{question}\n"
         )
 
@@ -475,7 +475,7 @@ class LLM_retriever:
                 search_results = self._search(tmp_query)
             
             elif cnt==self.max_turn:
-                search_results = "检索阶段结束。接下来必须总结思考，并给出最终回答。"
+                search_results = "检索阶段结束。接下来必须给出最终回答。"
 
             else:
                 search_results = "检索失败。重新检索或直接回答。"
