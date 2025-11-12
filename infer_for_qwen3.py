@@ -475,7 +475,7 @@ class LLM_retriever:
                 search_results = self._search(tmp_query)
             
             elif cnt==self.max_turn:
-                search_results = "到达检索次数限制，接下来直接输出回答。"
+                search_results = "检索阶段结束。接下来总结思考，并给出最终回答。"
 
             else:
                 search_results = "检索失败。重新检索或直接回答。"
