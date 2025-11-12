@@ -508,11 +508,11 @@ if __name__ == '__main__':
     model_path=args.model_path
 
     if args.retriever:
-        llm=LLM_retriever(model_path)
+        llm=LLM_retriever(model_path,retrieve_path=args.retrieve_path)
     else:
         llm= LLM(model_path)
     
 
-    res,history = llm.gen(args.question,retrieve_path=args.retrieve_path)
+    res,history = llm.gen(args.question)
     
 
