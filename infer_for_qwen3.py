@@ -464,7 +464,7 @@ class LLM_retriever:
             if outputs[0][-1].item() in self.curr_eos or cnt > self.max_turn:
                 response = output_text
                 print(f'[debug]search turn:{cnt}')
-                print(f'[debug]final answer:{res}')
+                print(f'[debug]final answer:{response}')
                 break
 
             tmp_query = self._extract_query(output_text)
