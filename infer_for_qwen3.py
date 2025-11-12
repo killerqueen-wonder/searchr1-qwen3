@@ -500,6 +500,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', default="/caizhenyang/panghuaiwen/legal_LLM/RL_ckp/legal_exam-search-r1-ppo-qwen3-8b-em/global_step_100/actor", type=str)
     parser.add_argument('--retrieve_path', default="http://127.0.0.1:8006/retrieve", type=str)
     parser.add_argument('--retriever', default=False, type=bool)
+    parser.add_argument('--seed', default=42, type=int)
     
     args = parser.parse_args()
 
