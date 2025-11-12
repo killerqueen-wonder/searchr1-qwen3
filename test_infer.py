@@ -186,7 +186,8 @@ class LLM_retriever:
 
 if __name__ == "__main__":
     llm = LLM_retriever(
-        model_path="/F00120250029/panghuaiwen/legal_LLM/model/Qwen/Qwen3-8B",
+        model_path="/F00120250029/panghuaiwen/legal_LLM/SFT_ckp/qwen3_SFT_10k_DISC_10k_crime/checkpoint-2-3522/tfmr"
+,
         retrieve_path="http://127.0.0.1:8006/retrieve"
     )
     question='甲（民营企业销售经理）因合同诈骗罪被捕。在侦查期间，甲主动供述曾向国家工作人员乙行贿9万元，司法机关遂对乙进行追诉。后查明，甲的行为属于单位行贿，行贿数额尚未达到单位行贿罪的定罪标准。甲的主动供述构成下列哪一量刑情节？A.坦白B.立功C.自首D.准自首'
