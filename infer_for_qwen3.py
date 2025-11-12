@@ -501,6 +501,7 @@ if __name__ == '__main__':
     parser.add_argument('--retrieve_path', default="http://127.0.0.1:8006/retrieve", type=str)
     parser.add_argument('--retriever', default=False, type=bool)
     parser.add_argument('--seed', default=42, type=int)
+    parser.add_argument('--max_turn', default=5, type=int)
     
     args = parser.parse_args()
 
@@ -508,7 +509,7 @@ if __name__ == '__main__':
     model_path=args.model_path
 
     if args.retriever:
-        llm=LLM_retriever(model_path,retrieve_path=args.retrieve_path)
+        llm=LLM_retriever(model_path,retrieve_path=args.retrieve_path,max_turn=args.max_turn)
     else:
         llm= LLM(model_path)
     
