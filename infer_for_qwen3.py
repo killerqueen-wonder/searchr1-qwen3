@@ -450,11 +450,12 @@ class LLM_retriever:
             
             outputs = self.model.generate(
                 input_ids,
-                max_new_tokens=2500,
+                max_new_tokens=1500,
                 stopping_criteria=self.stopping_criteria,
                 pad_token_id=self.tokenizer.eos_token_id,
                 do_sample=True,
-                temperature=0.3
+                temperature=0.3,
+                repetition_penalty	=1.1
             )
 
             generated_tokens = outputs[0][input_ids.shape[1]:]
