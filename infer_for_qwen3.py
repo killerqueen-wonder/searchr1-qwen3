@@ -120,20 +120,9 @@ if __name__ == '__main__':
         f"以下是需要回答的问题：{question}\n"
     )
     # Initialize the tokenizer and model
-    if args.ckp_type=='FSDP':
-        tokenizer_path= os.path.join(model_id, "huggingface")
-
-        tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_path)
-        model = transformers.AutoModelForCausalLM.from_pretrained(model_id, 
-                                                                torch_dtype=torch.bfloat16, 
-                                                                device_map="auto",
-                                                                fsdp=True,  # 启用FSDP支持
-                                                                fsdp_config={"use_orig_params": True})
-
-
-    else:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(model_id)
-        model = transformers.AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.bfloat16, device_map="auto")
+    
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_id)
+    model = transformers.AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.bfloat16, device_map="auto")
 
     #use tokenizer's eos and pad token
     # eos_token_id=tokenizer.eos_token_id

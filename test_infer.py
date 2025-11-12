@@ -6,20 +6,26 @@ import transformers
 from transformers.generation.utils import GenerationConfig
 
 
+# Define the custom stopping criterion
 class StopOnSequence(transformers.StoppingCriteria):
-    """用于检测指定token序列（如 </search> ）的生成停止条件"""
     def __init__(self, target_sequences, tokenizer):
-        self.target_ids = [tokenizer.encode(seq, add_special_tokens=False) for seq in target_sequences]
-        self.target_lengths = [len(t) for t in self.target_ids]
+        # Encode the string so we have the exact token-IDs pattern
+        self.target_ids = [tokenizer.encode(target_sequence, add_special_tokens=False) for target_sequence in target_sequences]
+        self.target_lengths = [len(target_id) for target_id in self.target_ids]
         self._tokenizer = tokenizer
 
     def __call__(self, input_ids, scores, **kwargs):
+        # Make sure the target IDs are on the same device
+        targets = [torch.as_tensor(target_id, device=input_ids.device) for target_id in self.target_ids]
+
         if input_ids.shape[1] < min(self.target_lengths):
             return False
-        for t, l in zip(self.target_ids, self.target_lengths):
-            target = torch.as_tensor(t, device=input_ids.device)
-            if torch.equal(input_ids[0, -l:], target):
+
+        # Compare the tail of input_ids with our target_ids
+        for i, target in enumerate(targets):
+            if torch.equal(input_ids[0, -self.target_lengths[i]:], target):
                 return True
+
         return False
 
 
@@ -36,13 +42,12 @@ class LLM_retriever:
 
         print("--------------加载模型路径为：---------------\n", model_path)
 
-        # 初始化模型与tokenizer
+        
+        # Initialize the tokenizer and model
+    
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(model_path)
-        self.model = transformers.AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=torch.bfloat16,
-            device_map="auto"
-        )
+        self.model = transformers.AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.bfloat16, device_map="auto")
+
 
         # 特殊token设置
         if 'Qwen' in model_path:
@@ -95,16 +100,17 @@ class LLM_retriever:
             print("[INFO] No results returned from search.")
             return ""
 
-        def _format_results(retrieval_result):
-            text = ''
-            for idx, doc in enumerate(retrieval_result):
-                content = doc['document']['contents']
+        def _passages2string(retrieval_result):
+            format_reference = ''
+            for idx, doc_item in enumerate(retrieval_result):
+                            
+                content = doc_item['document']['contents']
                 title = content.split("\n")[0]
-                body = "\n".join(content.split("\n")[1:])
-                text += f"Doc {idx+1}(Title: {title}) {body}\n"
-            return text
+                text = "\n".join(content.split("\n")[1:])
+                format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+            return format_reference
 
-        return _format_results(results[0])
+        return _passages2string(results[0])
 
     def gen(self, question, history=None):
         """执行完整的思考-检索-再思考-回答流程"""
