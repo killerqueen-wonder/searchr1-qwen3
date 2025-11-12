@@ -143,6 +143,7 @@ class LLM_retriever:
 
         cnt = 0
         print('\n\n################# [Start Reasoning + Searching] ##################\n\n')
+        print(f'**[prompt]:{prompt}')
 
         while True:
             input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to(self.device)
@@ -167,6 +168,8 @@ class LLM_retriever:
             if tmp_query:
                 print(f'[debug] search query="{tmp_query}"')
                 search_results = self._search(tmp_query)
+                print(f'**[debug]searching result :\n"{search_results}"')
+
             else:
                 search_results = ""
 
