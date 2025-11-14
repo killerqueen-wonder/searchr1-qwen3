@@ -133,14 +133,53 @@ class LLM:
 
 import torch.nn.functional as F
 
+class StreamStopper:
+    """
+    流式生成检测 </search> 或 </answer>，停止生成。
+    """
+    def __init__(self, tokenizer):
+        self.tokenizer = tokenizer
+        self.buffer = ""  # 累积本次生成的新文本
+        self.done = False
+        self.action = None  # "search" 或 "answer"
+        self.output_text = ""
+
+    def process_token(self, token_id):
+        """
+        接收新生成的 token_id，decode 并追加到 buffer
+        """
+        text = self.tokenizer.decode(token_id.unsqueeze(0), skip_special_tokens=False)
+        self.buffer += text
+
+        # 检测 </search> 或 </answer>
+        if "</search>" in self.buffer:
+            self.done = True
+            self.action = "search"
+            # 输出从生成开始到 </search> 的内容
+            self.output_text = self.buffer.split("</search>")[0] + "</search>"
+        elif "</answer>" in self.buffer:
+            self.done = True
+            self.action = "answer"
+            self.output_text = self.buffer.split("</answer>")[0] + "</answer>"
+
+        return text
+
+
 @torch.no_grad()
-def stream_until_search(model, tokenizer, input_ids, max_new_tokens=512):
-    streamer = SearchStopStreamer(tokenizer)
-    
+def stream_until_search(model, tokenizer, input_ids, max_new_tokens=1500, temperature=0.3):
+    """
+    流式生成，检测 </search> 和 </answer>。
+    返回:
+        action: "search" 或 "answer"
+        output_text: 本轮生成内容，decode为文本
+    """
+    stopper = StreamStopper(tokenizer)
+
     generated = input_ids
     past_key_values = None
 
     for _ in range(max_new_tokens):
+        # 模型前向
         outputs = model(
             generated if past_key_values is None else generated[:, -1:],
             use_cache=True,
@@ -149,75 +188,21 @@ def stream_until_search(model, tokenizer, input_ids, max_new_tokens=512):
         logits = outputs.logits[:, -1, :]
         past_key_values = outputs.past_key_values
 
-        # sampling
-        probs = F.softmax(logits / 0.3, dim=-1)
+        # 采样下一个 token
+        probs = F.softmax(logits / temperature, dim=-1)
         next_token = torch.multinomial(probs, num_samples=1)
 
-        # decode **only this token** and send to streamer
-        text = tokenizer.decode(next_token[0])
-        streamer.on_finalized_text(text)
+        # 处理 token
+        stopper.process_token(next_token[0])
 
-        # append token
+        # 追加 token
         generated = torch.cat((generated, next_token), dim=1)
 
-        # 检查是否应该停止
-        if streamer.done:
+        # 检查是否停止
+        if stopper.done:
             break
 
-    return streamer.search_content, generated
-
-
-# class SearchStopStreamer(TextStreamer):
-#     def __init__(self, tokenizer, stop_sequences):
-#         super().__init__(tokenizer)
-#         self.stop_sequences = stop_sequences
-#         self.buffer = ""
-
-#     def put(self, value):
-#         # decode newly generated ids
-#         text = self.tokenizer.decode(value, skip_special_tokens=False)
-#         self.buffer += text
-
-#         # detect any target sequence in the buffer (NOT only at the end!)
-#         for seq in self.stop_sequences:
-#             if seq in self.buffer:
-#                 raise GenerationStop
-
-#         # normal streaming behavior (optional)
-#         return super().put(value)
-
-
-
-class SearchStopStreamer(TextStreamer):
-    """
-    流式监控模型输出。如果检测到 </search> 则触发提前停止。
-    """
-    def __init__(self, tokenizer):
-        super().__init__(tokenizer)
-        self.buffer = ""          # 累积的全部流式文本
-        self.done = False         # 控制 generate 终止
-        self.search_content = ""  # 保存 <search> ... </search> 内容
-    
-    def on_finalized_text(self, text: str, stream_end: bool = False):
-        """
-        每次模型输出新文本时，都会回调这里。
-        """
-        if self.done:
-            return
-
-        self.buffer += text
-
-        # 检查是否出现完整的 </search>
-        if "</search>" in self.buffer:
-            # 从 buffer 中提取 <search>...</search>
-            m = re.search(r"<search>(.*?)</search>", self.buffer, flags=re.DOTALL)
-            if m:
-                self.search_content = m.group(1).strip()
-
-            self.done = True  # 通知外部应该停止 generate
-            
-        # 打印到屏幕仅为调试，可保留可删除
-        print(text, end="", flush=True)
+    return stopper.action, stopper.output_text
 
 
 
@@ -252,7 +237,7 @@ class LLM_retriever:
         # 停止条件定义
         self.target_sequences = ["</search>", " </search>", "</search>\n", " </search>\n", "</search>\n\n", " </search>\n\n"]
         # self.stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(self.target_sequences, self.tokenizer)])
-        self.streamer = SearchStopStreamer(self.tokenizer)
+        
 
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -314,8 +299,6 @@ class LLM_retriever:
         
 
         question = query.strip()
-        # if question[-1] != '?':
-        #     question += '?'
 
         system_prompt = (
             "根据要求，回答问题。你必须遵守思考-检索-思考-回答的推理模式。\n"
@@ -328,19 +311,6 @@ class LLM_retriever:
         )
 
         
-        # if history == [] :
-        #     history.append({"role":"system","content":model_prompt})
-        # history.append({"role": "user", "content": system_prompt})
-
-        # if self.tokenizer.chat_template:
-        #     prompt = self.tokenizer.apply_chat_template(
-        #         history,
-        #         tokenize=False,
-        #         add_generation_prompt=True
-        #             )
-            
-        # else:
-            # prompt = system_prompt
         
         prompt = system_prompt
         cnt = 0
@@ -366,43 +336,54 @@ class LLM_retriever:
                                             self.tokenizer,
                                             input_ids,
                                             max_new_tokens=1500,
-                                            # temperature=0.3,
+                                            temperature=0.3,
                                             # repetition_penalty	=1.1,
                                             # pad_token_id=self.tokenizer.eos_token_id,
                                             )
 
-            
+            action, output_text = stream_until_search(
+                                                    self.model,
+                                                    self.tokenizer,
+                                                    input_ids,
+                                                    max_new_tokens=1500,
+                                                    temperature=0.3
+                                                    )
 
             instruct=''
+            search_results=''
             # generated_tokens = outputs[0][input_ids.shape[1]:]
             # output_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
-            output_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+            # output_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
             print(f'[debug] output_text="{output_text}"')
 
-            if generated_ids[0][-1].item() in self.curr_eos or cnt > self.max_turn:
+            if action=="answer" or cnt > self.max_turn:
             # if outputs[0][-1].item() in self.curr_eos or cnt > self.max_turn:
                 response = output_text
                 print(f'[debug]search turn:{cnt}')
                 print(f'[debug]final answer:{response}')
                 break
 
-            tmp_query = self._extract_query(output_text)
-            print(f'[debug] search query="{tmp_query}"')
-            if tmp_query and( cnt < self.max_turn):
+            elif action=="search":
+                tmp_query = self._extract_query(output_text)
+                print(f'[debug] search query="{tmp_query}"')
+                if tmp_query and( cnt < self.max_turn):
+                    
+                    search_results = self._search(tmp_query)
                 
-                search_results = self._search(tmp_query)
-            
-            elif cnt==self.max_turn:
-                search_results=''
-                instruct = "跳过检索阶段。注意：接下来必须给出最终回答！"
+                elif cnt==self.max_turn:
+                    instruct = "跳过检索阶段。注意：接下来必须给出最终回答！"
+
+                else:
+                    instruct="检索失败。重新检索或直接回答。"
 
             else:
-                search_results = ""
-                instruct="检索失败。重新检索或直接回答。"
+                instruct="\n我先前的操作有问题。 \
+如果我想搜索，应该把关键词放在<search> 和 </search>之间。 \
+如果我想给出最终回答，应该把答案放在 <answer> 和 </answer>之间。让我重新思考。\n"
 
-            
-            print(f'**[debug]searching result :\n"{search_results}"')
-            if instruct:
+            if len(search_results):
+                print(f'**[debug]searching result :\n"{search_results}"')
+            if len(instruct):
                 print(f'**[debug]instruct :"{instruct}"')
 
             search_text = self.search_template.format(output_text=output_text, search_results=search_results)
