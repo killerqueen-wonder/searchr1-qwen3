@@ -273,7 +273,7 @@ class LLM_retriever:
                 temperature=0.3,
                 repetition_penalty	=1.1
             )
-
+            instruct=''
             generated_tokens = outputs[0][input_ids.shape[1]:]
             output_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
             print(f'[debug] output_text="{output_text}"')
@@ -291,15 +291,22 @@ class LLM_retriever:
                 search_results = self._search(tmp_query)
             
             elif cnt==self.max_turn:
-                search_results = "检索阶段结束。接下来必须给出最终回答！"
+                search_results=''
+                instruct = "跳过检索阶段。注意：接下来必须给出最终回答！"
 
             else:
-                search_results = "检索失败。重新检索或直接回答。"
+                search_results = ""
+                instruct="检索失败。重新检索或直接回答。"
 
+            
             print(f'**[debug]searching result :\n"{search_results}"')
+            if instruct:
+                print(f'**[debug]instruct :"{instruct}"')
 
             search_text = self.search_template.format(output_text=output_text, search_results=search_results)
             prompt += search_text
+            prompt += instruct
+
             cnt += 1
 
         # 更新历史记录
