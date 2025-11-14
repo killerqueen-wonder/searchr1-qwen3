@@ -338,7 +338,7 @@ class LLM_retriever:
                                                     self.tokenizer,
                                                     input_ids,
                                                     max_new_tokens=1500,
-                                                    temperature=0.1
+                                                    temperature=0.4
                                                     )
 
             instruct=''
