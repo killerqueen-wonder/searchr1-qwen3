@@ -331,15 +331,15 @@ class LLM_retriever:
             #     temperature=0.3,
             #     repetition_penalty	=1.1
             # )
-            search_content, generated_ids = stream_until_search(
-                                            self.model, 
-                                            self.tokenizer,
-                                            input_ids,
-                                            max_new_tokens=1500,
-                                            temperature=0.3,
-                                            # repetition_penalty	=1.1,
-                                            # pad_token_id=self.tokenizer.eos_token_id,
-                                            )
+            # search_content, generated_ids = stream_until_search(
+            #                                 self.model, 
+            #                                 self.tokenizer,
+            #                                 input_ids,
+            #                                 max_new_tokens=1500,
+            #                                 temperature=0.3,
+            #                                 # repetition_penalty	=1.1,
+            #                                 # pad_token_id=self.tokenizer.eos_token_id,
+            #                                 )
 
             action, output_text = stream_until_search(
                                                     self.model,
