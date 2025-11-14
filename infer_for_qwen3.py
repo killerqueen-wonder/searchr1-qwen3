@@ -366,9 +366,9 @@ class LLM_retriever:
                                             self.tokenizer,
                                             input_ids,
                                             max_new_tokens=1500,
-                                            temperature=0.3,
-                                            repetition_penalty	=1.1,
-                                            pad_token_id=self.tokenizer.eos_token_id,
+                                            # temperature=0.3,
+                                            # repetition_penalty	=1.1,
+                                            # pad_token_id=self.tokenizer.eos_token_id,
                                             )
 
             
