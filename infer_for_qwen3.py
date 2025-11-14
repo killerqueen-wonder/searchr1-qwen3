@@ -14,7 +14,7 @@ import json
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel 
 import re
 import requests
-from transformers import TextStreamer, StopGeneration
+from transformers import TextStreamer
 import torch
 
 
@@ -110,47 +110,115 @@ class LLM:
 
 
 # Define the custom stopping criterion
-class StopOnSequence(transformers.StoppingCriteria):
-    def __init__(self, target_sequences, tokenizer):
-        # Encode the string so we have the exact token-IDs pattern
-        self.target_ids = [tokenizer.encode(target_sequence, add_special_tokens=False) for target_sequence in target_sequences]
-        self.target_lengths = [len(target_id) for target_id in self.target_ids]
-        self._tokenizer = tokenizer
+# class StopOnSequence(transformers.StoppingCriteria):
+#     def __init__(self, target_sequences, tokenizer):
+#         # Encode the string so we have the exact token-IDs pattern
+#         self.target_ids = [tokenizer.encode(target_sequence, add_special_tokens=False) for target_sequence in target_sequences]
+#         self.target_lengths = [len(target_id) for target_id in self.target_ids]
+#         self._tokenizer = tokenizer
 
-    def __call__(self, input_ids, scores, **kwargs):
-        # Make sure the target IDs are on the same device
-        targets = [torch.as_tensor(target_id, device=input_ids.device) for target_id in self.target_ids]
+#     def __call__(self, input_ids, scores, **kwargs):
+#         # Make sure the target IDs are on the same device
+#         targets = [torch.as_tensor(target_id, device=input_ids.device) for target_id in self.target_ids]
 
-        if input_ids.shape[1] < min(self.target_lengths):
-            return False
+#         if input_ids.shape[1] < min(self.target_lengths):
+#             return False
 
-        # Compare the tail of input_ids with our target_ids
-        for i, target in enumerate(targets):
-            if torch.equal(input_ids[0, -self.target_lengths[i]:], target):
-                return True
+#         # Compare the tail of input_ids with our target_ids
+#         for i, target in enumerate(targets):
+#             if torch.equal(input_ids[0, -self.target_lengths[i]:], target):
+#                 return True
 
-        return False
+#         return False
+
+import torch.nn.functional as F
+
+@torch.no_grad()
+def stream_until_search(model, tokenizer, input_ids, max_new_tokens=512):
+    streamer = SearchStopStreamer(tokenizer)
+    
+    generated = input_ids
+    past_key_values = None
+
+    for _ in range(max_new_tokens):
+        outputs = model(
+            generated if past_key_values is None else generated[:, -1:],
+            use_cache=True,
+            past_key_values=past_key_values
+        )
+        logits = outputs.logits[:, -1, :]
+        past_key_values = outputs.past_key_values
+
+        # sampling
+        probs = F.softmax(logits / 0.3, dim=-1)
+        next_token = torch.multinomial(probs, num_samples=1)
+
+        # decode **only this token** and send to streamer
+        text = tokenizer.decode(next_token[0])
+        streamer.on_finalized_text(text)
+
+        # append token
+        generated = torch.cat((generated, next_token), dim=1)
+
+        # 检查是否应该停止
+        if streamer.done:
+            break
+
+    return streamer.search_content, generated
+
+
+# class SearchStopStreamer(TextStreamer):
+#     def __init__(self, tokenizer, stop_sequences):
+#         super().__init__(tokenizer)
+#         self.stop_sequences = stop_sequences
+#         self.buffer = ""
+
+#     def put(self, value):
+#         # decode newly generated ids
+#         text = self.tokenizer.decode(value, skip_special_tokens=False)
+#         self.buffer += text
+
+#         # detect any target sequence in the buffer (NOT only at the end!)
+#         for seq in self.stop_sequences:
+#             if seq in self.buffer:
+#                 raise GenerationStop
+
+#         # normal streaming behavior (optional)
+#         return super().put(value)
 
 
 
 class SearchStopStreamer(TextStreamer):
-    def __init__(self, tokenizer, stop_sequences):
+    """
+    流式监控模型输出。如果检测到 </search> 则触发提前停止。
+    """
+    def __init__(self, tokenizer):
         super().__init__(tokenizer)
-        self.stop_sequences = stop_sequences
-        self.buffer = ""
+        self.buffer = ""          # 累积的全部流式文本
+        self.done = False         # 控制 generate 终止
+        self.search_content = ""  # 保存 <search> ... </search> 内容
+    
+    def on_finalized_text(self, text: str, stream_end: bool = False):
+        """
+        每次模型输出新文本时，都会回调这里。
+        """
+        if self.done:
+            return
 
-    def put(self, value):
-        # decode newly generated ids
-        text = self.tokenizer.decode(value, skip_special_tokens=False)
         self.buffer += text
 
-        # detect any target sequence in the buffer (NOT only at the end!)
-        for seq in self.stop_sequences:
-            if seq in self.buffer:
-                raise StopGeneration
+        # 检查是否出现完整的 </search>
+        if "</search>" in self.buffer:
+            # 从 buffer 中提取 <search>...</search>
+            m = re.search(r"<search>(.*?)</search>", self.buffer, flags=re.DOTALL)
+            if m:
+                self.search_content = m.group(1).strip()
 
-        # normal streaming behavior (optional)
-        super().put(value)
+            self.done = True  # 通知外部应该停止 generate
+            
+        # 打印到屏幕仅为调试，可保留可删除
+        print(text, end="", flush=True)
+
 
 
 class LLM_retriever:
@@ -239,7 +307,9 @@ class LLM_retriever:
 
         return _passages2string(results[0])
 
-    def gen(self, query , history = [], model_prompt=""):
+    def gen(self, query ,
+            #  history = [], model_prompt=""
+            ):
         """执行完整的思考-检索-再思考-回答流程"""
         
 
@@ -258,29 +328,21 @@ class LLM_retriever:
         )
 
         
-        if history == [] :
-            history.append({"role":"system","content":model_prompt})
-        history.append({"role": "user", "content": system_prompt})
+        # if history == [] :
+        #     history.append({"role":"system","content":model_prompt})
+        # history.append({"role": "user", "content": system_prompt})
 
-        if self.tokenizer.chat_template:
-            prompt = self.tokenizer.apply_chat_template(
-                history,
-                tokenize=False,
-                add_generation_prompt=True
-                    )
-            
-        else:
-            prompt = system_prompt
-        # # 构造prompt
         # if self.tokenizer.chat_template:
         #     prompt = self.tokenizer.apply_chat_template(
-        #         [{"role": "user", "content": system_prompt}],
-        #         add_generation_prompt=True,
-        #         tokenize=False
-        #     )
+        #         history,
+        #         tokenize=False,
+        #         add_generation_prompt=True
+        #             )
+            
         # else:
-        #     prompt = system_prompt
-
+            # prompt = system_prompt
+        
+        prompt = system_prompt
         cnt = 0
         print('\n\n################# [Start Reasoning + Searching] ##################\n\n')
         print(f'**[prompt]:{prompt}')
@@ -288,22 +350,37 @@ class LLM_retriever:
         while True:
             input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to(self.device)
             
-            outputs = self.model.generate(
-                input_ids,
-                max_new_tokens=1500,
-                # stopping_criteria=self.stopping_criteria,
-                streamer=self.streamer,
-                pad_token_id=self.tokenizer.eos_token_id,
-                do_sample=True,
-                temperature=0.3,
-                repetition_penalty	=1.1
-            )
+            
+            # outputs = self.model.generate(
+            #     input_ids,
+            #     max_new_tokens=1500,
+            #     # stopping_criteria=self.stopping_criteria,
+            #     streamer=self.streamer,
+            #     pad_token_id=self.tokenizer.eos_token_id,
+            #     do_sample=True,
+            #     temperature=0.3,
+            #     repetition_penalty	=1.1
+            # )
+            search_content, generated_ids = stream_until_search(
+                                            self.model, 
+                                            self.tokenizer,
+                                            input_ids,
+                                            max_new_tokens=1500,
+                                            temperature=0.3,
+                                            repetition_penalty	=1.1,
+                                            pad_token_id=self.tokenizer.eos_token_id,
+                                            )
+
+            
+
             instruct=''
-            generated_tokens = outputs[0][input_ids.shape[1]:]
-            output_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+            # generated_tokens = outputs[0][input_ids.shape[1]:]
+            # output_text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+            output_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
             print(f'[debug] output_text="{output_text}"')
 
-            if outputs[0][-1].item() in self.curr_eos or cnt > self.max_turn:
+            if generated_ids[0][-1].item() in self.curr_eos or cnt > self.max_turn:
+            # if outputs[0][-1].item() in self.curr_eos or cnt > self.max_turn:
                 response = output_text
                 print(f'[debug]search turn:{cnt}')
                 print(f'[debug]final answer:{response}')
@@ -334,11 +411,11 @@ class LLM_retriever:
 
             cnt += 1
 
-        # 更新历史记录
-        history.append({"role": "user", "content": question})
-        history.append({"role": "assistant", "content": response})
+        # # 更新历史记录
+        # history.append({"role": "user", "content": question})
+        # history.append({"role": "assistant", "content": response})
 
-        return response, history
+        return response
     
 
 
@@ -365,7 +442,7 @@ if __name__ == '__main__':
         llm= LLM(model_path)
     
 
-    res,history = llm.gen(args.question)
+    res = llm.gen(args.question)
     
     
 
