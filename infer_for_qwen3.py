@@ -144,25 +144,7 @@ class StreamStopper:
         self.action = None  # "search" 或 "answer"
         self.output_text = ""
 
-    # def process_token(self, token_id):
-    #     """
-    #     接收新生成的 token_id，decode 并追加到 buffer
-    #     """
-    #     text = self.tokenizer.decode([token_id.item()], skip_special_tokens=False)
-    #     self.buffer += text
-
-    #     # 检测 </search> 或 </answer>
-    #     if "</search>" in self.buffer:
-    #         self.done = True
-    #         self.action = "search"
-    #         # 输出从生成开始到 </search> 的内容
-    #         self.output_text = self.buffer.split("</search>")[0] + "</search>"
-    #     elif "</answer>" in self.buffer:
-    #         self.done = True
-    #         self.action = "answer"
-    #         self.output_text = self.buffer.split("</answer>")[0] + "</answer>"
-
-    #     return text
+    
     def process_token(self, token_id):
         """
         接收新生成的 token_id，累积到 generated_ids，并 decode 新增部分到 buffer。
@@ -200,7 +182,10 @@ class StreamStopper:
 
 
 @torch.no_grad()
-def stream_until_search(model, tokenizer, input_ids, max_new_tokens=1500, temperature=0.3):
+def stream_until_search(model, tokenizer, input_ids, 
+                        max_new_tokens=1500, 
+                        temperature=0.3,
+                        repetition_penalty = 1.2):
     """
     流式生成，检测 </search> 和 </answer>。
     返回:
@@ -221,6 +206,11 @@ def stream_until_search(model, tokenizer, input_ids, max_new_tokens=1500, temper
         )
         logits = outputs.logits[:, -1, :]
         past_key_values = outputs.past_key_values
+
+        # 对每个 token 进行惩罚
+        for token_id in set(generated[0].tolist()):  # 用 set 避免重复遍历
+            logits[0, token_id] /= repetition_penalty  # 或者 logits[0, token_id] /= repetition_penalty
+
 
         # 采样下一个 token
         probs = F.softmax(logits / temperature, dim=-1)
@@ -336,8 +326,8 @@ class LLM_retriever:
             "思考：对问题进行推理，尝试解答。推理过程中，如果你发现涉及某些法律条文，则进入检索步骤。\n"
             "检索：请把需要检索的关键词放在 <search> 和 </search> 标签之间，调用搜索引擎。例如：<search> 民法典 盗窃罪 </search>。\n"
             "系统将返回最相关的搜索结果，并置于 <information> 和 </information> 标签之间。根据返回的结果，继续下一步思考。\n"
-            "再次思考：基于检索结果，继续对问题进行推理。如果没有帮助，则修改关键词重新检索；如果有把握得到最终答案，则进入回答。\n"
-            "回答：在 <answer> 和 </answer> 标签内提供最终答案。例如：<answer> 北京 </answer>\n"
+            "再次思考：基于检索结果，继续对问题进行推理。如果没有帮助，则修改关键词重新检索,不要重复检索已经检索过的关键词；如果有把握得到最终答案，则进入回答。\n"
+            "回答：注意！在 <answer> 和 </answer> 标签内提供最终答案。例如：<answer> 北京 </answer>\n"
             f"以下是需要回答的问题：{question}\n"
         )
 
@@ -369,7 +359,8 @@ class LLM_retriever:
                                                     self.tokenizer,
                                                     input_ids,
                                                     max_new_tokens=1500,
-                                                    temperature=0.4
+                                                    temperature=0.4,
+                                                    repetition_penalty = 1.2
                                                     )
 
             instruct=''
