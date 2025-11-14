@@ -251,7 +251,7 @@ class LLM_retriever:
 
         # 停止条件定义
         self.target_sequences = ["</search>", " </search>", "</search>\n", " </search>\n", "</search>\n\n", " </search>\n\n"]
-        self.stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(self.target_sequences, self.tokenizer)])
+        # self.stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(self.target_sequences, self.tokenizer)])
         self.streamer = SearchStopStreamer(self.tokenizer, stop_sequences=self.target_sequences)
 
 
