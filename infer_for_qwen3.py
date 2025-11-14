@@ -186,12 +186,14 @@ class StreamStopper:
             self.done = True
             self.action = "search"
             # 输出从生成开始到 </search> 的内容
-            self.output_text = self.buffer.split("</search>")[0] + "</search>"
+            # self.output_text = self.buffer.split("</search>")[0] + "</search>"
+            self.output_text = self.tokenizer.decode(self.generated_ids, skip_special_tokens=False).split("</search>")[0] + "</search>"
 
         elif "</answer>" in self.buffer and not self.done:
             self.done = True
             self.action = "answer"
-            self.output_text = self.buffer.split("</answer>")[0] + "</answer>"
+            # self.output_text = self.buffer.split("</answer>")[0] + "</answer>"
+            self.output_text = self.tokenizer.decode(self.generated_ids, skip_special_tokens=False).split("</answer>")[0] + "</answer>"
 
         return new_text  # 返回新增的可显示文本
 
@@ -225,9 +227,8 @@ def stream_until_search(model, tokenizer, input_ids, max_new_tokens=1500, temper
         next_token = torch.multinomial(probs, num_samples=1)
 
         # 处理 token
-        output_text=stopper.process_token(next_token[0])
-        print(f'[debug]output_text:{output_text}')
-
+        stopper.process_token(next_token[0])
+        
         # 追加 token
         generated = torch.cat((generated, next_token), dim=1)
 
@@ -235,7 +236,6 @@ def stream_until_search(model, tokenizer, input_ids, max_new_tokens=1500, temper
         if stopper.done:
             break
 
-    # return stopper.action, output_text
     return stopper.action, stopper.output_text
 
 
@@ -269,10 +269,7 @@ class LLM_retriever:
             self.tokenizer.pad_token = '</s>'
 
         # 停止条件定义
-        self.target_sequences = ["</search>", " </search>", "</search>\n", " </search>\n", "</search>\n\n", " </search>\n\n"]
-        # self.stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(self.target_sequences, self.tokenizer)])
-        
-
+        # self.target_sequences = ["</search>", " </search>", "</search>\n", " </search>\n", "</search>\n\n", " </search>\n\n"]
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.curr_eos = [151645, 151643]
