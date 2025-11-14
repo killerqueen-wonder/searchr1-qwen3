@@ -144,25 +144,57 @@ class StreamStopper:
         self.action = None  # "search" 或 "answer"
         self.output_text = ""
 
+    # def process_token(self, token_id):
+    #     """
+    #     接收新生成的 token_id，decode 并追加到 buffer
+    #     """
+    #     text = self.tokenizer.decode([token_id.item()], skip_special_tokens=False)
+    #     self.buffer += text
+
+    #     # 检测 </search> 或 </answer>
+    #     if "</search>" in self.buffer:
+    #         self.done = True
+    #         self.action = "search"
+    #         # 输出从生成开始到 </search> 的内容
+    #         self.output_text = self.buffer.split("</search>")[0] + "</search>"
+    #     elif "</answer>" in self.buffer:
+    #         self.done = True
+    #         self.action = "answer"
+    #         self.output_text = self.buffer.split("</answer>")[0] + "</answer>"
+
+    #     return text
     def process_token(self, token_id):
         """
-        接收新生成的 token_id，decode 并追加到 buffer
+        接收新生成的 token_id，累积到 generated_ids，并 decode 新增部分到 buffer。
+        同时检测 </search> 或 </answer> 停止。
         """
-        text = self.tokenizer.decode([token_id.item()], skip_special_tokens=False)
-        self.buffer += text
+        # 保存 token_id 到生成列表
+        if not hasattr(self, "generated_ids"):
+            self.generated_ids = []
+
+        self.generated_ids.append(token_id.item())
+
+        # decode 当前所有 token
+        text = self.tokenizer.decode(self.generated_ids, skip_special_tokens=False)
+
+        # 取新生成的部分
+        new_text = text[len(self.buffer):]  # 只取新增文本
+        self.buffer += new_text
 
         # 检测 </search> 或 </answer>
-        if "</search>" in self.buffer:
+        if "</search>" in self.buffer and not self.done:
             self.done = True
             self.action = "search"
             # 输出从生成开始到 </search> 的内容
             self.output_text = self.buffer.split("</search>")[0] + "</search>"
-        elif "</answer>" in self.buffer:
+
+        elif "</answer>" in self.buffer and not self.done:
             self.done = True
             self.action = "answer"
             self.output_text = self.buffer.split("</answer>")[0] + "</answer>"
 
-        return text
+        return new_text  # 返回新增的可显示文本
+
 
 
 @torch.no_grad()
