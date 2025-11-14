@@ -371,7 +371,7 @@ class LLM_retriever:
                     search_results = self._search(tmp_query)
                 
                 elif cnt==self.max_turn:
-                    instruct = "跳过检索阶段。注意：接下来必须给出最终回答！"
+                    instruct = "跳过检索阶段。注意：接下来总结以上思考，必须给出最终回答！把最终答案放在 <answer> 和 </answer>之间。"
 
                 else:
                     instruct="检索失败。重新检索或直接回答。"
@@ -410,7 +410,7 @@ if __name__ == '__main__':
     parser.add_argument('--retrieve_path', default="http://127.0.0.1:8006/retrieve", type=str)
     parser.add_argument('--retriever', default=False, type=bool)
     parser.add_argument('--seed', default=42, type=int)
-    parser.add_argument('--max_turn', default=5, type=int)
+    parser.add_argument('--max_turn', default=3, type=int)
     
     args = parser.parse_args()
 
