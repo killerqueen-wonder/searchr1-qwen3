@@ -148,7 +148,7 @@ class StreamStopper:
         """
         接收新生成的 token_id，decode 并追加到 buffer
         """
-        text = self.tokenizer.decode(token_id.unsqueeze(0), skip_special_tokens=False)
+        text = self.tokenizer.decode([token_id.item()], skip_special_tokens=False)
         self.buffer += text
 
         # 检测 </search> 或 </answer>
