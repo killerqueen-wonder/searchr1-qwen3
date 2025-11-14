@@ -225,7 +225,8 @@ def stream_until_search(model, tokenizer, input_ids, max_new_tokens=1500, temper
         next_token = torch.multinomial(probs, num_samples=1)
 
         # 处理 token
-        stopper.process_token(next_token[0])
+        output_text=stopper.process_token(next_token[0])
+        print(f'[debug]output_text:{output_text}')
 
         # 追加 token
         generated = torch.cat((generated, next_token), dim=1)
@@ -234,6 +235,7 @@ def stream_until_search(model, tokenizer, input_ids, max_new_tokens=1500, temper
         if stopper.done:
             break
 
+    # return stopper.action, output_text
     return stopper.action, stopper.output_text
 
 
