@@ -14,7 +14,8 @@ import json
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel 
 import re
 import requests
-
+from transformers import TextStreamer, StopGeneration
+import torch
 
 
 #从本地模型输出各评测集的回答，支持retriever
@@ -131,6 +132,27 @@ class StopOnSequence(transformers.StoppingCriteria):
         return False
 
 
+
+class SearchStopStreamer(TextStreamer):
+    def __init__(self, tokenizer, stop_sequences):
+        super().__init__(tokenizer)
+        self.stop_sequences = stop_sequences
+        self.buffer = ""
+
+    def put(self, value):
+        # decode newly generated ids
+        text = self.tokenizer.decode(value, skip_special_tokens=False)
+        self.buffer += text
+
+        # detect any target sequence in the buffer (NOT only at the end!)
+        for seq in self.stop_sequences:
+            if seq in self.buffer:
+                raise StopGeneration
+
+        # normal streaming behavior (optional)
+        super().put(value)
+
+
 class LLM_retriever:
     """
     实现一个“思考-检索-再思考-回答”的闭环生成系统。
@@ -162,6 +184,8 @@ class LLM_retriever:
         # 停止条件定义
         self.target_sequences = ["</search>", " </search>", "</search>\n", " </search>\n", "</search>\n\n", " </search>\n\n"]
         self.stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(self.target_sequences, self.tokenizer)])
+        self.streamer = SearchStopStreamer(self.tokenizer, stop_sequences=self.target_sequences)
+
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.curr_eos = [151645, 151643]
@@ -267,7 +291,8 @@ class LLM_retriever:
             outputs = self.model.generate(
                 input_ids,
                 max_new_tokens=1500,
-                stopping_criteria=self.stopping_criteria,
+                # stopping_criteria=self.stopping_criteria,
+                streamer=self.streamer,
                 pad_token_id=self.tokenizer.eos_token_id,
                 do_sample=True,
                 temperature=0.3,
