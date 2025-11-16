@@ -49,7 +49,7 @@ if __name__ == "__main__":
     parser.add_argument('--queries', default= '抢劫罪',type=str)
     parser.add_argument('--test_url', default= "http://127.0.0.1:8006/retrieve",type=str)
     parser.add_argument('--topk', default= 3,type=int)
-    parser.add_argument("--retriever_name", type=str, default="e5", help="Name of the retriever model.")
+    # parser.add_argument("--retriever_name", type=str, default="e5", help="Name of the retriever model.")
     args = parser.parse_args()
 
     queries=args.queries
@@ -72,7 +72,15 @@ if __name__ == "__main__":
     print(f'正在检索{queries}')
     try:
         test_response = verify_and_call_search_service(test_url, payload)
-        print("Search service is up! Sample response:", test_response)
+        print("Search service is up! Sample response:")
+        for i, item in enumerate(test_response['result'][0]):
+            print(f"第{i+1}个结果:")
+            print("Document:")
+            print(item['document'])
+            print("\nScore:")
+            print(item['score'])
+            print("-" * 50)
+
     except Exception as err:
         print("Search service verification failed:", err)
         # 根据实际情况决定：exit(1) 终止训练，或继续但不执行检索逻辑
