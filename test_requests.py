@@ -42,6 +42,48 @@ def verify_and_call_search_service(search_url: str, payload: dict, timeout: floa
     logger.info(f"Search service returned {len(data['result'])} hits")
     return data
 
+def search(retrieve_path, query):
+    """调用本地检索服务"""
+    if not query or not query.strip():
+        print("[WARNING] Empty query passed to search function.")
+        return ""
+
+    payload = {"queries": [query], "topk": 3, "return_scores": True}
+    try:
+        response = requests.post(
+            retrieve_path,
+            json=payload,
+            proxies={"http": None, "https": None},
+            timeout=10
+        )
+        response.raise_for_status()
+        json_data = response.json()
+        results = json_data.get("result", [])
+    except requests.exceptions.Timeout:
+        print("[ERROR] Search request timed out.")
+        return ""
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] Request failed: {e}")
+        return ""
+    except ValueError as e:
+        print(f"[ERROR] Failed to decode JSON: {e}")
+        return ""
+
+    if not results:
+        print("[INFO] No results returned from search.")
+        return ""
+
+    def _passages2string(retrieval_result):
+        format_reference = ''
+        for idx, doc_item in enumerate(retrieval_result):
+                        
+            content = doc_item['document']['contents']
+            title = content.split("\n")[0]
+            text = "\n".join(content.split("\n")[1:])
+            format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+        return format_reference
+
+    return _passages2string(results[0])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "test requests.")
@@ -71,15 +113,9 @@ if __name__ == "__main__":
     # print(requests.post(test_url, json=payload).json())
     print(f'正在检索{queries}')
     try:
-        test_response = verify_and_call_search_service(test_url, payload)
-        print("Search service is up! Sample response:")
-        for i, item in enumerate(test_response['result'][0]):
-            print(f"第{i+1}个结果:")
-            print("Document:")
-            print(item['document'])
-            print("\nScore:")
-            print(item['score'])
-            print("-" * 50)
+        # test_response = verify_and_call_search_service(test_url, payload)
+        print(search(test_url, queries))
+        
 
     except Exception as err:
         print("Search service verification failed:", err)
