@@ -42,13 +42,10 @@ def verify_and_call_search_service(search_url: str, payload: dict, timeout: floa
     logger.info(f"Search service returned {len(data['result'])} hits")
     return data
 
-def search(retrieve_path, query):
+def search(retrieve_path, payload):
     """调用本地检索服务"""
-    if not query or not query.strip():
-        print("[WARNING] Empty query passed to search function.")
-        return ""
 
-    payload = {"queries": [query], "topk": 3, "return_scores": True}
+    # payload = {"queries": [query], "topk": 3, "return_scores": True}
     try:
         response = requests.post(
             retrieve_path,
@@ -96,8 +93,7 @@ if __name__ == "__main__":
 
     queries=args.queries
     topk=args.topk
-    # 在训练脚本最开始或验证前做一次连通性检查
-    # test_url = "http://127.0.0.1:8006/retrieve"
+    
     test_url=args.test_url
     
     payload = {
@@ -105,16 +101,11 @@ if __name__ == "__main__":
             "topk": topk,
             "return_scores": True
         }
-    # payload =    {
-    #   "queries": ["What is Python?", "Tell me about neural networks."],
-    #   "topk": 3,
-    #   "return_scores": True
-    # }
-    # print(requests.post(test_url, json=payload).json())
+
     print(f'正在检索{queries}')
     try:
         # test_response = verify_and_call_search_service(test_url, payload)
-        print(search(test_url, queries))
+        print(search(test_url, payload))
         
 
     except Exception as err:
