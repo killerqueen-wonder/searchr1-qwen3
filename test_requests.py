@@ -77,7 +77,9 @@ def search(retrieve_path, payload):
             content = doc_item['document']['contents']
             title = content.split("\n")[0]
             text = "\n".join(content.split("\n")[1:])
-            format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+            score=doc_item['document']['score']
+            score=(round(score, 2))
+            format_reference += f"Doc {idx+1}(Title: {title}) {text}\n score={score}\n"
         return format_reference
 
     return _passages2string(results[0])
@@ -104,10 +106,9 @@ if __name__ == "__main__":
 
     print(f'正在检索{queries}')
     try:
-        test_response = verify_and_call_search_service(test_url, payload)
-        # print(search(test_url, payload))
-        print(test_response)
-        
+        # test_response = verify_and_call_search_service(test_url, payload)
+        # print(test_response)
+        print(search(test_url, payload))
 
     except Exception as err:
         print("Search service verification failed:", err)
