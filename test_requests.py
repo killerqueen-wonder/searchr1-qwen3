@@ -104,8 +104,9 @@ if __name__ == "__main__":
 
     print(f'正在检索{queries}')
     try:
-        # test_response = verify_and_call_search_service(test_url, payload)
-        print(search(test_url, payload))
+        test_response = verify_and_call_search_service(test_url, payload)
+        # print(search(test_url, payload))
+        print(test_response)
         
 
     except Exception as err:
