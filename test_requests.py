@@ -79,7 +79,7 @@ def search(retrieve_path, payload):
             text = "\n".join(content.split("\n")[1:])
             
             score=doc_item['score']
-            score=(round(float(score), 2))
+            score=(round(float(score), 4))
             
             format_reference += f"Doc {idx+1}(Title: {title}) {text}\n score={score}\n"
         return format_reference
