@@ -77,7 +77,7 @@ def search(retrieve_path, payload):
             content = doc_item['document']['contents']
             title = content.split("\n")[0]
             text = "\n".join(content.split("\n")[1:])
-            print(f'[debug]:{doc_item['document']}')
+            print(f"[debug]:{doc_item['document']}")
             score=doc_item['document']['score']
             # score=(round(float(score), 2))
             
