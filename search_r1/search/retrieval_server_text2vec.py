@@ -393,7 +393,7 @@ class BM25Retriever(BaseRetriever):#rank bm25
         scores = self.bm25.get_scores(query_tokens)
 
         for idx, (doc_tokens, score) in enumerate(zip(self.docs_tokenized, scores)):
-            if score > 0:   # 只打印有贡献的文档，避免大量无关输出
+            if score > 20:   # 只打印有贡献的文档，避免大量无关输出
                 print(f"\n[DEBUG] Doc {idx}:")
                 print("[DEBUG] Tokens:", doc_tokens)
                 print("[DEBUG] Score:", score)
