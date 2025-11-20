@@ -392,13 +392,7 @@ class BM25Retriever(BaseRetriever):#rank bm25
 
         scores = self.bm25.get_scores(query_tokens)
 
-        k=0
-        for idx, (doc_tokens, score) in enumerate(zip(self.docs_tokenized, scores)):
-            if score > 20 and k < num:   # 只打印有贡献的文档，避免大量无关输出
-                print(f"\n[DEBUG] Doc {idx}:")
-                print("[DEBUG] Tokens:", doc_tokens)
-                print("[DEBUG] Score:", score)
-                k+=1
+        
 
         if len(scores) == 0:
             if return_score:
@@ -411,6 +405,11 @@ class BM25Retriever(BaseRetriever):#rank bm25
             key=lambda x: x[1],
             reverse=True
         )[:num]
+
+        print("\n[DEBUG] Top-k Documents Info:")
+        for rank, (doc_id, score) in enumerate(ranked):
+            print(f"\n[DEBUG] Rank {rank+1}: Doc {doc_id}, Score = {score}")
+            print("[DEBUG] Doc Tokens:", self.docs_tokenized[doc_id])
 
         doc_ids = [idx for idx, _ in ranked]
         top_scores = [score for _, score in ranked]
