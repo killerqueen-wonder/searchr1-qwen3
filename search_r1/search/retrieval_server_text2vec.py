@@ -388,7 +388,15 @@ class BM25Retriever(BaseRetriever):#rank bm25
             num = self.topk
 
         query_tokens = list(jieba.cut(query))
+        print("[DEBUG] Query Tokens:", query_tokens)
+
         scores = self.bm25.get_scores(query_tokens)
+
+        for idx, (doc_tokens, score) in enumerate(zip(self.docs_tokenized, scores)):
+            if score > 0:   # 只打印有贡献的文档，避免大量无关输出
+                print(f"\n[DEBUG] Doc {idx}:")
+                print("[DEBUG] Tokens:", doc_tokens)
+                print("[DEBUG] Score:", score)
 
         if len(scores) == 0:
             if return_score:
