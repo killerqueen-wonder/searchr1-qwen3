@@ -155,69 +155,6 @@ class BaseRetriever:
     def batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
         return self._batch_search(query_list, num, return_score)
 
-class BM25Retriever(BaseRetriever):#old version
-    def __init__(self, config):
-        super().__init__(config)
-        from pyserini.search.lucene import LuceneSearcher
-        self.searcher = LuceneSearcher(self.index_path)
-        self.contain_doc = self._check_contain_doc()
-        if not self.contain_doc:
-            self.corpus = load_corpus(self.corpus_path)
-        self.max_process_num = 8
-    
-    def _check_contain_doc(self):
-        return self.searcher.doc(0).raw() is not None
-
-    def _search(self, query: str, num: int = None, return_score: bool = False):
-        if num is None:
-            num = self.topk
-        hits = self.searcher.search(query, num)
-        if len(hits) < 1:
-            if return_score:
-                return [], []
-            else:
-                return []
-        scores = [hit.score for hit in hits]
-        if len(hits) < num:
-            warnings.warn('Not enough documents retrieved!')
-        else:
-            hits = hits[:num]
-
-        if self.contain_doc:
-            all_contents = [
-                json.loads(self.searcher.doc(hit.docid).raw())['contents'] 
-                for hit in hits
-            ]
-            results = [
-                {
-                    'title': content.split("\n")[0].strip("\""),
-                    'text': "\n".join(content.split("\n")[1:]),
-                    'contents': content
-                } 
-                for content in all_contents
-            ]
-        else:
-            results = load_docs(self.corpus, [hit.docid for hit in hits])
-
-        if return_score:
-            return results, scores
-        else:
-            return results
-
-    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
-        results = []
-        scores = []
-        for query in query_list:
-            item_result, item_score = self._search(query, num, True)
-            results.append(item_result)
-            scores.append(item_score)
-        if return_score:
-            return results, scores
-        else:
-            return results
-
-
-
 
 class BM25Retriever(BaseRetriever):#rank bm25
     def __init__(self, config):
@@ -566,10 +503,107 @@ class Text2vecRetriever(BaseRetriever):
         else:
             return batch_results
 
+class HybridRetriever(BaseRetriever):
+    def __init__(self, config):
+        super().__init__(config)
+
+        # 初始化组件
+        self.bm25_retriever = BM25Retriever(config)
+        self.text2vec_retriever = Text2vecRetriever(config)
+
+        self.topk = config.retrieval_topk
+        self.candidate_k = self.topk * 5
+
+        # 融合权重
+        self.w_bm25 = 0.5
+        self.w_t2v = 0.5
+
+    def _min_max_norm(self, scores):
+        if not scores:
+            return []
+        min_s = min(scores)
+        max_s = max(scores)
+        if max_s == min_s:
+            return [0.0 for _ in scores]
+        return [(s - min_s) / (max_s - min_s) for s in scores]
+
+    def _search(self, query: str, num: int = None, return_score: bool = False):
+        if num is None:
+            num = self.topk
+
+        # bm25 检索
+        bm25_results, bm25_scores = self.bm25_retriever._search(query, self.candidate_k, True)
+        print("[DEBUG][Hybrid] BM25 top candidates:")
+        for i, (doc, sc) in enumerate(zip(bm25_results, bm25_scores)):
+            print(f"  [BM25] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
+
+        # text2vec 检索
+        t2v_results, t2v_scores = self.text2vec_retriever._search(query, self.candidate_k, True)
+        print("[DEBUG][Hybrid] Text2Vec top candidates:")
+        for i, (doc, sc) in enumerate(zip(t2v_results, t2v_scores)):
+            print(f"  [T2V] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
+
+        # 构建候选池
+        pool = {}  # doc_id -> {bm25_score, t2v_score, doc}
+
+        def add_pool(results, scores, key):
+            for doc, sc in zip(results, scores):
+                doc_id = doc["id"] if "id" in doc else id(doc)
+                if doc_id not in pool:
+                    pool[doc_id] = {"doc": doc, "bm25": None, "t2v": None}
+                pool[doc_id][key] = sc
+
+        add_pool(bm25_results, bm25_scores, "bm25")
+        add_pool(t2v_results, t2v_scores, "t2v")
+
+        # 填补缺失得分
+        for info in pool.values():
+            if info["bm25"] is None:
+                info["bm25"] = 0.0
+            if info["t2v"] is None:
+                info["t2v"] = 0.0
+
+        # 分别取出分数供归一化
+        bm25_all = [v["bm25"] for v in pool.values()]
+        t2v_all = [v["t2v"] for v in pool.values()]
+
+        bm25_norm = self._min_max_norm(bm25_all)
+        t2v_norm = self._min_max_norm(t2v_all)
+
+        # 写回归一化分数
+        for (doc_id, info), bn, tn in zip(pool.items(), bm25_norm, t2v_norm):
+            info["bm25_norm"] = bn
+            info["t2v_norm"] = tn
+            info["hybrid_score"] = self.w_bm25 * bn + self.w_t2v * tn
+
+        # 按融合分数排序
+        ranked = sorted(pool.items(), key=lambda x: x[1]["hybrid_score"], reverse=True)[:num]
+
+        print("[DEBUG][Hybrid] Final fused ranking:")
+        for rank, (doc_id, info) in enumerate(ranked, 1):
+            print(f"  [Hybrid] Rank {rank}: score={info['hybrid_score']}, doc_id={doc_id}")
+
+        results = [info["doc"] for _, info in ranked]
+        scores = [info["hybrid_score"] for _, info in ranked]
+
+        if return_score:
+            return results, scores
+        return results
+
+    def _batch_search(self, query_list, num=None, return_score=False):
+        results = []
+        scores = []
+        for q in query_list:
+            r, s = self._search(q, num, True)
+            results.append(r)
+            scores.append(s)
+        return (results, scores) if return_score else results
 
 def get_retriever(config):
     if config.retrieval_method == "bm25":
         return BM25Retriever(config)
+    elif config.retrieval_method == "hybrid":
+        return HybridRetriever(config)
     elif config.retrieval_method == "text2vec":
         return Text2vecRetriever(config)
     else:
