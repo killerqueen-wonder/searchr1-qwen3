@@ -215,10 +215,10 @@ class BM25Retriever(BaseRetriever):#rank bm25
             reverse=True
         )[:num]
 
-        print("\n[DEBUG] Top-k Documents Info:")
-        for rank, (doc_id, score) in enumerate(ranked):
-            print(f"\n[DEBUG] Rank {rank+1}: Doc {doc_id}, Score = {score}")
-            print("[DEBUG] Doc Tokens:", self.docs_tokenized[doc_id])
+        # print("\n[DEBUG] Top-k Documents Info:")
+        # for rank, (doc_id, score) in enumerate(ranked):
+        #     print(f"\n[DEBUG] Rank {rank+1}: Doc {doc_id}, Score = {score}")
+        #     print("[DEBUG] Doc Tokens:", self.docs_tokenized[doc_id])
 
         doc_ids = [idx for idx, _ in ranked]
         top_scores = [score for _, score in ranked]
@@ -506,7 +506,7 @@ class HybridRetriever(BaseRetriever):
         self.text2vec_retriever = Text2vecRetriever(config)
 
         self.topk = config.retrieval_topk
-        print(f'[debug]topk={self.topk}')
+        print(f'[debug]topk={self.topk}')#6
         self.candidate_k = self.topk * 5
 
         # 融合权重
@@ -529,7 +529,7 @@ class HybridRetriever(BaseRetriever):
         # bm25 检索
         bm25_results, bm25_scores = self.bm25_retriever._search(query, self.candidate_k, True)
         print("[DEBUG][Hybrid] BM25 top candidates:")
-        print("[DEBUG] Hybrid candidate_k =", self.candidate_k)
+        print("[DEBUG] Hybrid candidate_k =", self.candidate_k)#30
         # for i, (doc, sc) in enumerate(zip(bm25_results, bm25_scores)):
         #     print(f"  [BM25] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
 
@@ -574,7 +574,8 @@ class HybridRetriever(BaseRetriever):
 
         # 按融合分数排序
         ranked = sorted(pool.items(), key=lambda x: x[1]["hybrid_score"], reverse=True)[:num]
-
+        
+        print("[DEBUG] hybrid receive num =", num)
         print("[DEBUG][Hybrid] Final fused ranking:")
         for rank, (doc_id, info) in enumerate(ranked, 1):
             print(f"  [Hybrid] Rank {rank}: score={info['hybrid_score']}, doc_id={doc_id}")
