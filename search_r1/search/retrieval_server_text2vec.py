@@ -222,6 +222,11 @@ class BM25Retriever(BaseRetriever):#old version
 class BM25Retriever(BaseRetriever):#rank bm25
     def __init__(self, config):
         super().__init__(config)
+
+        #自定义词典
+        if len(config.dictionary_path) !=0:
+            jieba.load_userdict(config.dictionary_path)
+
         
 
         # 加载语料库（必须是 jsonl，每条含 contents 字段）
@@ -596,7 +601,8 @@ class Config:
         retrieval_pooling_method: str = "mean",
         retrieval_query_max_length: int = 256,
         retrieval_use_fp16: bool = False,
-        retrieval_batch_size: int = 128
+        retrieval_batch_size: int = 128,
+        dictionary_path:str=""
     ):
         self.retrieval_method = retrieval_method
         self.retrieval_topk = retrieval_topk
@@ -615,6 +621,7 @@ class Config:
         self.retrieval_query_max_length = retrieval_query_max_length
         self.retrieval_use_fp16 = retrieval_use_fp16
         self.retrieval_batch_size = retrieval_batch_size
+        self.dictionary_path=dictionary_path
 
 
 class QueryRequest(BaseModel):
@@ -665,6 +672,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Launch the local faiss retriever.")
     parser.add_argument("--index_path", type=str, default="/home/peterjin/mnt/index/wiki-18/e5_Flat.index", help="Corpus indexing file.")
     parser.add_argument("--corpus_path", type=str, default="/home/peterjin/mnt/data/retrieval-corpus/wiki-18.jsonl", help="Local corpus file.")
+    parser.add_argument("--dictionary_path", type=str, default='', help="jieba dictionary for law")
     parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model.")
@@ -695,6 +703,7 @@ if __name__ == "__main__":
         retrieval_query_max_length=256,
         retrieval_use_fp16=True,
         retrieval_batch_size=512,
+        dictionary_path=args.dictionary_path
     )
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
