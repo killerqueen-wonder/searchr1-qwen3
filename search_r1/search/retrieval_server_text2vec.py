@@ -506,6 +506,7 @@ class HybridRetriever(BaseRetriever):
         self.text2vec_retriever = Text2vecRetriever(config)
 
         self.topk = config.retrieval_topk
+        print(f'[debug]topk={self.topk}')
         self.candidate_k = self.topk * 5
 
         # 融合权重
@@ -528,14 +529,15 @@ class HybridRetriever(BaseRetriever):
         # bm25 检索
         bm25_results, bm25_scores = self.bm25_retriever._search(query, self.candidate_k, True)
         print("[DEBUG][Hybrid] BM25 top candidates:")
-        for i, (doc, sc) in enumerate(zip(bm25_results, bm25_scores)):
-            print(f"  [BM25] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
+        print("[DEBUG] Hybrid candidate_k =", self.candidate_k)
+        # for i, (doc, sc) in enumerate(zip(bm25_results, bm25_scores)):
+        #     print(f"  [BM25] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
 
         # text2vec 检索
         t2v_results, t2v_scores = self.text2vec_retriever._search(query, self.candidate_k, True)
         print("[DEBUG][Hybrid] Text2Vec top candidates:")
-        for i, (doc, sc) in enumerate(zip(t2v_results, t2v_scores)):
-            print(f"  [T2V] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
+        # for i, (doc, sc) in enumerate(zip(t2v_results, t2v_scores)):
+        #     print(f"  [T2V] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
 
         # 构建候选池
         pool = {}  # doc_id -> {bm25_score, t2v_score, doc}
