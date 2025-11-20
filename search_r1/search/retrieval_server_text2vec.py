@@ -527,6 +527,7 @@ class HybridRetriever(BaseRetriever):
             num = self.topk
 
         self.candidate_k = num * 5
+        start_time = time.time()
 
         # bm25 检索
         bm25_results, bm25_scores = self.bm25_retriever._search(query, self.candidate_k, True)
@@ -585,6 +586,8 @@ class HybridRetriever(BaseRetriever):
         results = [info["doc"] for _, info in ranked]
         scores = [info["hybrid_score"] for _, info in ranked]
 
+        end_time = time.time()
+        print(f"[DEBUG] 单次检索时间: {end_time - start_time:.4f} 秒")
         if return_score:
             return results, scores
         return results
