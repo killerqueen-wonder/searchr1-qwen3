@@ -24,6 +24,8 @@ import json
 
 
 
+
+
 def load_corpus(corpus_path: str):
     corpus = datasets.load_dataset(
         'json', 
@@ -214,7 +216,8 @@ class BM25Retriever(BaseRetriever):
             return results
 
 
-class BM25Retriever(BaseRetriever):#jieba
+
+class BM25Retriever(BaseRetriever):#jieba java
     def __init__(self, config):
         super().__init__(config)
         from pyserini.search.lucene import LuceneSearcher
@@ -354,6 +357,82 @@ class BM25Retriever(BaseRetriever):#jieba
                 all_results.append(processed_results)
                 
         return all_results
+
+
+
+class BM25Retriever(BaseRetriever):#rank bm25
+    def __init__(self, config):
+        super().__init__(config)
+        from rank_bm25 import BM25Okapi
+        import jieba
+
+        # 加载语料库（必须是 jsonl，每条含 contents 字段）
+        self.corpus = load_corpus(self.corpus_path)
+
+        # 对语料库进行分词与预处理
+        self.docs_raw = [doc["contents"] for doc in self.corpus]
+        self.docs_tokenized = [list(jieba.cut(text)) for text in self.docs_raw]
+
+        # 构建 BM25
+        self.bm25 = BM25Okapi(self.docs_tokenized)
+
+        self.contain_doc = False  # 不再从 LuceneSearcher 取 doc
+        self.max_process_num = 8
+
+    def _check_contain_doc(self):
+        return False  # 使用 rank_bm25 时不走 LuceneSearcher 流程
+
+    def _search(self, query: str, num: int = None, return_score: bool = False):
+        if num is None:
+            num = self.topk
+
+        query_tokens = list(jieba.cut(query))
+        scores = self.bm25.get_scores(query_tokens)
+
+        if len(scores) == 0:
+            if return_score:
+                return [], []
+            return []
+
+        # 取 topk
+        ranked = sorted(
+            list(enumerate(scores)),
+            key=lambda x: x[1],
+            reverse=True
+        )[:num]
+
+        doc_ids = [idx for idx, _ in ranked]
+        top_scores = [score for _, score in ranked]
+
+        results = load_docs(self.corpus, doc_ids)
+
+        if return_score:
+            return results, top_scores
+        else:
+            return results
+
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
+        results = []
+        scores = []
+        for query in query_list:
+            item_result, item_score = self._search(query, num, True)
+            results.append(item_result)
+            scores.append(item_score)
+        if return_score:
+            return results, scores
+        else:
+            return results
+
+
+def load_corpus(corpus_path: str):
+    corpus = datasets.load_dataset(
+        'json',
+        data_files=corpus_path,
+        split="train",
+        num_proc=4
+    )
+    return corpus
+
 
 class DenseRetriever(BaseRetriever):
     def __init__(self, config):
