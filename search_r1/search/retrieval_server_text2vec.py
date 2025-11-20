@@ -232,7 +232,7 @@ class BM25Retriever(BaseRetriever):#rank bm25
         self.docs_tokenized = [list(jieba.cut(text)) for text in self.docs_raw]
 
         # 构建 BM25
-        self.bm25 = BM25Okapi(self.docs_tokenized,k1=1.5, b=0.1)
+        self.bm25 = BM25Okapi(self.docs_tokenized,k1=1.5, b=0.5)
 
         self.contain_doc = False  # 不再从 LuceneSearcher 取 doc
         self.max_process_num = 8
@@ -243,6 +243,19 @@ class BM25Retriever(BaseRetriever):#rank bm25
     def _search(self, query: str, num: int = None, return_score: bool = False):
         if num is None:
             num = self.topk
+
+        def clean_string_translate(text):
+            # 定义要删除的字符
+            chars_to_remove = "'\" !@#$%^&*()_+-=[]{}|;:,.<>?/"
+            
+            # 创建转换表
+            translator = str.maketrans('', '', chars_to_remove)
+            
+            # 应用转换
+            return text.translate(translator)
+        
+        #清洗符号
+        query=clean_string_translate(query)
 
         query_tokens = list(jieba.cut(query))
         print("[DEBUG] Query Tokens:", query_tokens)
