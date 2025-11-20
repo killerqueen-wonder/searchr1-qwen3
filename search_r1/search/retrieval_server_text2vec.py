@@ -213,6 +213,148 @@ class BM25Retriever(BaseRetriever):
         else:
             return results
 
+
+class BM25Retriever(BaseRetriever):#jieba
+    def __init__(self, config):
+        super().__init__(config)
+        from pyserini.search.lucene import LuceneSearcher
+        import jieba
+        
+        self.searcher = LuceneSearcher(self.index_path)
+        self.contain_doc = self._check_contain_doc()
+        if not self.contain_doc:
+            self.corpus = load_corpus(self.corpus_path)
+        self.max_process_num = 8
+        
+        # 初始化 jieba
+        self.jieba = jieba
+        # 可以加载自定义词典（可选）
+        # self.jieba.load_userdict("path/to/your/dict.txt")
+    
+    def _check_contain_doc(self):
+        return self.searcher.doc(0).raw() is not None
+
+    def _tokenize_chinese_text(self, text):
+        """使用 jieba 对中文文本进行分词"""
+        if not text or not isinstance(text, str):
+            return ""
+        # 使用精确模式分词，用空格连接
+        tokens = self.jieba.cut(text, cut_all=False)
+        return " ".join(tokens)
+
+    def _process_query(self, query):
+        """对查询进行分词处理"""
+        return self._tokenize_chinese_text(query)
+
+    def _process_document(self, doc_content):
+        """对文档内容进行分词处理"""
+        if isinstance(doc_content, dict):
+            # 如果文档是字典格式，处理每个文本字段
+            processed_doc = {}
+            for key, value in doc_content.items():
+                if isinstance(value, str):
+                    processed_doc[key] = self._tokenize_chinese_text(value)
+                else:
+                    processed_doc[key] = value
+            return processed_doc
+        elif isinstance(doc_content, str):
+            # 如果文档是字符串格式
+            return self._tokenize_chinese_text(doc_content)
+        else:
+            return doc_content
+
+    def _search(self, query: str, num: int = None, return_score: bool = False):
+        if num is None:
+            num = self.topk
+        
+        # 对查询进行中文分词
+        tokenized_query = self._process_query(query)
+        print(f"原始查询: {query}")
+        print(f"分词后查询: {tokenized_query}")
+        
+        # 使用分词后的查询进行检索
+        hits = self.searcher.search(tokenized_query, num)
+        if len(hits) < 1:
+            if return_score:
+                return [], []
+            else:
+                return []
+        
+        scores = [hit.score for hit in hits]
+        if len(hits) < num:
+            warnings.warn('Not enough documents retrieved!')
+        else:
+            hits = hits[:num]
+
+        if self.contain_doc:
+            all_contents = [
+                json.loads(self.searcher.doc(hit.docid).raw())['contents'] 
+                for hit in hits
+            ]
+            results = [
+                {
+                    'title': content.split("\n")[0].strip("\""),
+                    'text': "\n".join(content.split("\n")[1:]),
+                    'contents': content
+                } 
+                for content in all_contents
+            ]
+        else:
+            results = load_docs(self.corpus, [hit.docid for hit in hits])
+        
+        # 对检索结果进行分词处理
+        processed_results = []
+        for result in results:
+            processed_result = self._process_document(result)
+            processed_results.append(processed_result)
+
+        if return_score:
+            return processed_results, scores
+        else:
+            return processed_results
+
+    def batch_search(self, queries: List[str], num: int = None, return_score: bool = False):
+        """批量搜索的增强版本，支持中文分词"""
+        if num is None:
+            num = self.topk
+            
+        # 对所有查询进行分词
+        tokenized_queries = [self._process_query(query) for query in queries]
+        
+        all_results = []
+        for tokenized_query, original_query in zip(tokenized_queries, queries):
+            print(f"原始查询: {original_query}")
+            print(f"分词后查询: {tokenized_query}")
+            
+            hits = self.searcher.search(tokenized_query, num)
+            scores = [hit.score for hit in hits] if len(hits) > 0 else []
+            
+            if self.contain_doc:
+                all_contents = [
+                    json.loads(self.searcher.doc(hit.docid).raw())['contents'] 
+                    for hit in hits[:num]
+                ]
+                results = [
+                    {
+                        'title': content.split("\n")[0].strip("\""),
+                        'text': "\n".join(content.split("\n")[1:]),
+                        'contents': content
+                    } 
+                    for content in all_contents
+                ]
+            else:
+                results = load_docs(self.corpus, [hit.docid for hit in hits[:num]])
+            
+            # 对结果进行分词处理
+            processed_results = [self._process_document(result) for result in results]
+            
+            if return_score:
+                all_results.append((processed_results, scores))
+            else:
+                all_results.append(processed_results)
+                
+        return all_results
+
 class DenseRetriever(BaseRetriever):
     def __init__(self, config):
         super().__init__(config)
