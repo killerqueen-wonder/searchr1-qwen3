@@ -162,6 +162,7 @@ class BM25Retriever(BaseRetriever):#rank bm25
 
         #自定义词典
         if len(config.dictionary_path) !=0:
+            print(f'[debug] load userdict :{config.dictionary_path}')
             jieba.load_userdict(config.dictionary_path)
 
         
