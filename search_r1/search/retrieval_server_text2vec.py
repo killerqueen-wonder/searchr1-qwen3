@@ -246,7 +246,10 @@ class BM25Retriever(BaseRetriever):#rank bm25
 
         def clean_string_translate(text):
             # 定义要删除的字符
-            chars_to_remove = "'\" !@#$%^&*()_+-=[]{}|;:,.<>?/"
+            chars_to_remove = (
+        "'\" !@#$%^&*()_+-=[]{}|;:,.<>?/"  # 英文标点符号
+        "，。！？；：「」『』（）【】《》﹁﹂﹃﹄‘’“”～﹏丶"  # 中文标点符号
+    )
             
             # 创建转换表
             translator = str.maketrans('', '', chars_to_remove)
@@ -254,7 +257,7 @@ class BM25Retriever(BaseRetriever):#rank bm25
             # 应用转换
             return text.translate(translator)
         
-        #清洗符号
+        #清洗检索词中的符号
         query=clean_string_translate(query)
 
         query_tokens = list(jieba.cut(query))
