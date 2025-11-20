@@ -186,21 +186,14 @@ class BM25Retriever(BaseRetriever):#rank bm25
         if num is None:
             num = self.topk
 
-        def clean_string_translate(text):
-            # 定义要删除的字符
-            chars_to_remove = (
-        "'\" !@#$%^&*()_+-=[]{}|;:,.<>?/"  # 英文标点符号
-        "，。！？；：「」『』（）【】《》﹁﹂﹃﹄‘’“”～﹏丶"  # 中文标点符号
-    )
-            
-            # 创建转换表
-            translator = str.maketrans('', '', chars_to_remove)
-            
-            # 应用转换
-            return text.translate(translator)
-        
+        import re
+        def clean_string_regex(text):
+            # 使用正则表达式移除标点符号
+            pattern = r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?/\'"、。，！？；：「」『』（）【】《》﹁﹂﹃﹄‘’“”～﹏丶]'
+            return re.sub(pattern, ' ', text)
+           
         #清洗检索词中的符号
-        query=clean_string_translate(query)
+        query=clean_string_regex(query)
 
         query_tokens = list(jieba.cut(query))
         print("[DEBUG] Query Tokens:", query_tokens)
