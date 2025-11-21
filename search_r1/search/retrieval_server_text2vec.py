@@ -507,9 +507,9 @@ class HybridRetriever(BaseRetriever):
         self.text2vec_retriever = Text2vecRetriever(config)
 
         self.topk = config.retrieval_topk
-        
-        self.candidate_k = self.topk * 5
         self.search_depth=config.search_depth
+        self.candidate_k = self.topk * self.search_depth
+        
 
         # 融合权重
         self.w_bm25 = 0.5
