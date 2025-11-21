@@ -196,7 +196,7 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba
         #清洗检索词中的符号
         query=clean_string_regex(query)
 
-        query_tokens = list(jieba.cut(query))
+        query_tokens = list(jieba.cut_for_search(query))
 
         print("[DEBUG] Query Tokens:", query_tokens)
 
