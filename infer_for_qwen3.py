@@ -350,7 +350,7 @@ class LLM_retriever:
             if action=="answer" or cnt > self.max_turn:
                 response = output_text
                 print(f'[debug]search turn:{cnt}')
-                print(f'[debug]final answer:{response}')
+                # print(f'[debug]final answer:{response}')
                 break
 
             elif action=="search":
