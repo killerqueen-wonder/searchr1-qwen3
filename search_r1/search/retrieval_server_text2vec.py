@@ -537,13 +537,16 @@ class HybridRetriever(BaseRetriever):
         
         for i, (doc, sc) in enumerate(zip(bm25_results, bm25_scores)):
             if i < num:
-                print(f"  [BM25] Rank {i+1}: score={sc}, doc_id={doc['content'] }")
+                print(f"  [BM25] Rank {i+1}: score={sc}, doc_content={doc['contents'] }")
 
         # text2vec 检索
         t2v_results, t2v_scores = self.text2vec_retriever._search(query, self.candidate_k, True)
         print("[DEBUG][Hybrid] Text2Vec top candidates:")
         for i, (doc, sc) in enumerate(zip(t2v_results, t2v_scores)):
-            print(f"  [T2V] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
+            # print(f"  [T2V] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
+            if i < num:
+                print(f"  [T2V] Rank {i+1}: score={sc}, doc_content={doc['contents'] }")
+            
 
         # 构建候选池
         pool = {}  # doc_id -> {bm25_score, t2v_score, doc}
