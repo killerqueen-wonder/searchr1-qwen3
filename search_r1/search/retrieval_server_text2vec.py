@@ -520,6 +520,7 @@ class HybridRetriever(BaseRetriever):
         self.topk = config.retrieval_topk
         
         self.candidate_k = self.topk * 5
+        self.search_depth=config.search_depth
 
         # 融合权重
         self.w_bm25 = 0.5
@@ -538,7 +539,7 @@ class HybridRetriever(BaseRetriever):
         if num is None:
             num = self.topk
 
-        self.candidate_k = num * 5
+        self.candidate_k = num * self.search_depth
         start_time = time.time()
 
         # bm25 检索
@@ -650,7 +651,8 @@ class Config:
         retrieval_query_max_length: int = 256,
         retrieval_use_fp16: bool = False,
         retrieval_batch_size: int = 128,
-        dictionary_path:str=""
+        dictionary_path:str="",
+        search_depth:int =5
     ):
         self.retrieval_method = retrieval_method
         self.retrieval_topk = retrieval_topk
@@ -670,6 +672,7 @@ class Config:
         self.retrieval_use_fp16 = retrieval_use_fp16
         self.retrieval_batch_size = retrieval_batch_size
         self.dictionary_path=dictionary_path
+        self.search_depth=search_depth
 
 
 class QueryRequest(BaseModel):
@@ -722,6 +725,7 @@ if __name__ == "__main__":
     parser.add_argument("--corpus_path", type=str, default="/home/peterjin/mnt/data/retrieval-corpus/wiki-18.jsonl", help="Local corpus file.")
     parser.add_argument("--dictionary_path", type=str, default='', help="jieba dictionary for law")
     parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
+    parser.add_argument("--search_depth", type=int, default=5, help="hydrid search depth")
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model.")
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
@@ -751,7 +755,8 @@ if __name__ == "__main__":
         retrieval_query_max_length=256,
         retrieval_use_fp16=True,
         retrieval_batch_size=512,
-        dictionary_path=args.dictionary_path
+        dictionary_path=args.dictionary_path,
+        search_depth=args.search_depth
     )
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
