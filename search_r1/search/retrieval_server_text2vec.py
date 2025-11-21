@@ -156,7 +156,7 @@ class BaseRetriever:
         return self._batch_search(query_list, num, return_score)
 
 
-class BM25Retriever(BaseRetriever):#rank bm25+jieba
+class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
     def __init__(self, config):
         super().__init__(config)
 
@@ -441,7 +441,7 @@ class Text2vecRetriever(BaseRetriever):
         if num is None:
             num = self.topk
             
-        start_time = time.time()
+        # start_time = time.time()
         
         # 计算查询嵌入向量
         query_embedding = self.embedder.encode(query, normalize_embeddings=True)
@@ -449,8 +449,8 @@ class Text2vecRetriever(BaseRetriever):
         # 使用 semantic_search 进行检索
         hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
         
-        end_time = time.time()
-        print(f"[DEBUG] t2v 单次检索时间: {end_time - start_time:.4f} 秒")
+        # end_time = time.time()
+        # print(f"[DEBUG] t2v 单次检索时间: {end_time - start_time:.4f} 秒")
         
         # 构建结果
         results = []
@@ -546,19 +546,19 @@ class HybridRetriever(BaseRetriever):
 
         # bm25 检索
         bm25_results, bm25_scores = self.bm25_retriever._search(query, self.candidate_k, True)
-        print("[DEBUG][Hybrid] BM25 top candidates:")
+        # print("[DEBUG][Hybrid] BM25 top candidates:")
         
-        for i, (doc, sc) in enumerate(zip(bm25_results, bm25_scores)):
-            if i < num:
-                print(f"  [BM25] Rank {i+1}: score={sc}, doc_content={doc['contents'] }")
+        # for i, (doc, sc) in enumerate(zip(bm25_results, bm25_scores)):
+        #     if i < num:
+        #         print(f"  [BM25] Rank {i+1}: score={sc}, doc_content={doc['contents'] }")
 
         # text2vec 检索
         t2v_results, t2v_scores = self.text2vec_retriever._search(query, self.candidate_k, True)
-        print("[DEBUG][Hybrid] Text2Vec top candidates:")
-        for i, (doc, sc) in enumerate(zip(t2v_results, t2v_scores)):
-            # print(f"  [T2V] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
-            if i < num:
-                print(f"  [T2V] Rank {i+1}: score={sc}, doc_content={doc['contents'] }")
+        # print("[DEBUG][Hybrid] Text2Vec top candidates:")
+        # for i, (doc, sc) in enumerate(zip(t2v_results, t2v_scores)):
+        #     # print(f"  [T2V] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
+        #     if i < num:
+        #         print(f"  [T2V] Rank {i+1}: score={sc}, doc_content={doc['contents'] }")
             
 
         # 构建候选池
@@ -597,10 +597,9 @@ class HybridRetriever(BaseRetriever):
         # 按融合分数排序
         ranked = sorted(pool.items(), key=lambda x: x[1]["hybrid_score"], reverse=True)[:num]
         
-        # print("[DEBUG] hybrid receive num =", num)
-        print("[DEBUG][Hybrid] Final fused ranking:")
-        for rank, (doc_id, info) in enumerate(ranked, 1):
-            print(f"  [Hybrid] Rank {rank}: score={info['hybrid_score']}, doc_id={doc_id}")
+        # print("[DEBUG][Hybrid] Final fused ranking:")
+        # for rank, (doc_id, info) in enumerate(ranked, 1):
+        #     print(f"  [Hybrid] Rank {rank}: score={info['hybrid_score']}, doc_id={doc_id}")
 
         results = [info["doc"] for _, info in ranked]
         scores = [info["hybrid_score"] for _, info in ranked]
