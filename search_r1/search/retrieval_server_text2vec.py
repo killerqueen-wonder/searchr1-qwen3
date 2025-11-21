@@ -536,7 +536,8 @@ class HybridRetriever(BaseRetriever):
         print("[DEBUG][Hybrid] BM25 top candidates:")
         
         for i, (doc, sc) in enumerate(zip(bm25_results, bm25_scores)):
-            print(f"  [BM25] Rank {i+1}: score={sc}, doc_id={doc['id'] if 'id' in doc else i}")
+            if i < num:
+                print(f"  [BM25] Rank {i+1}: score={sc}, doc_id={doc['content'] }")
 
         # text2vec 检索
         t2v_results, t2v_scores = self.text2vec_retriever._search(query, self.candidate_k, True)
