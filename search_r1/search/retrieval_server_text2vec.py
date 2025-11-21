@@ -24,7 +24,7 @@ import json
 
 from rank_bm25 import BM25Okapi
 import jieba
-import lawa
+
 
 
 def load_corpus(corpus_path: str):
@@ -160,21 +160,10 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba
     def __init__(self, config):
         super().__init__(config)
 
-        # #自定义词典
-        # if len(config.dictionary_path) !=0:
-        #     print(f'[debug] load userdict :{config.dictionary_path}')
-        #     jieba.load_userdict(config.dictionary_path)
-
-        
-
-        # # 加载语料库（必须是 jsonl，每条含 contents 字段）
-        # self.corpus = load_corpus(self.corpus_path)
-
-        # # 对语料库进行分词与预处理
-        # self.docs_raw = [doc["contents"] for doc in self.corpus]
-        # self.docs_tokenized = [list(jieba.cut(text)) for text in self.docs_raw]
-        
-        
+        #自定义词典
+        if len(config.dictionary_path) !=0:
+            print(f'[debug] load userdict :{config.dictionary_path}')
+            jieba.load_userdict(config.dictionary_path)
 
         
 
@@ -183,8 +172,8 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba
 
         # 对语料库进行分词与预处理
         self.docs_raw = [doc["contents"] for doc in self.corpus]
-        self.docs_tokenized = [list(lawa.cut(text)) for text in self.docs_raw]
-
+        self.docs_tokenized = [list(jieba.cut(text)) for text in self.docs_raw]
+        
         # 构建 BM25
         self.bm25 = BM25Okapi(self.docs_tokenized,k1=1.5, b=0.5)
 
@@ -207,8 +196,8 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba
         #清洗检索词中的符号
         query=clean_string_regex(query)
 
-        # query_tokens = list(jieba.cut(query))
-        query_tokens = list(lawa.cut(query))
+        query_tokens = list(jieba.cut(query))
+
         print("[DEBUG] Query Tokens:", query_tokens)
 
         scores = self.bm25.get_scores(query_tokens)
