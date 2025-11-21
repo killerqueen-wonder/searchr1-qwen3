@@ -436,7 +436,7 @@ class Text2vecRetriever(BaseRetriever):
         hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
         
         end_time = time.time()
-        print(f"[DEBUG] 单次检索时间: {end_time - start_time:.4f} 秒")
+        print(f"[DEBUG] t2v 单次检索时间: {end_time - start_time:.4f} 秒")
         
         # 构建结果
         results = []
@@ -587,7 +587,7 @@ class HybridRetriever(BaseRetriever):
         scores = [info["hybrid_score"] for _, info in ranked]
 
         end_time = time.time()
-        print(f"[DEBUG] 单次检索时间: {end_time - start_time:.4f} 秒")
+        print(f"[DEBUG] hybrid单次检索时间: {end_time - start_time:.4f} 秒")
         if return_score:
             return results, scores
         return results
