@@ -509,11 +509,11 @@ class HybridRetriever(BaseRetriever):
         self.topk = config.retrieval_topk
         self.search_depth=config.search_depth
         self.candidate_k = self.topk * self.search_depth
-        
 
+        
         # 融合权重
-        self.w_bm25 = 0.5
-        self.w_t2v = 0.5
+        self.w_bm25 = config.bm25_weight
+        self.w_t2v = 10
 
     def _min_max_norm(self, scores):
         if not scores:
@@ -641,7 +641,8 @@ class Config:
         retrieval_use_fp16: bool = False,
         retrieval_batch_size: int = 128,
         dictionary_path:str="",
-        search_depth:int =5
+        search_depth:int =5,
+        bm25_weight:int=10,
     ):
         self.retrieval_method = retrieval_method
         self.retrieval_topk = retrieval_topk
@@ -662,6 +663,7 @@ class Config:
         self.retrieval_batch_size = retrieval_batch_size
         self.dictionary_path=dictionary_path
         self.search_depth=search_depth
+        self.bm25_weight=bm25_weight
 
 
 class QueryRequest(BaseModel):
@@ -715,6 +717,7 @@ if __name__ == "__main__":
     parser.add_argument("--dictionary_path", type=str, default='', help="jieba dictionary for law")
     parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
     parser.add_argument("--search_depth", type=int, default=5, help="hydrid search depth")
+    parser.add_argument("--bm25_weight", type=int, default=10)
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model.")
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
@@ -745,7 +748,8 @@ if __name__ == "__main__":
         retrieval_use_fp16=True,
         retrieval_batch_size=512,
         dictionary_path=args.dictionary_path,
-        search_depth=args.search_depth
+        search_depth=args.search_depth,
+        bm25_weight=args.bm25_weight,
     )
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
