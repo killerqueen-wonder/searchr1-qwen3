@@ -179,11 +179,11 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
             print(f'[debug] load userdict :{config.dictionary_path}')
             lawa.load_userdict(config.dictionary_path)
 
-        # 加载语料库（必须是 jsonl，每条含 contents 字段）
+        # 加载语料库（必须是 jsonl，每条含 content 字段）
         self.corpus = load_corpus(self.corpus_path)
 
         # 对语料库进行分词与预处理
-        self.docs_raw = [doc["contents"] for doc in self.corpus]
+        self.docs_raw = [doc["content"] for doc in self.corpus]
         self.docs_tokenized = [list(lawa.cut(text)) for text in self.docs_raw]
         
         # 构建 BM25
@@ -411,6 +411,8 @@ class Text2vecRetriever(BaseRetriever):
                 corpus_texts.append(doc['contents'])
             elif 'text' in doc:
                 corpus_texts.append(doc['text'])
+            elif 'content' in doc:
+                corpus_texts.append(doc['content'])
             else:
                 corpus_texts.append(str(doc))
         
@@ -619,6 +621,8 @@ class HybridRetriever(BaseRetriever):
             scores.append(s)
         return (results, scores) if return_score else results
 
+
+
 def get_retriever(config):
     if config.retrieval_method == "bm25":
         return BM25Retriever(config)
@@ -626,6 +630,8 @@ def get_retriever(config):
         return HybridRetriever(config)
     elif config.retrieval_method == "text2vec":
         return Text2vecRetriever(config)
+    # elif config.retrieval_method == "hybrid_filter":
+    #     return HybridFilterRetriever(config)
     else:
         return DenseRetriever(config)
 
@@ -659,6 +665,7 @@ class Config:
         dictionary_path:str="",
         search_depth:int =5,
         bm25_weight:int=10,
+        filter_model:str="",
     ):
         self.retrieval_method = retrieval_method
         self.retrieval_topk = retrieval_topk
@@ -680,6 +687,8 @@ class Config:
         self.dictionary_path=dictionary_path
         self.search_depth=search_depth
         self.bm25_weight=bm25_weight
+        self.filter_model=filter_model
+        
 
 
 class QueryRequest(BaseModel):
@@ -736,6 +745,7 @@ if __name__ == "__main__":
     parser.add_argument("--bm25_weight", type=int, default=10)
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model.")
+    parser.add_argument("--filter_model", type=str, default="")
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
 
     parser.add_argument("--port", type=int, default=8006, help="the API port")
@@ -766,6 +776,8 @@ if __name__ == "__main__":
         dictionary_path=args.dictionary_path,
         search_depth=args.search_depth,
         bm25_weight=args.bm25_weight,
+
+        filter_model=args.filter_model,
     )
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
