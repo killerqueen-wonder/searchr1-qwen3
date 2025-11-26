@@ -55,6 +55,7 @@ def search(retrieve_path, payload):
         )
         response.raise_for_status()
         json_data = response.json()
+        print(json_data)
         results = json_data.get("result", [])
     except requests.exceptions.Timeout:
         print("[ERROR] Search request timed out.")
