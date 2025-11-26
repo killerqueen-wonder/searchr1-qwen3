@@ -1,13 +1,13 @@
 import json
 import os
 import warnings
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import argparse
 
 import faiss
 import torch
 import numpy as np
-from transformers import AutoConfig, AutoTokenizer, AutoModel
+from transformers import AutoConfig, AutoTokenizer, AutoModel, AutoModelForCausalLM
 from tqdm import tqdm
 import datasets
 
@@ -26,6 +26,7 @@ from rank_bm25 import BM25Okapi
 import jieba
 import lawa
 
+import re
 
 def load_corpus(corpus_path: str):
     corpus = datasets.load_dataset(
@@ -621,7 +622,142 @@ class HybridRetriever(BaseRetriever):
             scores.append(s)
         return (results, scores) if return_score else results
 
+class HybridFilterRetriever(BaseRetriever):
+    def __init__(self, config):
+        super().__init__(config)
+        
+        # 初始化 hybrid retriever
+        self.hybrid_retriever = HybridRetriever(config)
+        
+        self.topk = config.retrieval_topk
+        self.filter_model_path = config.filter_model  # e.g., "Qwen/Qwen3-8B" or local path
+        
+        # Lazy load LLM to avoid loading if not used
+        self._llm_tokenizer = None
+        self._llm_model = None
 
+    def _load_llm(self):
+        if self._llm_model is None:
+            print(f"[INFO] Loading filter LLM from: {self.filter_model_path}")
+            self._llm_tokenizer = AutoTokenizer.from_pretrained(
+                self.filter_model_path, 
+                trust_remote_code=True
+            )
+            self._llm_model = AutoModelForCausalLM.from_pretrained(
+                self.filter_model_path,
+                device_map="auto",
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16  # or torch.float16 if bfloat16 not supported
+            )
+            self._llm_model.eval()
+            print("[INFO] Filter LLM loaded successfully.")
+
+    def _filter_with_llm(self, query: str, candidate_docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        使用 LLM 过滤候选文档，只保留与 query 高度相关的。
+        返回过滤后的 doc 列表（保持原始格式）。
+        """
+        if not candidate_docs:
+            return []
+
+        # 提取 contents 作为备选文本，保留索引映射
+        contents_list = []
+        for doc in candidate_docs:
+            content = doc.get('contents', doc.get('text', str(doc)))
+            contents_list.append(content)
+
+        # 构造备选文本字符串：每段用换行分隔，并加编号（便于 LLM 引用）
+        # 但根据提示词要求“保留原格式”，我们直接用 \n\n 分隔
+        candidate_text = "\n\n".join(contents_list)
+
+        prompt = (
+            "你的任务是从备选文本中筛选符合检索词的文本。\n"
+            f"备选文本为：\n{candidate_text}\n"
+            f"检索词为：{query}\n"
+            "现在，从备选文本中筛选出符合检索词的文本，保留原格式，保留原文本，不要输出其他解释。"
+            "如果全部不符合，则返回空字符串。"
+        )
+
+        # Tokenize and generate
+        inputs = self._llm_tokenizer(prompt, return_tensors="pt").to(self._llm_model.device)
+        with torch.no_grad():
+            outputs = self._llm_model.generate(
+                **inputs,
+                max_new_tokens=2048,
+                do_sample=False,
+                pad_token_id=self._llm_tokenizer.eos_token_id
+            )
+        response = self._llm_tokenizer.decode(outputs[0], skip_special_tokens=True)
+        llm_output = response[len(prompt):].strip()
+
+        # 如果 LLM 返回空字符串或无内容
+        if not llm_output or llm_output == "空字符串" or llm_output == "":
+            return []
+
+        # 尝试匹配原始内容：按 \n\n 分割 LLM 输出的文本块
+        filtered_blocks = [block.strip() for block in llm_output.split("\n\n") if block.strip()]
+
+        # 重建 doc 列表：通过内容匹配（注意：可能有重复或部分匹配，这里做精确匹配）
+        filtered_docs = []
+        used_indices = set()
+        for block in filtered_blocks:
+            for idx, content in enumerate(contents_list):
+                if idx in used_indices:
+                    continue
+                if block == content:
+                    filtered_docs.append(candidate_docs[idx])
+                    used_indices.add(idx)
+                    break
+            else:
+                # 如果没找到完全匹配，尝试模糊匹配（可选）
+                # for idx, content in enumerate(contents_list):
+                #     if idx in used_indices:
+                #         continue
+                #     if block in content or content in block:
+                #         filtered_docs.append(candidate_docs[idx])
+                #         used_indices.add(idx)
+                #         break
+                pass  # 严格匹配，不模糊
+
+        return filtered_docs
+
+    def _search(self, query: str, num: int = None, return_score: bool = False):
+        if num is None:
+            num = self.topk
+
+        # Step 1: Use HybridRetriever to get candidates (more than num to allow filtering)
+        # We retrieve `num * 2` or at least `num + 5` to give LLM enough candidates
+        candidate_num = max(num * 2, num + 5)
+        hybrid_results, hybrid_scores = self.hybrid_retriever._search(query, candidate_num, return_score=True)
+
+        # Step 2: Load LLM if not loaded
+        self._load_llm()
+
+        # Step 3: Filter with LLM
+        filtered_docs = self._filter_with_llm(query, hybrid_results)
+
+        # Step 4: Truncate to `num`
+        final_results = filtered_docs[:num]
+        final_scores = [1.0] * len(final_results)  # dummy scores; could compute from hybrid if needed
+
+        if return_score:
+            return final_results, final_scores
+        else:
+            return final_results
+
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
+        if isinstance(query_list, str):
+            query_list = [query_list]
+        results = []
+        scores_list = []
+        for q in query_list:
+            r, s = self._search(q, num, return_score=True)
+            results.append(r)
+            scores_list.append(s)
+        if return_score:
+            return results, scores_list
+        else:
+            return results
 
 def get_retriever(config):
     if config.retrieval_method == "bm25":
@@ -630,8 +766,8 @@ def get_retriever(config):
         return HybridRetriever(config)
     elif config.retrieval_method == "text2vec":
         return Text2vecRetriever(config)
-    # elif config.retrieval_method == "hybrid_filter":
-    #     return HybridFilterRetriever(config)
+    elif config.retrieval_method == "hybrid_filter":
+        return HybridFilterRetriever(config)
     else:
         return DenseRetriever(config)
 

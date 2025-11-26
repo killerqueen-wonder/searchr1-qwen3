@@ -74,7 +74,7 @@ def search(retrieve_path, payload):
         format_reference = ''
         for idx, doc_item in enumerate(retrieval_result):
                         
-            content = doc_item['document']['contents']
+            content = doc_item['document']['content']
             title = content.split("\n")[0]
             text = "\n".join(content.split("\n")[1:])
             
