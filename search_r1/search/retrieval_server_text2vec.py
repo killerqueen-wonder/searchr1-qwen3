@@ -210,7 +210,8 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
         query=clean_string_regex(query)
 
         # query_tokens = list(jieba.cut_for_search(query))
-        query_tokens = list(lawa.cut_for_search(query))
+        # query_tokens = list(lawa.cut_for_search(query))
+        query_tokens = list(lawa.cut(query))
 
         print("[DEBUG] Query Tokens:", query_tokens)
 
