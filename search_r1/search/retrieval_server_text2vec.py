@@ -1,7 +1,7 @@
 import json
 import os
 import warnings
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any,Tuple
 import argparse
 
 import faiss
@@ -623,143 +623,142 @@ class HybridRetriever(BaseRetriever):
             scores.append(s)
         return (results, scores) if return_score else results
 
-class HybridFilterRetriever(BaseRetriever):
+class HybridFilterRetriever(HybridRetriever):
     def __init__(self, config):
+        # 初始化父类 (BM25 + Text2Vec)
         super().__init__(config)
         
-        # 初始化 hybrid retriever
-        self.hybrid_retriever = HybridRetriever(config)
+        # 初始化 Filter 模型 (LLM)
+        print(f"[Init] Loading Filter LLM from: {config.filter_model} ...")
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        self.topk = config.retrieval_topk
-        self.filter_model_path = config.filter_model  # e.g., "Qwen/Qwen3-8B" or local path
-        
-        # Lazy load LLM to avoid loading if not used
-        self._llm_tokenizer = None
-        self._llm_model = None
-
-    def _load_llm(self):
-        if self._llm_model is None:
-            print(f"[INFO] Loading filter LLM from: {self.filter_model_path}")
-            self._llm_tokenizer = AutoTokenizer.from_pretrained(
-                self.filter_model_path, 
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                config.filter_model, 
                 trust_remote_code=True
             )
-            self._llm_model = AutoModelForCausalLM.from_pretrained(
-                self.filter_model_path,
-                device_map="auto",
+            self.model = AutoModelForCausalLM.from_pretrained(
+                config.filter_model, 
+                device_map="auto", 
                 trust_remote_code=True,
-                torch_dtype=torch.bfloat16  # or torch.float16 if bfloat16 not supported
+                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
             )
-            self._llm_model.eval()
-            print("[INFO] Filter LLM loaded successfully.")
+            self.model.eval()
+        except Exception as e:
+            print(f"[Error] Failed to load Filter LLM: {e}")
+            raise e
 
-    def _filter_with_llm(self, query: str, candidate_docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        使用 LLM 过滤候选文档，只保留与 query 高度相关的。
-        返回过滤后的 doc 列表（保持原始格式）。
-        """
-        if not candidate_docs:
-            return []
-
-        # 提取 contents 作为备选文本，保留索引映射
-        contents_list = []
-        for doc in candidate_docs:
-            content = doc.get('contents', doc.get('text', str(doc)))
-            contents_list.append(content)
-
-        # 构造备选文本字符串：每段用换行分隔，并加编号（便于 LLM 引用）
-        # 但根据提示词要求“保留原格式”，我们直接用 \n\n 分隔
-        candidate_text = "\n\n".join(contents_list)
-
-        prompt = (
+        # 提示词模板
+        self.prompt_template = (
             "你的任务是从备选文本中筛选符合检索词的文本。\n"
-            f"备选文本为：\n{candidate_text}\n"
-            f"检索词为：{query}\n"
+            "备选文本为：{results}\n"
+            "检索词为：{query}\n"
             "现在，从备选文本中筛选出符合检索词的文本，保留原格式，保留原文本，不要输出其他解释。"
             "如果全部不符合，则返回空字符串。"
         )
 
-        # Tokenize and generate
-        inputs = self._llm_tokenizer(prompt, return_tensors="pt").to(self._llm_model.device)
-        with torch.no_grad():
-            outputs = self._llm_model.generate(
-                **inputs,
-                max_new_tokens=2048,
-                do_sample=False,
-                pad_token_id=self._llm_tokenizer.eos_token_id
+    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float]) -> Tuple[List[Dict], List[float]]:
+        """
+        使用 LLM 对候选文档进行筛选
+        """
+        if not candidates:
+            return [], []
+
+        # 1. 构建 Prompt 输入
+        # 为了让 LLM 更好理解结构，我们将候选文档转为简化的 JSON 字符串或带序号的列表
+        # 这里为了配合 "保留原格式" 的要求，构建一个包含 content 的列表供 LLM 阅读
+        candidates_data = []
+        for doc in candidates:
+            # 提取关键信息给 LLM 判断，减少 token 消耗，主要是 content
+            candidates_data.append({
+                "content": doc.get("content", ""),
+                # 可以根据需要添加其他辅助判断字段，如 law_name
+            })
+        
+        results_str = json.dumps(candidates_data, ensure_ascii=False, indent=1)
+        prompt = self.prompt_template.format(results=results_str, query=query)
+
+        # 2. 模型推理
+        try:
+            messages = [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ]
+            text = self.tokenizer.apply_chat_template(
+                messages, 
+                tokenize=False, 
+                add_generation_prompt=True
             )
-        response = self._llm_tokenizer.decode(outputs[0], skip_special_tokens=True)
-        llm_output = response[len(prompt):].strip()
+            model_inputs = self.tokenizer([text], return_tensors="pt").to(self.device)
 
-        # 如果 LLM 返回空字符串或无内容
-        if not llm_output or llm_output == "空字符串" or llm_output == "":
-            return []
+            with torch.no_grad():
+                generated_ids = self.model.generate(
+                    **model_inputs,
+                    max_new_tokens=5000, # 预留足够的输出长度
+                    temperature=0.1,     # 低温以保证确定性
+                    do_sample=False
+                )
+            
+            # 获取生成的文本（去掉 prompt 部分）
+            generated_ids = [
+                output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+            ]
+            response = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            
+        except Exception as e:
+            print(f"[Warning] LLM Filter failed: {e}, returning original top results.")
+            return candidates, scores
 
-        # 尝试匹配原始内容：按 \n\n 分割 LLM 输出的文本块
-        filtered_blocks = [block.strip() for block in llm_output.split("\n\n") if block.strip()]
+        # 3. 解析结果并筛选
+        # 策略：如果 LLM 返回的文本中包含了文档的内容片段，则认为该文档被选中。
+        # 这种方式比强制 LLM 输出严格 JSON 更鲁棒。
+        
+        filtered_results = []
+        filtered_scores = []
+        
+        # 如果模型返回空字符串或表示无结果
+        if not response.strip():
+            return [], []
 
-        # 重建 doc 列表：通过内容匹配（注意：可能有重复或部分匹配，这里做精确匹配）
-        filtered_docs = []
-        used_indices = set()
-        for block in filtered_blocks:
-            for idx, content in enumerate(contents_list):
-                if idx in used_indices:
-                    continue
-                if block == content:
-                    filtered_docs.append(candidate_docs[idx])
-                    used_indices.add(idx)
-                    break
-            else:
-                # 如果没找到完全匹配，尝试模糊匹配（可选）
-                # for idx, content in enumerate(contents_list):
-                #     if idx in used_indices:
-                #         continue
-                #     if block in content or content in block:
-                #         filtered_docs.append(candidate_docs[idx])
-                #         used_indices.add(idx)
-                #         break
-                pass  # 严格匹配，不模糊
-
-        return filtered_docs
+        print(f"[debug]response:{response}")
+        for doc, score in zip(candidates, scores):
+            content = doc.get("content", "")
+            # 判断逻辑：
+            # 1. 如果 content 很短，要求全匹配
+            # 2. 如果 content 很长，可以截取部分判断，或者简单判断 content 是否在 response 中
+            # 考虑到 LLM 可能会复述原文，使用包含判断：
+            if content and content[:min(30,len(content))] in response:
+                filtered_results.append(doc)
+                filtered_scores.append(score)
+        
+        # 兜底策略：如果筛选后为空，但 response 并不为空（可能 LLM 改写了格式导致匹配失败），
+        # 或者为了保证系统稳定性，可以选择返回 Top 1 或者空。
+        # 这里根据题目要求 "如果全部不符合，则返回空字符串"，即允许返回空列表。
+        
+        return filtered_results, filtered_scores
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
-        if num is None:
-            num = self.topk
-
-        # Step 1: Use HybridRetriever to get candidates (more than num to allow filtering)
-        # We retrieve `num * 2` or at least `num + 5` to give LLM enough candidates
-        candidate_num = max(num * 2, num + 5)
-        hybrid_results, hybrid_scores = self.hybrid_retriever._search(query, candidate_num, return_score=True)
-
-        # Step 2: Load LLM if not loaded
-        self._load_llm()
-
-        # Step 3: Filter with LLM
-        filtered_docs = self._filter_with_llm(query, hybrid_results)
-
-        # Step 4: Truncate to `num`
-        final_results = filtered_docs[:num]
-        final_scores = [1.0] * len(final_results)  # dummy scores; could compute from hybrid if needed
+        # 1. 使用父类 HybridRetriever 进行初步检索 (Recall)
+        # 注意：这里可以适当放大 num (search_depth)，给 LLM 更多选择空间
+        initial_num = num if num else self.topk
+        # 这里的 num 传给父类，父类内部会乘以 search_depth 来获取 candidate_k
+        # 但我们希望 LLM 看到的候选集是父类融合排序后的 Top N
+        
+        candidates, scores = super()._search(query, initial_num, return_score=True)
+        
+        start_time = time.time()
+        
+        # 2. 使用 LLM 进行过滤 (Precision)
+        filtered_results, filtered_scores = self._llm_filter(query, candidates, scores)
+        
+        end_time = time.time()
+        print(f"[DEBUG] LLM Filter time: {end_time - start_time:.4f} s, Input: {len(candidates)} -> Output: {len(filtered_results)}")
 
         if return_score:
-            return final_results, final_scores
-        else:
-            return final_results
-
-    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
-        if isinstance(query_list, str):
-            query_list = [query_list]
-        results = []
-        scores_list = []
-        for q in query_list:
-            r, s = self._search(q, num, return_score=True)
-            results.append(r)
-            scores_list.append(s)
-        if return_score:
-            return results, scores_list
-        else:
-            return results
-
+            return filtered_results, filtered_scores
+        return filtered_results
+    
+    
 def get_retriever(config):
     if config.retrieval_method == "bm25":
         return BM25Retriever(config)
