@@ -743,10 +743,11 @@ class HybridFilterRetriever(HybridRetriever):
 
         # 提示词模板
         self.prompt_template = (
-            "你的任务是从备选文本中筛选符合检索词的文本。\n"
+            "你的任务是从备选文本中评价哪些文本符合检索词。\n"
             "备选文本为：{results}\n"
             "检索词为：{query}\n"
-            "现在，从备选文本中筛选出符合检索词的文本，保留原格式，保留原文本，不要输出其他解释。"
+            # "现在，从备选文本中筛选出符合检索词的文本，保留原格式，保留原文本，不要输出其他解释。"
+            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4],不要输出其他解释。"
             "如果全部不符合，则返回空字符串。"
         )
 
@@ -759,7 +760,7 @@ class HybridFilterRetriever(HybridRetriever):
 
         # 1. 构建 Prompt 输入
         # 为了让 LLM 更好理解结构，我们将候选文档转为简化的 JSON 字符串或带序号的列表
-        # 这里为了配合 "保留原格式" 的要求，构建一个包含 content 的列表供 LLM 阅读
+        
         candidates_data = []
         for doc in candidates:
             # 提取关键信息给 LLM 判断，减少 token 消耗，主要是 content
@@ -808,34 +809,39 @@ class HybridFilterRetriever(HybridRetriever):
         
         filtered_results = []
         filtered_scores = []
-        
+        print(f"[debug]response:{response}")
         # 如果模型返回空字符串或表示无结果
         if not response.strip():
             return [], []
 
-        print(f"[debug]response:{response}")
-        for doc, score in zip(candidates, scores):
-            content = doc.get("content", "")
-            # 判断逻辑：
-            # 1. 如果 content 很短，要求全匹配
-            # 2. 如果 content 很长，可以截取部分判断，或者简单判断 content 是否在 response 中
-            # 考虑到 LLM 可能会复述原文，使用包含判断：
-            if content and content[:min(30,len(content))] in response:
-                filtered_results.append(doc)
-                filtered_scores.append(score)
-        
-        # 兜底策略：如果筛选后为空，但 response 并不为空（可能 LLM 改写了格式导致匹配失败），
-        # 或者为了保证系统稳定性，可以选择返回 Top 1 或者空。
-        # 这里根据题目要求 "如果全部不符合，则返回空字符串"，即允许返回空列表。
+        def extract_numbers_last_brackets(text):
+            # 使用正则表达式查找最后一个 [...] 对
+            pattern = r'\[([^\[\]]*)\]'
+            matches = list(re.finditer(pattern, text))
+            
+            if not matches:
+                return None
+            
+            # 获取最后一个匹配
+            last_match = matches[-1]
+            
+            # 提取数字
+            numbers = re.findall(r'\d+', last_match.group(1))
+            
+            return set(map(int, numbers)) if numbers else None
+
+        #读取模型筛选的文本编号
+        text_num=extract_numbers_last_brackets(response)
+
+        filtered_results = [item for item in candidates if item in text_num]
+        filtered_scores = [item for item in scores if item in text_num]
         
         return filtered_results, filtered_scores
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
         # 1. 使用父类 HybridRetriever 进行初步检索 (Recall)
-        # 注意：这里可以适当放大 num (search_depth)，给 LLM 更多选择空间
         initial_num = num if num else self.topk
-        # 这里的 num 传给父类，父类内部会乘以 search_depth 来获取 candidate_k
-        # 但我们希望 LLM 看到的候选集是父类融合排序后的 Top N
+
         
         candidates, scores = super()._search(query, initial_num, return_score=True)
         
