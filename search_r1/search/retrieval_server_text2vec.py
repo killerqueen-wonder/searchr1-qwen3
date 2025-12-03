@@ -184,7 +184,46 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
         self.corpus = load_corpus(self.corpus_path)
 
         # 对语料库进行分词与预处理
-        self.docs_raw = [doc["content"] for doc in self.corpus]
+        # self.docs_raw = [doc["content"] for doc in self.corpus]
+
+        #对法律名和编号加权
+        enhanced_docs = []
+        for doc in self.corpus:
+            text = doc["content"]
+
+            # 提取 “法律名”：从第一次出现“中华人民共和国”末尾，到后第一次出现空格
+            law_name = ""
+            m1 = re.search(r"(?<=中华人民共和国)\s*(.*?)(?=\s|$)", text, flags=re.S)
+            if m1:
+                law_name = m1.group(1).strip()
+
+            # 提取 “法条编号”：从第一次出现“\n  第”，到之后第一次出现“条\n”
+            article_id = ""
+            m2 = re.search(r"\n\s*第(.*?)条\n", text, flags=re.S)
+            if m2:
+                article_id = f"{m2.group(1)}"
+
+            # 权重增强：重复添加若干次（可调）
+            if config.weight_factor:
+                weight_factor=config.weight_factor
+            else:
+                weight_factor = 3   # 可调
+            weighted_tokens = []
+            if law_name:
+                weighted_tokens.extend([law_name] * weight_factor)
+            if article_id:
+                weighted_tokens.extend([article_id] * weight_factor)
+
+            enhanced_docs.append({
+                "content": text,
+                "weighted": " ".join(weighted_tokens)
+            })
+
+        # 替换为增强后的内容
+        self.docs_raw = [
+            (doc["weighted"] + " " + doc["content"])
+            for doc in enhanced_docs
+        ]
         self.docs_tokenized = [list(lawa.cut(text)) for text in self.docs_raw]
         
         # 构建 BM25
@@ -200,7 +239,7 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
         if num is None:
             num = self.topk
 
-        import re
+        
         def clean_string_regex(text):
             # 使用正则表达式移除标点符号
             pattern = r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?/\'"、。，！？；：「」『』（）【】《》﹁﹂﹃﹄‘’“”～﹏丶]'
@@ -208,6 +247,60 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
            
         #清洗检索词中的符号
         query=clean_string_regex(query)
+
+        #转换数字
+        def num_to_chinese(num):
+            if not (0 <= num <= 9999): # 限制在0-9999范围内
+                return num
+            num_map = {
+                '0': '零', '1': '一', '2': '二', '3': '三', '4': '四',
+                '5': '五', '6': '六', '7': '七', '8': '八', '9': '九'
+            }
+            units = ['', '十', '百', '千'] # 单位只到千
+            
+            if num == 0:
+                return '零'
+                
+            digits = list(str(num))
+            digits.reverse() # 反转以便从个位开始处理
+            
+            result_parts = []
+            zero_flag = False # 标记是否需要加零
+            
+            for i, digit in enumerate(digits):
+                current_unit = units[i]
+                if digit == '0':
+                    zero_flag = True # 标记中间有0
+                else:
+                    if zero_flag and result_parts:
+                        # 如果之前有0且结果不为空，则加一个零
+                        result_parts.append('零')
+                    result_parts.append(num_map[digit] + current_unit)
+                    zero_flag = False # 重置零标记
+                    
+            # 反转结果列表并拼接
+            result_parts.reverse()
+            res_str = ''.join(result_parts)
+            
+            # 特殊处理：10-19的数字，如10应为"十"而非"一十"
+            if 10 <= num <= 19:
+                res_str = res_str.replace('一十', '十')
+                
+            return res_str
+
+        def replace_numbers_with_chinese(text):
+            """
+            将字符串中的所有连续数字替换为中文数字
+            """
+            def replace_match(match):
+                num_str = match.group()
+                # 将字符串转换为整数，然后调用你的num_to_chinese函数
+                return num_to_chinese(int(num_str))
+            
+            # 使用re.sub进行替换
+            return re.sub(r'\d+', replace_match, text)
+
+        query = replace_numbers_with_chinese(query)
 
         # query_tokens = list(jieba.cut_for_search(query))
         # query_tokens = list(lawa.cut_for_search(query))
@@ -801,6 +894,7 @@ class Config:
         dictionary_path:str="",
         search_depth:int =5,
         bm25_weight:int=10,
+        bm25_weight_factor:int =3,
         filter_model:str="",
     ):
         self.retrieval_method = retrieval_method
@@ -823,6 +917,7 @@ class Config:
         self.dictionary_path=dictionary_path
         self.search_depth=search_depth
         self.bm25_weight=bm25_weight
+        self.bm25_weight_factor=bm25_weight_factor
         self.filter_model=filter_model
         
 
@@ -879,6 +974,7 @@ if __name__ == "__main__":
     parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
     parser.add_argument("--search_depth", type=int, default=5, help="hydrid search depth")
     parser.add_argument("--bm25_weight", type=int, default=10)
+    parser.add_argument("--bm25_weight_factor", type=int, default=3)
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model.")
     parser.add_argument("--filter_model", type=str, default="")
@@ -912,6 +1008,7 @@ if __name__ == "__main__":
         dictionary_path=args.dictionary_path,
         search_depth=args.search_depth,
         bm25_weight=args.bm25_weight,
+        bm25_weight_factor=args.bm25_weight_factor,
 
         filter_model=args.filter_model,
     )
