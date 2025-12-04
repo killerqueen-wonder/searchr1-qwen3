@@ -206,6 +206,7 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
             # 权重增强：重复添加若干次（可调）
             if config.bm25_weight_factor:
                 weight_factor=config.bm25_weight_factor
+                print(f'[debug]weight factor={weight_factor}')
             else:
                 weight_factor = 3   # 可调
             weighted_tokens = []
@@ -229,11 +230,8 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
         # 构建 BM25
         self.bm25 = BM25Okapi(self.docs_tokenized,k1=1.5, b=0.5)
 
-        self.contain_doc = False  # 不再从 LuceneSearcher 取 doc
+        
         self.max_process_num = 8
-
-    def _check_contain_doc(self):
-        return False  # 使用 rank_bm25 时不走 LuceneSearcher 流程
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
         if num is None:
