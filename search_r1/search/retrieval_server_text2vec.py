@@ -341,7 +341,7 @@ class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
 class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
     def __init__(self, config):
         super().__init__(config)
-        print(f'[debug][BM25Retriever]weight factor={config.bm25_weight_factor}')
+        
 
         
         #自定义词典
@@ -740,7 +740,7 @@ class Text2vecRetriever(BaseRetriever):
 class HybridRetriever(BaseRetriever):
     def __init__(self, config):
         super().__init__(config)
-        print(f'[debug][HybridRetriever]weight factor={config.bm25_weight_factor}')
+        
         # 初始化组件
         self.bm25_retriever = BM25Retriever(config)
         self.text2vec_retriever = Text2vecRetriever(config)
@@ -988,7 +988,7 @@ class HybridFilterRetriever(HybridRetriever):
     
     
 def get_retriever(config):
-    print(f'[debug][get_retriever]weight factor={config.bm25_weight_factor}')
+    
     if config.retrieval_method == "bm25":
         return BM25Retriever(config)
     elif config.retrieval_method == "hybrid":
@@ -1150,7 +1150,7 @@ if __name__ == "__main__":
 
         filter_model=args.filter_model,
     )
-    print(f'[debug][parser]weight factor={config.bm25_weight_factor}')
+    
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
     retriever = get_retriever(config)
