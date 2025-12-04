@@ -160,6 +160,7 @@ class BaseRetriever:
 class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
     def __init__(self, config):
         super().__init__(config)
+        print(f'[debug]weight factor={config.bm25_weight_factor}')
 
         # #自定义词典
         # if len(config.dictionary_path) !=0:
@@ -206,10 +207,10 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
             # 权重增强：重复添加若干次（可调）
             if config.bm25_weight_factor:
                 weight_factor=config.bm25_weight_factor
-                print(f'[debug]weight factor={weight_factor}')
+                # print(f'[debug]weight factor={weight_factor}')
             else:
                 weight_factor = 3   # 可调
-                print(f'[debug]default weight factor={weight_factor}')
+                # print(f'[debug]default weight factor={weight_factor}')
             weighted_tokens = []
             if law_name:
                 weighted_tokens.extend([law_name] * weight_factor)
