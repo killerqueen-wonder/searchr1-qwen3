@@ -209,6 +209,7 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
                 print(f'[debug]weight factor={weight_factor}')
             else:
                 weight_factor = 3   # 可调
+                print(f'[debug]default weight factor={weight_factor}')
             weighted_tokens = []
             if law_name:
                 weighted_tokens.extend([law_name] * weight_factor)
