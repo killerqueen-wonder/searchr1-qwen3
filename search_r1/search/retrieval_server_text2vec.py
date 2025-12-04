@@ -160,22 +160,9 @@ class BaseRetriever:
 class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
     def __init__(self, config):
         super().__init__(config)
-        print(f'[debug]weight factor={config.bm25_weight_factor}')
-
-        # #自定义词典
-        # if len(config.dictionary_path) !=0:
-        #     print(f'[debug] load userdict :{config.dictionary_path}')
-        #     jieba.load_userdict(config.dictionary_path)
+        print(f'[debug][BM25Retriever]weight factor={config.bm25_weight_factor}')
 
         
-
-        # # 加载语料库（必须是 jsonl，每条含 contents 字段）
-        # self.corpus = load_corpus(self.corpus_path)
-
-        # # 对语料库进行分词与预处理
-        # self.docs_raw = [doc["contents"] for doc in self.corpus]
-        # self.docs_tokenized = [list(jieba.cut(text)) for text in self.docs_raw]
-
         #自定义词典
         if len(config.dictionary_path) !=0:
             print(f'[debug] load userdict :{config.dictionary_path}')
@@ -611,7 +598,7 @@ class Text2vecRetriever(BaseRetriever):
 class HybridRetriever(BaseRetriever):
     def __init__(self, config):
         super().__init__(config)
-
+        print(f'[debug][HybridRetriever]weight factor={config.bm25_weight_factor}')
         # 初始化组件
         self.bm25_retriever = BM25Retriever(config)
         self.text2vec_retriever = Text2vecRetriever(config)
@@ -859,6 +846,7 @@ class HybridFilterRetriever(HybridRetriever):
     
     
 def get_retriever(config):
+    print(f'[debug][get_retriever]weight factor={config.bm25_weight_factor}')
     if config.retrieval_method == "bm25":
         return BM25Retriever(config)
     elif config.retrieval_method == "hybrid":
@@ -1018,6 +1006,7 @@ if __name__ == "__main__":
 
         filter_model=args.filter_model,
     )
+    print(f'[debug][parser]weight factor={config.bm25_weight_factor}')
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
     retriever = get_retriever(config)
