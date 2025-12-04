@@ -204,8 +204,8 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
                 article_id = f"{m2.group(1)}"
 
             # 权重增强：重复添加若干次（可调）
-            if config.weight_factor:
-                weight_factor=config.weight_factor
+            if config.bm25_weight_factor:
+                weight_factor=config.bm25_weight_factor
             else:
                 weight_factor = 3   # 可调
             weighted_tokens = []
