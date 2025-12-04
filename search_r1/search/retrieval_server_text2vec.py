@@ -157,7 +157,7 @@ class BaseRetriever:
         return self._batch_search(query_list, num, return_score)
 
 
-class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
+class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
     def __init__(self, config):
         super().__init__(config)
         print(f'[debug][BM25Retriever]weight factor={config.bm25_weight_factor}')
@@ -214,6 +214,148 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
             (doc["weighted"] + " " + doc["content"])
             for doc in enhanced_docs
         ]
+        self.docs_tokenized = [list(lawa.cut(text)) for text in self.docs_raw]
+        
+        # 构建 BM25
+        self.bm25 = BM25Okapi(self.docs_tokenized,k1=1.5, b=0.5)
+
+        
+        self.max_process_num = 8
+
+    def _search(self, query: str, num: int = None, return_score: bool = False):
+        if num is None:
+            num = self.topk
+
+        
+        def clean_string_regex(text):
+            # 使用正则表达式移除标点符号
+            pattern = r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?/\'"、。，！？；：「」『』（）【】《》﹁﹂﹃﹄‘’“”～﹏丶]'
+            return re.sub(pattern, ' ', text)
+           
+        #清洗检索词中的符号
+        query=clean_string_regex(query)
+
+        #转换数字
+        def num_to_chinese(num):
+            if not (0 <= num <= 9999): # 限制在0-9999范围内
+                return num
+            num_map = {
+                '0': '零', '1': '一', '2': '二', '3': '三', '4': '四',
+                '5': '五', '6': '六', '7': '七', '8': '八', '9': '九'
+            }
+            units = ['', '十', '百', '千'] # 单位只到千
+            
+            if num == 0:
+                return '零'
+                
+            digits = list(str(num))
+            digits.reverse() # 反转以便从个位开始处理
+            
+            result_parts = []
+            zero_flag = False # 标记是否需要加零
+            
+            for i, digit in enumerate(digits):
+                current_unit = units[i]
+                if digit == '0':
+                    zero_flag = True # 标记中间有0
+                else:
+                    if zero_flag and result_parts:
+                        # 如果之前有0且结果不为空，则加一个零
+                        result_parts.append('零')
+                    result_parts.append(num_map[digit] + current_unit)
+                    zero_flag = False # 重置零标记
+                    
+            # 反转结果列表并拼接
+            result_parts.reverse()
+            res_str = ''.join(result_parts)
+            
+            # 特殊处理：10-19的数字，如10应为"十"而非"一十"
+            if 10 <= num <= 19:
+                res_str = res_str.replace('一十', '十')
+                
+            return res_str
+
+        def replace_numbers_with_chinese(text):
+            """
+            将字符串中的所有连续数字替换为中文数字
+            """
+            def replace_match(match):
+                num_str = match.group()
+                # 将字符串转换为整数，然后调用你的num_to_chinese函数
+                return num_to_chinese(int(num_str))
+            
+            # 使用re.sub进行替换
+            return re.sub(r'\d+', replace_match, text)
+
+        query = replace_numbers_with_chinese(query)
+
+        # query_tokens = list(jieba.cut_for_search(query))
+        # query_tokens = list(lawa.cut_for_search(query))
+        query_tokens = list(lawa.cut(query))
+
+        print("[DEBUG] Query Tokens:", query_tokens)
+
+        scores = self.bm25.get_scores(query_tokens)
+
+        
+
+        if len(scores) == 0:
+            if return_score:
+                return [], []
+            return []
+
+        # 取 topk
+        ranked = sorted(
+            list(enumerate(scores)),
+            key=lambda x: x[1],
+            reverse=True
+        )[:num]
+
+        # print("\n[DEBUG] Top-k Documents Info:")
+        # for rank, (doc_id, score) in enumerate(ranked):
+        #     print(f"\n[DEBUG] Rank {rank+1}: Doc {doc_id}, Score = {score}")
+        #     print("[DEBUG] Doc Tokens:", self.docs_tokenized[doc_id])
+
+        doc_ids = [idx for idx, _ in ranked]
+        top_scores = [score for _, score in ranked]
+
+        results = load_docs(self.corpus, doc_ids)
+
+        if return_score:
+            return results, top_scores
+        else:
+            return results
+
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
+        results = []
+        scores = []
+        for query in query_list:
+            item_result, item_score = self._search(query, num, True)
+            results.append(item_result)
+            scores.append(item_score)
+        if return_score:
+            return results, scores
+        else:
+            return results
+
+class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
+    def __init__(self, config):
+        super().__init__(config)
+        print(f'[debug][BM25Retriever]weight factor={config.bm25_weight_factor}')
+
+        
+        #自定义词典
+        if len(config.dictionary_path) !=0:
+            print(f'[debug] load userdict :{config.dictionary_path}')
+            lawa.load_userdict(config.dictionary_path)
+
+        # 加载语料库（必须是 jsonl，每条含 content 字段）
+        self.corpus = load_corpus(self.corpus_path)
+
+        # 对语料库进行分词与预处理
+        self.docs_raw = [doc["content"] for doc in self.corpus]
+
+        
         self.docs_tokenized = [list(lawa.cut(text)) for text in self.docs_raw]
         
         # 构建 BM25
@@ -855,6 +997,8 @@ def get_retriever(config):
         return Text2vecRetriever(config)
     elif config.retrieval_method == "hybrid_filter":
         return HybridFilterRetriever(config)
+    elif config.retrieval_method == "BM25Weight":
+        return BM25WeightRetriever(config)
     else:
         return DenseRetriever(config)
 
