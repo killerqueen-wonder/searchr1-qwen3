@@ -940,9 +940,7 @@ class HybridFilterRetriever(HybridRetriever):
         filtered_results = []
         filtered_scores = []
         print(f"[debug]model response:{response}")
-        # 如果模型返回空字符串或表示无结果
-        if not response.strip():
-            return [], []
+        
 
         def extract_numbers_last_brackets(text):
             # 使用正则表达式查找最后一个 [...] 对
@@ -963,6 +961,10 @@ class HybridFilterRetriever(HybridRetriever):
         #读取模型筛选的文本编号
         text_num=extract_numbers_last_brackets(response)
         print(f"[debug]model text_num:{text_num}")
+
+        # 如果模型返回空字符串或表示无结果
+        if not response.strip():
+            return [], []
 
         filtered_results = [candidates[i - 1] for i in sorted(text_num) if i - 1 < len(candidates)]
         filtered_scores = [scores[i - 1] for i in sorted(text_num) if i - 1 < len(scores)]
