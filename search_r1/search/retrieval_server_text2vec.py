@@ -964,8 +964,11 @@ class HybridFilterRetriever(HybridRetriever):
         text_num=extract_numbers_last_brackets(response)
         print(f"[debug]model text_num:{text_num}")
 
-        filtered_results = [item for item in candidates if (item+1) in text_num]
-        filtered_scores = [item for item in scores if (item+1) in text_num]
+        filtered_results = [candidates[i - 1] for i in sorted(text_num) if i - 1 < len(candidates)]
+        filtered_scores = [scores[i - 1] for i in sorted(text_num) if i - 1 < len(scores)]
+
+        # filtered_results = [item for item in candidates if (item+1) in text_num]
+        # filtered_scores = [item for item in scores if (item+1) in text_num]
         
         print(f"[debug]filtered_results:{filtered_results}")
         print(f"[debug]filtered_scores:{filtered_scores}")
