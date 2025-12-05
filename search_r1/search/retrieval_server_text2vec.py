@@ -876,7 +876,7 @@ class HybridFilterRetriever(HybridRetriever):
             "备选文本为：{results}\n"
             "检索词为：{query}\n"
             # "现在，从备选文本中筛选出符合检索词的文本，保留原格式，保留原文本，不要输出其他解释。"
-            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4],不要输出其他解释。"
+            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4],不要输出其他解释性内容。"
             "如果全部不符合，则返回空字符串。"
         )
 
@@ -928,6 +928,7 @@ class HybridFilterRetriever(HybridRetriever):
             ]
             response = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
             
+            
         except Exception as e:
             print(f"[Warning] LLM Filter failed: {e}, returning original top results.")
             return candidates, scores
@@ -938,7 +939,7 @@ class HybridFilterRetriever(HybridRetriever):
         
         filtered_results = []
         filtered_scores = []
-        print(f"[debug]response:{response}")
+        print(f"[debug]model response:{response}")
         # 如果模型返回空字符串或表示无结果
         if not response.strip():
             return [], []
@@ -961,10 +962,13 @@ class HybridFilterRetriever(HybridRetriever):
 
         #读取模型筛选的文本编号
         text_num=extract_numbers_last_brackets(response)
+        print(f"[debug]model text_num:{text_num}")
 
-        filtered_results = [item for item in candidates if item in text_num]
-        filtered_scores = [item for item in scores if item in text_num]
+        filtered_results = [item for item in candidates if (item+1) in text_num]
+        filtered_scores = [item for item in scores if (item+1) in text_num]
         
+        print(f"[debug]filtered_results:{filtered_results}")
+        print(f"[debug]filtered_scores:{filtered_scores}")
         return filtered_results, filtered_scores
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
