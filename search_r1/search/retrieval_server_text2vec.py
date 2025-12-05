@@ -877,7 +877,7 @@ class HybridFilterRetriever(HybridRetriever):
             "检索词为：{query}\n"
             # "现在，从备选文本中筛选出符合检索词的文本，保留原格式，保留原文本，不要输出其他解释。"
             "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4],不要输出其他解释性内容。"
-            "如果全部不符合，则返回空字符串。"
+            "如果全部不符合，则返回空列表。"
         )
 
     def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float]) -> Tuple[List[Dict], List[float]]:
@@ -941,7 +941,7 @@ class HybridFilterRetriever(HybridRetriever):
         filtered_scores = []
         print(f"[debug]model response:{response}")
 
-        # 如果模型返回空字符串或表示无结果
+        # 如果模型返回空或表示无结果
         if not response.strip():
             return [], []
         
@@ -967,8 +967,8 @@ class HybridFilterRetriever(HybridRetriever):
         text_num=extract_numbers_last_brackets(response)
         print(f"[debug]model text_num:{text_num}")
 
-        # 如果模型返回空字符串或表示无结果
-        if not text_num:
+        # 如果筛选出空列表
+        if len(text_num)==0:
             return [], []
 
         filtered_results = [candidates[i - 1] for i in sorted(text_num) if i - 1 < len(candidates)]

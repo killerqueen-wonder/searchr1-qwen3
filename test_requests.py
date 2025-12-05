@@ -51,7 +51,7 @@ def search(retrieve_path, payload):
             retrieve_path,
             json=payload,
             proxies={"http": None, "https": None},
-            timeout=100
+            timeout=500
         )
         response.raise_for_status()
         json_data = response.json()
