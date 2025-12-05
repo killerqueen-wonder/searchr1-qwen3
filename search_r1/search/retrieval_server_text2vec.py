@@ -968,7 +968,7 @@ class HybridFilterRetriever(HybridRetriever):
         print(f"[debug]model text_num:{text_num}")
 
         # 如果筛选出空列表
-        if len(text_num)==0:
+        if not text_num:
             return [], []
 
         filtered_results = [candidates[i - 1] for i in sorted(text_num) if i - 1 < len(candidates)]
