@@ -221,7 +221,7 @@ class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
         self.docs_tokenized = [list(lawa.cut(text)) for text in self.docs_raw]
         
         # 构建 BM25
-        self.bm25 = BM25Okapi(self.docs_tokenized,k1=1.5, b=0.5)
+        self.bm25 = BM25Okapi(self.docs_tokenized,k1=1.5, b=0.3)
 
         
         self.max_process_num = 8
