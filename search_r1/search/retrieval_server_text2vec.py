@@ -182,8 +182,15 @@ class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
             # 提取 “法律名”：从第一次出现“中华人民共和国”末尾，到后第一次出现空格
             law_name = ""
             m1 = re.search(r"(?<=中华人民共和国)\s*(.*?)(?=\s|$)", text, flags=re.S)
+            m2 = re.search(r"(?<=关于)\s*(.*?)\s*(?=的)", text, flags=re.S)
+
             if m1:
                 law_name = m1.group(1).strip()
+            elif m2:#匹配法律解释
+                law_name = m2.group(1).strip()
+
+
+            
 
             # 提取 “法条编号”：从第一次出现“\n  第”，到之后第一次出现“条\n”
             article_id = ""
