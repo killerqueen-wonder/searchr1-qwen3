@@ -206,7 +206,7 @@ class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
             if law_name:
                 weighted_tokens.extend([law_name] * weight_factor)
             if article_id:
-                weighted_tokens.extend([article_id] * (weight_factor * 2))
+                weighted_tokens.extend([article_id] * (weight_factor))
 
             enhanced_docs.append({
                 "content": text,
