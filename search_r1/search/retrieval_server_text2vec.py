@@ -189,14 +189,11 @@ class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
             elif m2:#匹配法律解释
                 law_name = m2.group(1).strip()
 
-
-            
-
             # 提取 “法条编号”：从第一次出现“\n  第”，到之后第一次出现“条\n”
             article_id = ""
-            m2 = re.search(r"\n\s*第(.*?)条\n", text, flags=re.S)
-            if m2:
-                article_id = f"{m2.group(1)}"
+            m3 = re.search(r"\n\s*(第.*?条)\n", text, flags=re.S)
+            if m3:
+                article_id = f"{m3.group(1)}"
 
             # 权重增强：重复添加若干次（可调）
             if config.bm25_weight_factor:
