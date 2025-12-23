@@ -746,7 +746,7 @@ class HybridRetriever(BaseRetriever):
         super().__init__(config)
         
         # 初始化组件
-        self.bm25_retriever = BM25Retriever(config)
+        self.bm25_retriever = BM25WeightRetriever(config)
         self.text2vec_retriever = Text2vecRetriever(config)
 
         self.topk = config.retrieval_topk
@@ -1050,6 +1050,8 @@ class Config:
         search_depth:int =5,
         bm25_weight:int=10,
         bm25_weight_factor:int =3,
+        bm25_k1: float = 1.5,
+        bm25_b: float = 0.5,
         filter_model:str="",
     ):
         self.retrieval_method = retrieval_method
@@ -1073,6 +1075,8 @@ class Config:
         self.search_depth=search_depth
         self.bm25_weight=bm25_weight
         self.bm25_weight_factor=bm25_weight_factor
+        self.bm25_k1 = bm25_k1
+        self.bm25_b = bm25_b
         self.filter_model=filter_model
         
 
@@ -1099,12 +1103,20 @@ def retrieve_endpoint(request: QueryRequest):
     if not request.topk:
         request.topk = config.retrieval_topk  # fallback to default
 
-    # Perform batch retrieval
-    results, scores = retriever.batch_search(
-        query_list=request.queries,
-        num=request.topk,
-        return_score=request.return_scores
-    )
+    # Perform batch retrieval (handle return_scores flag safely)
+    if request.return_scores:
+        results, scores = retriever.batch_search(
+            query_list=request.queries,
+            num=request.topk,
+            return_score=True,
+        )
+    else:
+        results = retriever.batch_search(
+            query_list=request.queries,
+            num=request.topk,
+            return_score=False,
+        )
+        scores = None
     
     # Format response
     resp = []
@@ -1130,6 +1142,8 @@ if __name__ == "__main__":
     parser.add_argument("--search_depth", type=int, default=5, help="hydrid search depth")
     parser.add_argument("--bm25_weight", type=int, default=10)
     parser.add_argument("--bm25_weight_factor", type=int, default=3)
+    parser.add_argument("--bm25_k1", type=float, default=1.5, help="BM25 k1 parameter")
+    parser.add_argument("--bm25_b", type=float, default=0.5, help="BM25 b parameter")
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model.")
     parser.add_argument("--filter_model", type=str, default="")
@@ -1164,6 +1178,8 @@ if __name__ == "__main__":
         search_depth=args.search_depth,
         bm25_weight=args.bm25_weight,
         bm25_weight_factor=args.bm25_weight_factor,
+        bm25_k1=args.bm25_k1,
+        bm25_b=args.bm25_b,
 
         filter_model=args.filter_model,
     )
