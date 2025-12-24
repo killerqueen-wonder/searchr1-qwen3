@@ -1145,7 +1145,7 @@ if __name__ == "__main__":
     parser.add_argument("--bm25_k1", type=float, default=1.5, help="BM25 k1 parameter")
     parser.add_argument("--bm25_b", type=float, default=0.5, help="BM25 b parameter")
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
-    parser.add_argument("--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model.")
+    parser.add_argument("--retriever_model", type=str, default="shibing624/text2vec-base-chinese-paraphrase", help="Path of the retriever model.")
     parser.add_argument("--filter_model", type=str, default="")
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
 
