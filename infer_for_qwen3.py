@@ -213,13 +213,14 @@ class LLM_retriever:
     """
     实现一个“思考-检索-再思考-回答”的闭环生成系统。
     """
-    def __init__(self, model_path, api_key=None, api_url=None, max_turn=5,retrieve_path="http://127.0.0.1:8006/retrieve"):
+    def __init__(self, model_path, api_key=None, api_url=None, max_turn=5,top_k=3,retrieve_path="http://127.0.0.1:8006/retrieve"):
         self.model_path = model_path
         
         self.api_key = api_key
         self.api_url = api_url
         self.retrieve_path = retrieve_path
         self.max_turn=max_turn
+        self.top_k=top_k
 
         print("--------------加载模型路径为：---------------\n", model_path)
 
@@ -255,7 +256,7 @@ class LLM_retriever:
             print("[WARNING] Empty query passed to search function.")
             return ""
 
-        payload = {"queries": [query], "topk": 3, "return_scores": True}
+        payload = {"queries": [query], "topk": self.top_k, "return_scores": True}
         try:
             response = requests.post(
                 self.retrieve_path,
@@ -407,6 +408,7 @@ if __name__ == '__main__':
     parser.add_argument('--retriever', default=False, type=bool)
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--max_turn', default=3, type=int)
+    parser.add_argument('--top_k', default=3, type=int)
     
     args = parser.parse_args()
 
@@ -414,7 +416,7 @@ if __name__ == '__main__':
     model_path=args.model_path
 
     if args.retriever:
-        llm=LLM_retriever(model_path,retrieve_path=args.retrieve_path,max_turn=args.max_turn)
+        llm=LLM_retriever(model_path,retrieve_path=args.retrieve_path,max_turn=args.max_turn,top_k=args.top_k)
     else:
         llm= LLM(model_path)
     
