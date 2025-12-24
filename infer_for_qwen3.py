@@ -311,7 +311,7 @@ class LLM_retriever:
             f"以下是需要回答的问题：{question}\n"
         )
         
-        system_prompt=question
+        # system_prompt=question
 
         
         
