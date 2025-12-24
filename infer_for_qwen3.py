@@ -310,6 +310,8 @@ class LLM_retriever:
             "回答：注意！在 <answer> 和 </answer> 标签内提供最终答案。例如：<answer> 北京 </answer>\n"
             f"以下是需要回答的问题：{question}\n"
         )
+        
+        system_prompt=question
 
         
         
