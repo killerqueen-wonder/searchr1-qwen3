@@ -850,10 +850,14 @@ class HybridRetriever(BaseRetriever):
         return (results, scores) if return_score else results
 
 class HybridFilterRetriever(HybridRetriever):
+    '''
+    hybrid检索top_n个，LLM筛选前topk个
+    需要LLM环境
+    '''
     def __init__(self, config):
         # 初始化父类 (BM25 + Text2Vec)
         super().__init__(config)
-        
+        self.top_n=config.top_n
         # 初始化 Filter 模型 (LLM)
         print(f"[Init] Loading Filter LLM from: {config.filter_model} ...")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -875,11 +879,18 @@ class HybridFilterRetriever(HybridRetriever):
             raise e
 
         # 提示词模板
+        # self.prompt_template = (
+        #     "你的任务是从备选文本中评价哪些文本符合检索词。\n"
+        #     "备选文本为：{results}\n"
+        #     "检索词为：{query}\n"
+        #     "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4],不要输出其他解释性内容。"
+        #     "如果全部不符合，则返回空列表。"
+        # )
         self.prompt_template = (
-            "你的任务是从备选文本中评价哪些文本符合检索词。\n"
+            "你的任务是从备选文本中评价最符合检索词的{topk}段文本。\n"
             "备选文本为：{results}\n"
             "检索词为：{query}\n"
-            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4],不要输出其他解释性内容。"
+            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4]。输出最符合的{topk}段文本的编号。不要输出其他解释性内容。"
             "如果全部不符合，则返回空列表。"
         )
 
@@ -902,7 +913,7 @@ class HybridFilterRetriever(HybridRetriever):
             })
         
         results_str = json.dumps(candidates_data, ensure_ascii=False, indent=1)
-        prompt = self.prompt_template.format(results=results_str, query=query)
+        prompt = self.prompt_template.format(results=results_str, query=query,topk=self.topk)
 
         # 2. 模型推理
         try:
@@ -985,8 +996,8 @@ class HybridFilterRetriever(HybridRetriever):
         return filtered_results, filtered_scores
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
-        # 1. 使用父类 HybridRetriever 进行初步检索 (Recall)
-        initial_num = num if num else self.topk
+        # 1. 使用父类 HybridRetriever 进行初步检索 top_n个
+        initial_num = num if num else self.top_n
 
         
         candidates, scores = super()._search(query, initial_num, return_score=True)
@@ -1052,6 +1063,7 @@ class Config:
         bm25_weight_factor:int =3,
         bm25_k1: float = 1.5,
         bm25_b: float = 0.5,
+        top_n:int = 10,
         filter_model:str="",
     ):
         self.retrieval_method = retrieval_method
@@ -1077,6 +1089,7 @@ class Config:
         self.bm25_weight_factor=bm25_weight_factor
         self.bm25_k1 = bm25_k1
         self.bm25_b = bm25_b
+        self.top_n=top_n
         self.filter_model=filter_model
         
 
@@ -1144,6 +1157,7 @@ if __name__ == "__main__":
     parser.add_argument("--bm25_weight_factor", type=int, default=3)
     parser.add_argument("--bm25_k1", type=float, default=1.5, help="BM25 k1 parameter")
     parser.add_argument("--bm25_b", type=float, default=0.5, help="BM25 b parameter")
+    parser.add_argument("--top_n", type=int, default=10)
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="shibing624/text2vec-base-chinese-paraphrase", help="Path of the retriever model.")
     parser.add_argument("--filter_model", type=str, default="")
@@ -1180,6 +1194,7 @@ if __name__ == "__main__":
         bm25_weight_factor=args.bm25_weight_factor,
         bm25_k1=args.bm25_k1,
         bm25_b=args.bm25_b,
+        top_n=args.top_n,
 
         filter_model=args.filter_model,
     )
