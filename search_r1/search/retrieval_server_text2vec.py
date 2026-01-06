@@ -887,10 +887,10 @@ class HybridFilterRetriever(HybridRetriever):
         #     "如果全部不符合，则返回空列表。"
         # )
         self.prompt_template = (
-            "你的任务是从备选文本中评价最符合检索词的{topk}段文本。\n"
+            "你的任务是从备选文本中评价最符合检索词的最多{topk}段文本。\n"
             "备选文本为：{results}\n"
             "检索词为：{query}\n"
-            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4]。输出最符合的{topk}段文本的编号。不要输出其他解释性内容。"
+            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4]。输出最符合上下文的最多{topk}段文本的编号。不要输出其他解释性内容。"
             "如果全部不符合，则返回空列表。"
         )
 
@@ -983,7 +983,13 @@ class HybridFilterRetriever(HybridRetriever):
 
         # 如果筛选出空列表
         if not text_num:
+            print("[debug] no result remain.")
             return [], []
+        if len(text_num)>self.topk:#限制最长列表
+            print("[debug] filtered list is too long.")
+            text_num=text_num[:self.topk]
+
+
 
         filtered_results = [candidates[i - 1] for i in sorted(text_num) if i - 1 < len(candidates)]
         filtered_scores = [scores[i - 1] for i in sorted(text_num) if i - 1 < len(scores)]
@@ -1051,7 +1057,7 @@ class Config:
         
         gpu_ids: List[int] = [3, 4, 5, 7],  # 新增 GPU ID 列表
         gpu_memory_limit_per_gpu =18,#新增内存限制
-        port =8006,#新增port端口号
+        port =8006,#port端口号
         retrieval_model_path: str = "./model",
         retrieval_pooling_method: str = "mean",
         retrieval_query_max_length: int = 256,
