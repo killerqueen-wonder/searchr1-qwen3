@@ -1123,7 +1123,7 @@ class HybridFilterRetriever(HybridRetriever):
         self.text2vec_retriever = Text2vecRetriever(config, device=retrieval_device)
         
         self.topk = config.retrieval_topk
-        # self.search_depth = config.search_depth
+        self.search_depth = config.search_depth
         self.w_bm25 = config.bm25_weight
         self.w_t2v = 10
         self.top_n = config.top_n
