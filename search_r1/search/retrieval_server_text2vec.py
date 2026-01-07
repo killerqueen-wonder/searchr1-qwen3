@@ -1175,7 +1175,7 @@ class HybridFilterRetriever(HybridRetriever):
             with torch.no_grad():
                 output_ids = self.model.generate(
                     input_ids,
-                    max_new_tokens=2000,
+                    max_new_tokens=1000,
                     temperature=0.01,
                     do_sample=False
                 )
