@@ -745,13 +745,10 @@ class Text2vecRetriever(BaseRetriever):
     def __init__(self, config, device: str = None):
         super().__init__(config)
         
-        # 显式锁定设备。如果 gpu_ids 存在，取第一个。
-        if device is None:
-            self.device = f"cuda:{config.gpu_ids[0]}" if (torch.cuda.is_available() and config.gpu_ids) else "cpu"
-        else:
-            self.device = device
+        # 无论物理 ID 是多少，对当前进程第一张卡永远是 cuda:0
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
-        print(f"[INFO] Text2vec model locked on: {self.device}")
+        print(f"[INFO] Text2vec model strictly locked on: {self.device}")
         self.embedder = SentenceModel(config.retrieval_model_path, device=self.device)
         
         self.corpus = load_corpus(self.corpus_path)
@@ -768,16 +765,13 @@ class Text2vecRetriever(BaseRetriever):
 
     def _load_or_compute_embeddings(self):
         if os.path.exists(self.embedding_file):
-            print(f"[INFO] Loading embeddings to {self.device}")
             return torch.load(self.embedding_file, map_location=self.device)
         return self._compute_and_save_embeddings()
 
     def _compute_and_save_embeddings(self):
-        # 这里的 content 不做任何截断
+        # 保持 content 完整性
         corpus_texts = [doc.get('contents') or doc.get('text') or doc.get('content') or str(doc) for doc in self.corpus]
-        print(f"[INFO] Computing {len(corpus_texts)} embeddings...")
-        
-        # 禁用多进程以避免多卡环境下的进程分叉冲突
+        # 禁用多进程以防止显存碎片化
         corpus_embeddings = self.embedder.encode(
             corpus_texts, 
             show_progress_bar=True, 
@@ -908,182 +902,181 @@ class HybridRetriever(BaseRetriever):
             scores.append(s)
         return (results, scores) if return_score else results
 
-class HybridFilterRetriever(HybridRetriever):
-    '''
-    hybrid检索top_n个，LLM筛选前topk个
-    需要LLM环境
-    '''
-    def __init__(self, config):
-        # 初始化父类 (BM25 + Text2Vec)
-        super().__init__(config)
-        self.top_n=config.top_n
-        # 初始化 Filter 模型 (LLM)
-        print(f"[Init] Loading Filter LLM from: {config.filter_model} ...")
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+# class HybridFilterRetriever(HybridRetriever):
+#     '''
+#     hybrid检索top_n个，LLM筛选前topk个
+#     需要LLM环境
+#     '''
+#     def __init__(self, config):
+#         # 初始化父类 (BM25 + Text2Vec)
+#         super().__init__(config)
+#         self.top_n=config.top_n
+#         # 初始化 Filter 模型 (LLM)
+#         print(f"[Init] Loading Filter LLM from: {config.filter_model} ...")
+#         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                config.filter_model, 
-                trust_remote_code=True
-            )
-            self.model = AutoModelForCausalLM.from_pretrained(
-                config.filter_model, 
-                device_map="auto", 
-                trust_remote_code=True,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
-            )
-            self.model.eval()
-        except Exception as e:
-            print(f"[Error] Failed to load Filter LLM: {e}")
-            raise e
+#         try:
+#             self.tokenizer = AutoTokenizer.from_pretrained(
+#                 config.filter_model, 
+#                 trust_remote_code=True
+#             )
+#             self.model = AutoModelForCausalLM.from_pretrained(
+#                 config.filter_model, 
+#                 device_map="auto", 
+#                 trust_remote_code=True,
+#                 torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
+#             )
+#             self.model.eval()
+#         except Exception as e:
+#             print(f"[Error] Failed to load Filter LLM: {e}")
+#             raise e
 
-        # 提示词模板
-        # self.prompt_template = (
-        #     "你的任务是从备选文本中评价哪些文本符合检索词。\n"
-        #     "备选文本为：{results}\n"
-        #     "检索词为：{query}\n"
-        #     "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4],不要输出其他解释性内容。"
-        #     "如果全部不符合，则返回空列表。"
-        # )
-        self.prompt_template = (
-            "你的任务是从备选文本中评价最符合检索词的最多{topk}段文本。\n"
-            "备选文本为：{results}\n"
-            "检索词为：{query}\n"
-            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4]。输出最符合上下文的最多{topk}段文本的编号。不要输出其他解释性内容。"
-            "如果全部不符合，则返回空列表。"
-        )
+#         # 提示词模板
+#         # self.prompt_template = (
+#         #     "你的任务是从备选文本中评价哪些文本符合检索词。\n"
+#         #     "备选文本为：{results}\n"
+#         #     "检索词为：{query}\n"
+#         #     "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4],不要输出其他解释性内容。"
+#         #     "如果全部不符合，则返回空列表。"
+#         # )
+#         self.prompt_template = (
+#             "你的任务是从备选文本中评价最符合检索词的最多{topk}段文本。\n"
+#             "备选文本为：{results}\n"
+#             "检索词为：{query}\n"
+#             "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4]。输出最符合上下文的最多{topk}段文本的编号。不要输出其他解释性内容。"
+#             "如果全部不符合，则返回空列表。"
+#         )
 
-    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float]) -> Tuple[List[Dict], List[float]]:
-        """
-        使用 LLM 对候选文档进行筛选
-        """
-        if not candidates:
-            return [], []
+#     def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float]) -> Tuple[List[Dict], List[float]]:
+#         """
+#         使用 LLM 对候选文档进行筛选
+#         """
+#         if not candidates:
+#             return [], []
 
-        # 1. 构建 Prompt 输入
-        # 为了让 LLM 更好理解结构，我们将候选文档转为简化的 JSON 字符串或带序号的列表
+#         # 1. 构建 Prompt 输入
+#         # 为了让 LLM 更好理解结构，我们将候选文档转为简化的 JSON 字符串或带序号的列表
         
-        candidates_data = []
-        for doc in candidates:
-            # 提取关键信息给 LLM 判断，减少 token 消耗，主要是 content
-            candidates_data.append({
-                "content": doc.get("content", ""),
-                # 可以根据需要添加其他辅助判断字段，如 law_name
-            })
+#         candidates_data = []
+#         for doc in candidates:
+#             # 提取关键信息给 LLM 判断，减少 token 消耗，主要是 content
+#             candidates_data.append({
+#                 "content": doc.get("content", ""),
+#                 # 可以根据需要添加其他辅助判断字段，如 law_name
+#             })
         
-        results_str = json.dumps(candidates_data, ensure_ascii=False, indent=1)
-        prompt = self.prompt_template.format(results=results_str, query=query,topk=self.topk)
+#         results_str = json.dumps(candidates_data, ensure_ascii=False, indent=1)
+#         prompt = self.prompt_template.format(results=results_str, query=query,topk=self.topk)
 
-        # 2. 模型推理
-        try:
-            messages = [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
-            ]
-            text = self.tokenizer.apply_chat_template(
-                messages, 
-                tokenize=False, 
-                add_generation_prompt=True
-            )
-            model_inputs = self.tokenizer([text], return_tensors="pt").to(self.device)
+#         # 2. 模型推理
+#         try:
+#             messages = [
+#                 {"role": "system", "content": "You are a helpful assistant."},
+#                 {"role": "user", "content": prompt}
+#             ]
+#             text = self.tokenizer.apply_chat_template(
+#                 messages, 
+#                 tokenize=False, 
+#                 add_generation_prompt=True
+#             )
+#             model_inputs = self.tokenizer([text], return_tensors="pt").to(self.device)
 
-            with torch.no_grad():
-                generated_ids = self.model.generate(
-                    **model_inputs,
-                    max_new_tokens=5000, # 预留足够的输出长度
-                    temperature=0.1,     # 低温以保证确定性
-                    do_sample=False
-                )
+#             with torch.no_grad():
+#                 generated_ids = self.model.generate(
+#                     **model_inputs,
+#                     max_new_tokens=5000, # 预留足够的输出长度
+#                     temperature=0.1,     # 低温以保证确定性
+#                     do_sample=False
+#                 )
             
-            # 获取生成的文本（去掉 prompt 部分）
-            generated_ids = [
-                output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-            ]
-            response = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+#             # 获取生成的文本（去掉 prompt 部分）
+#             generated_ids = [
+#                 output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+#             ]
+#             response = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
             
             
-        except Exception as e:
-            print(f"[Warning] LLM Filter failed: {e}, returning original top results.")
-            return candidates, scores
+#         except Exception as e:
+#             print(f"[Warning] LLM Filter failed: {e}, returning original top results.")
+#             return candidates, scores
 
-        # 3. 解析结果并筛选
-        # 策略：如果 LLM 返回的文本中包含了文档的内容片段，则认为该文档被选中。
-        # 这种方式比强制 LLM 输出严格 JSON 更鲁棒。
+#         # 3. 解析结果并筛选
+#         # 策略：如果 LLM 返回的文本中包含了文档的内容片段，则认为该文档被选中。
+#         # 这种方式比强制 LLM 输出严格 JSON 更鲁棒。
         
-        filtered_results = []
-        filtered_scores = []
-        print(f"[debug]model response:{response}")
+#         filtered_results = []
+#         filtered_scores = []
+#         print(f"[debug]model response:{response}")
 
-        # 如果模型返回空或表示无结果
-        if not response.strip():
-            return [], []
+#         # 如果模型返回空或表示无结果
+#         if not response.strip():
+#             return [], []
         
         
 
-        def extract_numbers_last_brackets(text):
-            # 使用正则表达式查找最后一个 [...] 对
-            pattern = r'\[([^\[\]]*)\]'
-            matches = list(re.finditer(pattern, text))
+#         def extract_numbers_last_brackets(text):
+#             # 使用正则表达式查找最后一个 [...] 对
+#             pattern = r'\[([^\[\]]*)\]'
+#             matches = list(re.finditer(pattern, text))
             
-            if not matches:
-                return None
+#             if not matches:
+#                 return None
             
-            # 获取最后一个匹配
-            last_match = matches[-1]
+#             # 获取最后一个匹配
+#             last_match = matches[-1]
             
-            # 提取数字
-            numbers = re.findall(r'\d+', last_match.group(1))
+#             # 提取数字
+#             numbers = re.findall(r'\d+', last_match.group(1))
             
-            return set(map(int, numbers)) if numbers else None
+#             return set(map(int, numbers)) if numbers else None
 
-        #读取模型筛选的文本编号
-        text_num=extract_numbers_last_brackets(response)
-        print(f"[debug]model text_num:{text_num}")
+#         #读取模型筛选的文本编号
+#         text_num=extract_numbers_last_brackets(response)
+#         print(f"[debug]model text_num:{text_num}")
 
-        # 如果筛选出空列表
-        if not text_num:
-            print("[debug] no result remain.")
-            return [], []
-        if len(text_num)>self.topk:#限制最长列表
-            print("[debug] filtered list is too long.")
-            text_num=text_num[:self.topk]
+#         # 如果筛选出空列表
+#         if not text_num:
+#             print("[debug] no result remain.")
+#             return [], []
+#         if len(text_num)>self.topk:#限制最长列表
+#             print("[debug] filtered list is too long.")
+#             text_num=text_num[:self.topk]
 
 
 
-        filtered_results = [candidates[i - 1] for i in sorted(text_num) if i - 1 < len(candidates)]
-        filtered_scores = [scores[i - 1] for i in sorted(text_num) if i - 1 < len(scores)]
+#         filtered_results = [candidates[i - 1] for i in sorted(text_num) if i - 1 < len(candidates)]
+#         filtered_scores = [scores[i - 1] for i in sorted(text_num) if i - 1 < len(scores)]
 
-        # filtered_results = [item for item in candidates if (item+1) in text_num]
-        # filtered_scores = [item for item in scores if (item+1) in text_num]
+#         # filtered_results = [item for item in candidates if (item+1) in text_num]
+#         # filtered_scores = [item for item in scores if (item+1) in text_num]
         
-        print(f"[debug]filtered_results:{filtered_results}")
-        print(f"[debug]filtered_scores:{filtered_scores}")
-        return filtered_results, filtered_scores
+#         print(f"[debug]filtered_results:{filtered_results}")
+#         print(f"[debug]filtered_scores:{filtered_scores}")
+#         return filtered_results, filtered_scores
 
-    def _search(self, query: str, num: int = None, return_score: bool = False):
-        # 1. 使用父类 HybridRetriever 进行初步检索 top_n个
-        initial_num = num if num else self.top_n
+#     def _search(self, query: str, num: int = None, return_score: bool = False):
+#         # 1. 使用父类 HybridRetriever 进行初步检索 top_n个
+#         initial_num = num if num else self.top_n
 
         
-        candidates, scores = super()._search(query, initial_num, return_score=True)
+#         candidates, scores = super()._search(query, initial_num, return_score=True)
         
-        start_time = time.time()
+#         start_time = time.time()
         
-        # 2. 使用 LLM 进行过滤 (Precision)
-        filtered_results, filtered_scores = self._llm_filter(query, candidates, scores)
+#         # 2. 使用 LLM 进行过滤 (Precision)
+#         filtered_results, filtered_scores = self._llm_filter(query, candidates, scores)
         
-        end_time = time.time()
-        print(f"[DEBUG] LLM Filter time: {end_time - start_time:.4f} s, Input: {len(candidates)} -> Output: {len(filtered_results)}")
+#         end_time = time.time()
+#         print(f"[DEBUG] LLM Filter time: {end_time - start_time:.4f} s, Input: {len(candidates)} -> Output: {len(filtered_results)}")
 
-        if return_score:
-            return filtered_results, filtered_scores
-        return filtered_results
+#         if return_score:
+#             return filtered_results, filtered_scores
+#         return filtered_results
     
-class HybridFilterRetriever(HybridRetriever):#预留显卡空间
+class HybridFilterRetriever(HybridRetriever):
     def __init__(self, config):
-        # 1. 确定检索设备（假设是 gpu_ids 的第一个）
-        main_gpu = config.gpu_ids[0] if config.gpu_ids else 0
-        retrieval_device = f"cuda:{main_gpu}"
+        # 锁定检索设备为第一张卡
+        retrieval_device = "cuda:0"
         
         self.bm25_retriever = BM25WeightRetriever(config)
         self.text2vec_retriever = Text2vecRetriever(config, device=retrieval_device)
@@ -1094,19 +1087,23 @@ class HybridFilterRetriever(HybridRetriever):#预留显卡空间
         self.w_t2v = 10
         self.top_n = config.top_n
 
-        # 2. 优化 LLM 加载：解决为什么依然使用 device_map="auto" 的问题
-        print(f"[Init] Loading Qwen with memory isolation on GPU {main_gpu}...")
+        print(f"[Init] Loading Qwen3 on 2 GPUs with memory reservation on cuda:0...")
         
         self.tokenizer = AutoTokenizer.from_pretrained(config.filter_model, trust_remote_code=True)
         
-        # 策略：为检索模型在 main_gpu 上预留 2GB 空间，其余卡不限制
-        # 这样即使是 "auto"，LLM 也不会把 main_gpu 塞死
-        max_mem = {i: f"{config.gpu_memory_limit_per_gpu[0] if isinstance(config.gpu_memory_limit_per_gpu, list) else config.gpu_memory_limit_per_gpu}GiB" for i in config.gpu_ids}
-        max_mem[main_gpu] = f"{max_memory_on_main(config) - 2}GiB" # 预留 2GB 给 Text2vec
+        # 显存预留策略：针对 2 张 V100
+        # 假设单卡显存限额为 config.gpu_memory_limit_per_gpu (例如 16 或 32)
+        mem_limit = config.gpu_memory_limit_per_gpu[0] if isinstance(config.gpu_memory_limit_per_gpu, list) else config.gpu_memory_limit_per_gpu
+        
+        # 逻辑 ID 映射：0 号卡留 3GB 给 Text2vec 和系统开销，1 号卡全速运行
+        max_mem = {
+            0: f"{mem_limit - 3}GiB", 
+            1: f"{mem_limit - 1}GiB"
+        }
 
         self.model = AutoModelForCausalLM.from_pretrained(
             config.filter_model, 
-            device_map="auto", # 依然使用 auto 以支持多卡并行，但受限于 max_memory
+            device_map="auto", 
             max_memory=max_mem, 
             trust_remote_code=True,
             torch_dtype=torch.float16,
@@ -1120,13 +1117,13 @@ class HybridFilterRetriever(HybridRetriever):#预留显卡空间
             "备选文本为：{results}\n"
             "检索词为：{query}\n"
             "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。"
-            "输出示例: [1,3]。不要输出其他解释内容。"
+            "输出示例: [1,3]。不要输出其他内容。"
         )
 
     def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float]) -> Tuple[List[Dict], List[float]]:
         if not candidates: return [], []
 
-        # 保持 content 完整，不再进行截断 [移除 [:500] ]
+        # 保持 content 完整以供筛选
         candidates_data = [{"content": doc.get("content", "")} for doc in candidates]
         results_str = json.dumps(candidates_data, ensure_ascii=False)
         prompt = self.prompt_template.format(results=results_str, query=query, topk=self.topk)
@@ -1138,14 +1135,12 @@ class HybridFilterRetriever(HybridRetriever):#预留显卡空间
             with torch.no_grad():
                 output_ids = self.model.generate(
                     input_ids,
-                    max_new_tokens=200, # 稍微增加输出长度以防模型输出列表前有废话
+                    max_new_tokens=100,
                     temperature=0.01,
                     do_sample=False
                 )
             
             response = self.tokenizer.decode(output_ids[0][len(input_ids[0]):], skip_special_tokens=True)
-            print(f"[DEBUG] Model Choice: {response}")
-            
             text_num = self._extract_numbers(response)
             if not text_num: return candidates[:self.topk], scores[:self.topk]
 
