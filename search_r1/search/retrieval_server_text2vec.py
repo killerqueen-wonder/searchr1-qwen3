@@ -584,162 +584,221 @@ class DenseRetriever(BaseRetriever):
         else:
             return results
 
+# class Text2vecRetriever(BaseRetriever):
+#     def __init__(self, config):
+#         super().__init__(config)
+        
+#         # 初始化 text2vec 模型
+#         self.embedder = SentenceModel(config.retrieval_model_path)
+        
+#         # 加载语料库
+#         self.corpus = load_corpus(self.corpus_path)
+        
+#         # 生成对应的embedding文件名
+#         self.embedding_file = self._get_embedding_filename(self.corpus_path)
+        
+#         # 加载或计算语料库嵌入
+#         self.corpus_embeddings = self._load_or_compute_embeddings()
+        
+#         self.topk = config.retrieval_topk
+#         self.batch_size = config.retrieval_batch_size
+
+#     def _get_embedding_filename(self, jsonl_filename):
+#         """
+#         根据jsonl文件名生成对应的embedding文件名
+#         """
+#         base_name = os.path.splitext(os.path.basename(jsonl_filename))[0]
+#         dir_name = os.path.dirname(jsonl_filename)
+#         embedding_filename = os.path.join(dir_name, f"{base_name}_embeddings.pt")
+#         return embedding_filename
+
+#     def _load_or_compute_embeddings(self):
+#         """
+#         加载预计算的嵌入向量，如果不存在则计算并保存
+#         """
+#         print(f"[INFO] 检查预计算的embedding文件: {self.embedding_file}")
+        
+#         if os.path.exists(self.embedding_file):
+#             print(f"[INFO] 发现预计算的embedding文件，正在加载...")
+#             corpus_embeddings = torch.load(self.embedding_file)
+#             print(f"[INFO] 已加载 embedding shape={corpus_embeddings.shape}")
+#         else:
+#             print(f"[INFO] 未找到预计算的embedding文件，开始计算...")
+#             corpus_embeddings = self._compute_and_save_embeddings()
+            
+#         return corpus_embeddings
+
+#     def _compute_and_save_embeddings(self):
+#         """
+#         计算语料库嵌入向量并保存
+#         """
+#         # 提取语料库文本内容
+#         corpus_texts = []
+#         for doc in self.corpus:
+#             if 'contents' in doc:
+#                 corpus_texts.append(doc['contents'])
+#             elif 'text' in doc:
+#                 corpus_texts.append(doc['text'])
+#             elif 'content' in doc:
+#                 corpus_texts.append(doc['content'])
+#             else:
+#                 corpus_texts.append(str(doc))
+        
+#         print(f"[INFO] 正在计算 {len(corpus_texts)} 个文档的语义向量...")
+#         start_time = time.time()
+        
+#         # 计算嵌入向量
+#         if torch.cuda.is_available():
+#             print(f"[INFO] 使用 GPU: {torch.cuda.get_device_name(0)}")
+#             pool = self.embedder.start_multi_process_pool()
+#             corpus_embeddings = self.embedder.encode_multi_process(corpus_texts, pool, normalize_embeddings=True)
+#             self.embedder.stop_multi_process_pool(pool)
+#         else:
+#             print("[INFO] 使用 CPU 计算")
+#             corpus_embeddings = self.embedder.encode(corpus_texts, normalize_embeddings=True)
+        
+#         # 保存嵌入向量
+#         print(f"[INFO] 保存 embedding 到: {self.embedding_file}")
+#         torch.save(corpus_embeddings, self.embedding_file)
+#         print(f"[INFO] 已保存 shape={corpus_embeddings.shape}")
+        
+#         end_time = time.time()
+#         print(f"[DEBUG] embedding 计算时间: {end_time - start_time:.2f} 秒")
+        
+#         return corpus_embeddings
+
+#     def _search(self, query: str, num: int = None, return_score: bool = False):
+#         if num is None:
+#             num = self.topk
+            
+#         # start_time = time.time()
+        
+#         # 计算查询嵌入向量
+#         query_embedding = self.embedder.encode(query, normalize_embeddings=True)
+        
+#         # 使用 semantic_search 进行检索
+#         hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
+        
+#         # end_time = time.time()
+#         # print(f"[DEBUG] t2v 单次检索时间: {end_time - start_time:.4f} 秒")
+        
+#         # 构建结果
+#         results = []
+#         scores = []
+        
+#         for hit in hits:
+#             doc_idx = hit['corpus_id']
+#             score = hit['score']
+            
+#             # 获取对应文档
+#             doc = self.corpus[doc_idx]
+#             results.append(doc)
+#             scores.append(score)
+        
+#         if return_score:
+#             return results, scores
+#         else:
+#             return results
+
+#     def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
+#         if isinstance(query_list, str):
+#             query_list = [query_list]
+#         if num is None:
+#             num = self.topk
+            
+#         start_time = time.time()
+        
+#         # 计算所有查询的嵌入向量
+#         query_embeddings = self.embedder.encode(query_list, normalize_embeddings=True)
+        
+#         # 批量检索
+#         batch_results = []
+#         batch_scores = []
+        
+#         for i, query_embedding in enumerate(query_embeddings):
+#             # 为每个查询单独进行检索（因为 semantic_search 需要单个查询向量）
+#             hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
+            
+#             results = []
+#             scores = []
+            
+#             for hit in hits:
+#                 doc_idx = hit['corpus_id']
+#                 score = hit['score']
+                
+#                 doc = self.corpus[doc_idx]
+#                 results.append(doc)
+#                 scores.append(score)
+            
+#             batch_results.append(results)
+#             batch_scores.append(scores)
+        
+#         end_time = time.time()
+#         print(f"[DEBUG] 批量检索时间 ({len(query_list)} 个查询): {end_time - start_time:.4f} 秒")
+        
+#         if return_score:
+#             return batch_results, batch_scores
+#         else:
+#             return batch_results
+
 class Text2vecRetriever(BaseRetriever):
-    def __init__(self, config):
+    def __init__(self, config, device: str = None):
         super().__init__(config)
         
-        # 初始化 text2vec 模型
-        self.embedder = SentenceModel(config.retrieval_model_path)
+        # 显式锁定设备。如果 gpu_ids 存在，取第一个。
+        if device is None:
+            self.device = f"cuda:{config.gpu_ids[0]}" if (torch.cuda.is_available() and config.gpu_ids) else "cpu"
+        else:
+            self.device = device
+
+        print(f"[INFO] Text2vec model locked on: {self.device}")
+        self.embedder = SentenceModel(config.retrieval_model_path, device=self.device)
         
-        # 加载语料库
         self.corpus = load_corpus(self.corpus_path)
-        
-        # 生成对应的embedding文件名
         self.embedding_file = self._get_embedding_filename(self.corpus_path)
-        
-        # 加载或计算语料库嵌入
         self.corpus_embeddings = self._load_or_compute_embeddings()
         
         self.topk = config.retrieval_topk
         self.batch_size = config.retrieval_batch_size
 
     def _get_embedding_filename(self, jsonl_filename):
-        """
-        根据jsonl文件名生成对应的embedding文件名
-        """
         base_name = os.path.splitext(os.path.basename(jsonl_filename))[0]
         dir_name = os.path.dirname(jsonl_filename)
-        embedding_filename = os.path.join(dir_name, f"{base_name}_embeddings.pt")
-        return embedding_filename
+        return os.path.join(dir_name, f"{base_name}_embeddings.pt")
 
     def _load_or_compute_embeddings(self):
-        """
-        加载预计算的嵌入向量，如果不存在则计算并保存
-        """
-        print(f"[INFO] 检查预计算的embedding文件: {self.embedding_file}")
-        
         if os.path.exists(self.embedding_file):
-            print(f"[INFO] 发现预计算的embedding文件，正在加载...")
-            corpus_embeddings = torch.load(self.embedding_file)
-            print(f"[INFO] 已加载 embedding shape={corpus_embeddings.shape}")
-        else:
-            print(f"[INFO] 未找到预计算的embedding文件，开始计算...")
-            corpus_embeddings = self._compute_and_save_embeddings()
-            
-        return corpus_embeddings
+            print(f"[INFO] Loading embeddings to {self.device}")
+            return torch.load(self.embedding_file, map_location=self.device)
+        return self._compute_and_save_embeddings()
 
     def _compute_and_save_embeddings(self):
-        """
-        计算语料库嵌入向量并保存
-        """
-        # 提取语料库文本内容
-        corpus_texts = []
-        for doc in self.corpus:
-            if 'contents' in doc:
-                corpus_texts.append(doc['contents'])
-            elif 'text' in doc:
-                corpus_texts.append(doc['text'])
-            elif 'content' in doc:
-                corpus_texts.append(doc['content'])
-            else:
-                corpus_texts.append(str(doc))
+        # 这里的 content 不做任何截断
+        corpus_texts = [doc.get('contents') or doc.get('text') or doc.get('content') or str(doc) for doc in self.corpus]
+        print(f"[INFO] Computing {len(corpus_texts)} embeddings...")
         
-        print(f"[INFO] 正在计算 {len(corpus_texts)} 个文档的语义向量...")
-        start_time = time.time()
-        
-        # 计算嵌入向量
-        if torch.cuda.is_available():
-            print(f"[INFO] 使用 GPU: {torch.cuda.get_device_name(0)}")
-            pool = self.embedder.start_multi_process_pool()
-            corpus_embeddings = self.embedder.encode_multi_process(corpus_texts, pool, normalize_embeddings=True)
-            self.embedder.stop_multi_process_pool(pool)
-        else:
-            print("[INFO] 使用 CPU 计算")
-            corpus_embeddings = self.embedder.encode(corpus_texts, normalize_embeddings=True)
-        
-        # 保存嵌入向量
-        print(f"[INFO] 保存 embedding 到: {self.embedding_file}")
+        # 禁用多进程以避免多卡环境下的进程分叉冲突
+        corpus_embeddings = self.embedder.encode(
+            corpus_texts, 
+            show_progress_bar=True, 
+            normalize_embeddings=True,
+            batch_size=self.batch_size
+        )
         torch.save(corpus_embeddings, self.embedding_file)
-        print(f"[INFO] 已保存 shape={corpus_embeddings.shape}")
-        
-        end_time = time.time()
-        print(f"[DEBUG] embedding 计算时间: {end_time - start_time:.2f} 秒")
-        
         return corpus_embeddings
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
-        if num is None:
-            num = self.topk
-            
-        # start_time = time.time()
+        if num is None: num = self.topk
+        if not query.strip(): return ([], []) if return_score else []
         
-        # 计算查询嵌入向量
         query_embedding = self.embedder.encode(query, normalize_embeddings=True)
-        
-        # 使用 semantic_search 进行检索
         hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
         
-        # end_time = time.time()
-        # print(f"[DEBUG] t2v 单次检索时间: {end_time - start_time:.4f} 秒")
-        
-        # 构建结果
-        results = []
-        scores = []
-        
+        results, scores = [], []
         for hit in hits:
-            doc_idx = hit['corpus_id']
-            score = hit['score']
-            
-            # 获取对应文档
-            doc = self.corpus[doc_idx]
-            results.append(doc)
-            scores.append(score)
-        
-        if return_score:
-            return results, scores
-        else:
-            return results
-
-    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
-        if isinstance(query_list, str):
-            query_list = [query_list]
-        if num is None:
-            num = self.topk
-            
-        start_time = time.time()
-        
-        # 计算所有查询的嵌入向量
-        query_embeddings = self.embedder.encode(query_list, normalize_embeddings=True)
-        
-        # 批量检索
-        batch_results = []
-        batch_scores = []
-        
-        for i, query_embedding in enumerate(query_embeddings):
-            # 为每个查询单独进行检索（因为 semantic_search 需要单个查询向量）
-            hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
-            
-            results = []
-            scores = []
-            
-            for hit in hits:
-                doc_idx = hit['corpus_id']
-                score = hit['score']
-                
-                doc = self.corpus[doc_idx]
-                results.append(doc)
-                scores.append(score)
-            
-            batch_results.append(results)
-            batch_scores.append(scores)
-        
-        end_time = time.time()
-        print(f"[DEBUG] 批量检索时间 ({len(query_list)} 个查询): {end_time - start_time:.4f} 秒")
-        
-        if return_score:
-            return batch_results, batch_scores
-        else:
-            return batch_results
+            results.append(self.corpus[hit['corpus_id']])
+            scores.append(hit['score'])
+        return (results, scores) if return_score else results
 
 class HybridRetriever(BaseRetriever):
     def __init__(self, config):
@@ -1020,7 +1079,95 @@ class HybridFilterRetriever(HybridRetriever):
             return filtered_results, filtered_scores
         return filtered_results
     
-    
+class HybridFilterRetriever(HybridRetriever):#预留显卡空间
+    def __init__(self, config):
+        # 1. 确定检索设备（假设是 gpu_ids 的第一个）
+        main_gpu = config.gpu_ids[0] if config.gpu_ids else 0
+        retrieval_device = f"cuda:{main_gpu}"
+        
+        self.bm25_retriever = BM25WeightRetriever(config)
+        self.text2vec_retriever = Text2vecRetriever(config, device=retrieval_device)
+        
+        self.topk = config.retrieval_topk
+        self.search_depth = config.search_depth
+        self.w_bm25 = config.bm25_weight
+        self.w_t2v = 10
+        self.top_n = config.top_n
+
+        # 2. 优化 LLM 加载：解决为什么依然使用 device_map="auto" 的问题
+        print(f"[Init] Loading Qwen with memory isolation on GPU {main_gpu}...")
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(config.filter_model, trust_remote_code=True)
+        
+        # 策略：为检索模型在 main_gpu 上预留 2GB 空间，其余卡不限制
+        # 这样即使是 "auto"，LLM 也不会把 main_gpu 塞死
+        max_mem = {i: f"{config.gpu_memory_limit_per_gpu[0] if isinstance(config.gpu_memory_limit_per_gpu, list) else config.gpu_memory_limit_per_gpu}GiB" for i in config.gpu_ids}
+        max_mem[main_gpu] = f"{max_memory_on_main(config) - 2}GiB" # 预留 2GB 给 Text2vec
+
+        self.model = AutoModelForCausalLM.from_pretrained(
+            config.filter_model, 
+            device_map="auto", # 依然使用 auto 以支持多卡并行，但受限于 max_memory
+            max_memory=max_mem, 
+            trust_remote_code=True,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True
+        )
+        self.device = self.model.device
+        self.model.eval()
+
+        self.prompt_template = (
+            "你的任务是从备选文本中评价最符合检索词的最多{topk}段文本。\n"
+            "备选文本为：{results}\n"
+            "检索词为：{query}\n"
+            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。"
+            "输出示例: [1,3]。不要输出其他解释内容。"
+        )
+
+    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float]) -> Tuple[List[Dict], List[float]]:
+        if not candidates: return [], []
+
+        # 保持 content 完整，不再进行截断 [移除 [:500] ]
+        candidates_data = [{"content": doc.get("content", "")} for doc in candidates]
+        results_str = json.dumps(candidates_data, ensure_ascii=False)
+        prompt = self.prompt_template.format(results=results_str, query=query, topk=self.topk)
+
+        try:
+            messages = [{"role": "user", "content": prompt}]
+            input_ids = self.tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt").to(self.device)
+
+            with torch.no_grad():
+                output_ids = self.model.generate(
+                    input_ids,
+                    max_new_tokens=200, # 稍微增加输出长度以防模型输出列表前有废话
+                    temperature=0.01,
+                    do_sample=False
+                )
+            
+            response = self.tokenizer.decode(output_ids[0][len(input_ids[0]):], skip_special_tokens=True)
+            print(f"[DEBUG] Model Choice: {response}")
+            
+            text_num = self._extract_numbers(response)
+            if not text_num: return candidates[:self.topk], scores[:self.topk]
+
+            filtered_results = [candidates[i-1] for i in text_num if i-1 < len(candidates)]
+            filtered_scores = [scores[i-1] for i in text_num if i-1 < len(scores)]
+            return filtered_results[:self.topk], filtered_scores[:self.topk]
+        except Exception as e:
+            return candidates[:self.topk], scores[:self.topk]
+
+    def _extract_numbers(self, text):
+        pattern = r'\[([\d,\s]+)\]'
+        match = re.search(pattern, text)
+        if match:
+            nums = re.findall(r'\d+', match.group(1))
+            return [int(n) for n in nums]
+        return None
+
+def max_memory_on_main(config):
+    if isinstance(config.gpu_memory_limit_per_gpu, list):
+        return config.gpu_memory_limit_per_gpu[0]
+    return config.gpu_memory_limit_per_gpu
+
 def get_retriever(config):
     
     if config.retrieval_method == "bm25":
