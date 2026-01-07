@@ -1086,8 +1086,6 @@ class HybridFilterRetriever(HybridRetriever):
         self.w_bm25 = config.bm25_weight
         self.w_t2v = 10
         self.top_n = config.top_n
-
-        print(f"[Init] Loading Qwen3 on 2 GPUs with memory reservation on cuda:0...")
         
         self.tokenizer = AutoTokenizer.from_pretrained(config.filter_model, trust_remote_code=True)
         
@@ -1142,6 +1140,8 @@ class HybridFilterRetriever(HybridRetriever):
             
             response = self.tokenizer.decode(output_ids[0][len(input_ids[0]):], skip_special_tokens=True)
             text_num = self._extract_numbers(response)
+            print(f'[debug]response:{response}')
+            print(f'[debug]text_num:{text_num}')
             if not text_num: return candidates[:self.topk], scores[:self.topk]
 
             filtered_results = [candidates[i-1] for i in text_num if i-1 < len(candidates)]
