@@ -793,6 +793,47 @@ class Text2vecRetriever(BaseRetriever):
             results.append(self.corpus[hit['corpus_id']])
             scores.append(hit['score'])
         return (results, scores) if return_score else results
+    
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
+        if isinstance(query_list, str):
+            query_list = [query_list]
+        if num is None:
+            num = self.topk
+            
+        start_time = time.time()
+        
+        # 计算所有查询的嵌入向量
+        query_embeddings = self.embedder.encode(query_list, normalize_embeddings=True)
+        
+        # 批量检索
+        batch_results = []
+        batch_scores = []
+        
+        for i, query_embedding in enumerate(query_embeddings):
+            # 为每个查询单独进行检索（因为 semantic_search 需要单个查询向量）
+            hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
+            
+            results = []
+            scores = []
+            
+            for hit in hits:
+                doc_idx = hit['corpus_id']
+                score = hit['score']
+                
+                doc = self.corpus[doc_idx]
+                results.append(doc)
+                scores.append(score)
+            
+            batch_results.append(results)
+            batch_scores.append(scores)
+        
+        end_time = time.time()
+        print(f"[DEBUG] 批量检索时间 ({len(query_list)} 个查询): {end_time - start_time:.4f} 秒")
+        
+        if return_score:
+            return batch_results, batch_scores
+        else:
+            return batch_results
 
 class HybridRetriever(BaseRetriever):
     def __init__(self, config):
@@ -1082,7 +1123,7 @@ class HybridFilterRetriever(HybridRetriever):
         self.text2vec_retriever = Text2vecRetriever(config, device=retrieval_device)
         
         self.topk = config.retrieval_topk
-        self.search_depth = config.search_depth
+        # self.search_depth = config.search_depth
         self.w_bm25 = config.bm25_weight
         self.w_t2v = 10
         self.top_n = config.top_n
