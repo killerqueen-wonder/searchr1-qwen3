@@ -1184,7 +1184,9 @@ class HybridFilterRetriever(HybridRetriever):
             text_num = self._extract_numbers(response)
             print(f'[debug]response:{response}')
             print(f'[debug]text_num:{text_num}')
-            if not text_num: return candidates[:self.topk], scores[:self.topk]
+            if not text_num: 
+                # return candidates[:self.topk], scores[:self.topk]
+                return '检索不到相关内容，请尝试修改检索词或搜索其他方向内容。', 0
 
             filtered_results = [candidates[i-1] for i in text_num if i-1 < len(candidates)]
             filtered_scores = [scores[i-1] for i in text_num if i-1 < len(scores)]
