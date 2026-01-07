@@ -1151,12 +1151,13 @@ class HybridFilterRetriever(HybridRetriever):
         self.device = self.model.device
         self.model.eval()
 
+        
         self.prompt_template = (
-            "你的任务是从备选文本中评价最符合检索词的最多{topk}段文本。\n"
+            "你的任务是从备选文本中评价最符合检索词的最多{topk}段文本(可少于{topk}段)\n"
             "备选文本为：{results}\n"
             "检索词为：{query}\n"
-            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。"
-            "输出示例: [1,3]。不要输出其他内容。"
+            "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4]。输出最符合上下文的最多{topk}段文本的编号。不要输出其他解释性内容。"
+            "如果全部不符合，则返回空列表。"
         )
 
     def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float]) -> Tuple[List[Dict], List[float]]:
