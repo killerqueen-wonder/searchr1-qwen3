@@ -4,7 +4,7 @@ from requests.exceptions import JSONDecodeError, RequestException
 import argparse
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
+'''测试RAG'''
 
 def verify_and_call_search_service(search_url: str, payload: dict, timeout: float = 5.0):
     """

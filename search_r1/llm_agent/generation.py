@@ -466,7 +466,7 @@ class LLMGenerationManager:
         format_reference = ''
         for idx, doc_item in enumerate(retrieval_result):
             
-            content = doc_item['document']['contents']
+            content = doc_item['document']['content']
             title = content.split("\n")[0]
             text = "\n".join(content.split("\n")[1:])
             format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"

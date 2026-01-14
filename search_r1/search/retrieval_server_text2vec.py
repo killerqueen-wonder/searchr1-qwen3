@@ -28,6 +28,8 @@ import lawa
 
 import re
 
+'''start a RAG system'''
+
 def load_corpus(corpus_path: str):
     corpus = datasets.load_dataset(
         'json', 
