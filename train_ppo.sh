@@ -1,5 +1,3 @@
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-export CUDA_VISIBLE_DEVICES=0,1,2,3
 export DATA_DIR='/caizhenyang/panghuaiwen/legal_LLM/dataset/dataset/legal_exam'
 
 WAND_PROJECT='Search-R1'
@@ -19,8 +17,8 @@ WAND_PROJECT='Search-R1'
 # export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-3b-em
 # export BASE_MODEL='Qwen/Qwen2.5-3B-Instruct'
 # export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-3b-it-em
-export BASE_MODEL="/F00120250029/panghuaiwen/legal_LLM/model/Qwen/Qwen3-8B"
-export EXPERIMENT_NAME=ppo-qwen3-8b-LE_RL
+export BASE_MODEL="/F00120250029/panghuaiwen/legal_LLM/SFT_ckp/qwen3_SFT_10k_DISC+crime_1204/checkpoint-2-3522/tfmr"
+export EXPERIMENT_NAME=ppo-qwen3-8b-RL-2.0
 # export BASE_MODEL="/caizhenyang/panghuaiwen/legal_LLM/model/Qwen/Qwen3-8B"
 # export EXPERIMENT_NAME=legal_exam-search-r1-ppo-qwen3-8b-em
 # export BASE_MODEL="/caizhenyang/panghuaiwen/legal_LLM/model/Qwen/Qwen2.5-7B"
@@ -83,7 +81,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.val_only=false \
     trainer.val_before_train=true \
     trainer.default_hdfs_dir=null \
-    trainer.n_gpus_per_node=4 \
+    trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.save_freq=50 \
     trainer.test_freq=50 \
@@ -97,5 +95,5 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     +max_turns=3 \
     ray_kwargs.ray_init.num_cpus=8 \
     +retriever.url="http://127.0.0.1:8006/retrieve" \
-    +retriever.topk=3 \
+    +retriever.topk=10 \
     2>&1 | tee $EXPERIMENT_NAME.log
