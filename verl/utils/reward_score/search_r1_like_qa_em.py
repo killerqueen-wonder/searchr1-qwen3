@@ -142,7 +142,7 @@ def count_answer_tags(text):
     return opening_tags, closing_tags
 
 
-def compute_score(solution_str, ground_truth, method="strict", format_score=0.0, score=1.0):
+def compute_score(solution_str, ground_truth, method="strict", format_score=0.1, score=1.0):
     """The scoring function for exact match (EM).
 
     Args:
@@ -164,12 +164,13 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.0,
         else:
             print("Extracted answer: None!")
         print(f"Solution string: {solution_str}")
+        print("---------------end-----------------")
 
     if answer is None:
         return 0
     else:
         if em_check(answer, ground_truth["target"]):
-            if open_count > 10 or close_count > 10:  # prevent output a lot of </answer>
+            if open_count > 4 or close_count > 4:  # prevent output a lot of </answer>
                 score = score / 4
                 return score
             return score
