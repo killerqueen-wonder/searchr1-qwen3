@@ -91,12 +91,12 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.total_epochs=10 \
-    trainer.total_training_steps=60 \
+    trainer.total_training_steps=81 \
     trainer.resume_mode=disable \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
-    +max_turns=4 \
+    +max_turns=5 \
     ray_kwargs.ray_init.num_cpus=16 \
     +retriever.url="http://127.0.0.1:8006/retrieve" \
-    +retriever.topk=10 \
+    +retriever.topk=8 \
     2>&1 | tee $EXPERIMENT_NAME.log
