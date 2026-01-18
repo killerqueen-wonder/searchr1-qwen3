@@ -20,22 +20,71 @@ import re
 import string
 
 
+# def normalize_answer(s):
+#     def remove_articles(text):
+#         return re.sub(r"\b(a|an|the)\b", " ", text)
+
+#     def white_space_fix(text):
+#         return " ".join(text.split())
+
+#     def remove_punc(text):
+#         exclude = set(string.punctuation)
+#         return "".join(ch for ch in text if ch not in exclude)
+
+#     def lower(text):
+#         return text.lower()
+
+#     return white_space_fix(remove_articles(remove_punc(lower(s))))
+
+import unicodedata
+
 def normalize_answer(s):
     def remove_articles(text):
+        # 移除英文冠词
         return re.sub(r"\b(a|an|the)\b", " ", text)
 
     def white_space_fix(text):
+        # 规范化空格
         return " ".join(text.split())
 
-    def remove_punc(text):
-        exclude = set(string.punctuation)
-        return "".join(ch for ch in text if ch not in exclude)
+    def remove_punc_keep_numeric(text):
+        """
+        剔除中英文标点，但保留数字相关的符号: . - % 
+        """
+        # 定义数字相关符号白名单
+        # . (小数), - (负数), % (百分比)
+        numeric_whitelist = {'.', '-', '%'}
+        
+        res = []
+        for char in text:
+            # 获取字符的 Unicode 分类
+            cat = unicodedata.category(char)
+            
+            # 1. 如果是字母或数字，保留
+            if char.isalnum():
+                res.append(char)
+            # 2. 如果是空格，保留
+            elif char.isspace():
+                res.append(char)
+            # 3. 如果是标点符号 (Category 'P')
+            elif cat.startswith('P'):
+                # 仅当标点在白名单中时保留
+                if char in numeric_whitelist:
+                    res.append(char)
+            # 4. 其他字符（如数学符号 'S' 类别，如 < = > 等）根据需求处理
+            # 这里默认也剔除，如果需要保留逻辑运算符号，可以加上 cat.startswith('S')
+        
+        return "".join(res)
 
     def lower(text):
         return text.lower()
 
-    return white_space_fix(remove_articles(remove_punc(lower(s))))
-
+    # 处理流程：
+    # 1. 转小写
+    # 2. 剔除标点（保留数字符号）
+    # 3. 剔除英文冠词
+    # 4. 去除多余空格并前后 strip
+    return white_space_fix(remove_articles(remove_punc_keep_numeric(lower(s))))
 
 def em_check(prediction, golden_answers):
     if isinstance(golden_answers, str):
