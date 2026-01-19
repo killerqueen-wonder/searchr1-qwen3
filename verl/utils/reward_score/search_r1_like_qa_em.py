@@ -14,129 +14,77 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Adapted from https://github.com/PeterGriffinJin/Search-R1/blob/main/verl/utils/reward_score/qa_em.py
-
 import random
 import re
 import string
-
-
-# def normalize_answer(s):
-#     def remove_articles(text):
-#         return re.sub(r"\b(a|an|the)\b", " ", text)
-
-#     def white_space_fix(text):
-#         return " ".join(text.split())
-
-#     def remove_punc(text):
-#         exclude = set(string.punctuation)
-#         return "".join(ch for ch in text if ch not in exclude)
-
-#     def lower(text):
-#         return text.lower()
-
-#     return white_space_fix(remove_articles(remove_punc(lower(s))))
-
 import unicodedata
 
 def normalize_answer(s):
-    def remove_articles(text):
-        # 移除英文冠词
-        return re.sub(r"\b(a|an|the)\b", " ", text)
-
+    if s is None: # 防御性编程：处理 None 输入
+        return ""
+    
     def white_space_fix(text):
-        # 规范化空格
         return " ".join(text.split())
 
     def remove_punc_keep_numeric(text):
-        """
-        剔除中英文标点，但保留数字相关的符号: . - % 
-        """
-        # 定义数字相关符号白名单
-        # . (小数), - (负数), % (百分比)
         numeric_whitelist = {'.', '-', '%'}
-        
         res = []
         for char in text:
-            # 获取字符的 Unicode 分类
             cat = unicodedata.category(char)
-            
-            # 1. 如果是字母或数字，保留
-            if char.isalnum():
+            if char.isalnum() or char.isspace():
                 res.append(char)
-            # 2. 如果是空格，保留
-            elif char.isspace():
+            elif cat.startswith('P') and char in numeric_whitelist:
                 res.append(char)
-            # 3. 如果是标点符号 (Category 'P')
-            elif cat.startswith('P'):
-                # 仅当标点在白名单中时保留
-                if char in numeric_whitelist:
-                    res.append(char)
-            # 4. 其他字符（如数学符号 'S' 类别，如 < = > 等）根据需求处理
-            # 这里默认也剔除，如果需要保留逻辑运算符号，可以加上 cat.startswith('S')
-        
         return "".join(res)
 
     def lower(text):
         return text.lower()
 
-    # 处理流程：
-    # 1. 转小写
-    # 2. 剔除标点（保留数字符号）
-    # 3. 剔除英文冠词
-    # 4. 去除多余空格并前后 strip
-    return white_space_fix(remove_articles(remove_punc_keep_numeric(lower(s))))
+    # 移除了会导致 ABCD 错误的 remove_articles
+    return white_space_fix(remove_punc_keep_numeric(lower(s)))
 
-def em_check(prediction, golden_answers):
+def em_check(prediction, golden_answers, max_score=1.0):
+    if prediction is None:
+        return 0
+    
     if isinstance(golden_answers, str):
         golden_answers = [golden_answers]
-    normalized_prediction = normalize_answer(prediction)
-    score = 0
-    for golden_answer in golden_answers:
-        golden_answer = normalize_answer(golden_answer)
-        if golden_answer == normalized_prediction:
-            score = 1
-            break
-    return score
+    
+    # 归一化标准答案
+    gold_set = {normalize_answer(g) for g in golden_answers if normalize_answer(g)}
 
+    # 归一化预测答案
+    norm_pred = normalize_answer(prediction)
+    
+    # 策略：如果标准答案里所有项都不含空格，则按空格 split 进行集合比较（适合 A B C D）
+    # 否则，尝试逗号切分或整体匹配（适合短语）
+    if all(" " not in g for g in gold_set):
+        pred_set = set(norm_pred.split())
+    else:
+        # 如果包含短语，建议模型输出用逗号分隔，这里做简单兼容处理
+        pred_set = {p.strip() for p in re.split(r'[,，]', norm_pred) if p.strip()}
 
-def subem_check(prediction, golden_answers):
-    if isinstance(golden_answers, str):
-        golden_answers = [golden_answers]
-    normalized_prediction = normalize_answer(prediction)
-    score = 0
-    for golden_answer in golden_answers:
-        golden_answer = normalize_answer(golden_answer)
-        if golden_answer in normalized_prediction:
-            score = 1
-            break
-    return score
+    if not pred_set:
+        return 0
 
+    if pred_set == gold_set:
+        return max_score
+    
+    if pred_set.issubset(gold_set):
+        return max_score / 5
+    
+    return 0
 
 def extract_solution(solution_str):
-    """Extract the equation from the solution string."""
-    # Remove everything before the first "Assistant:"
-    # if "Assistant:" in solution_str:
-    #     solution_str = solution_str.split("Assistant:", 1)[1]
-    # elif "<|im_start|>assistant" in solution_str:
-    #     solution_str = solution_str.split("<|im_start|>assistant", 1)[1]
-    # else:
-    #     return None
-    # solution_str = solution_str.split('\n')[-1]
-
-    answer_pattern = r"<answer>(.*?)</answer>"
-    match = re.finditer(answer_pattern, solution_str, re.DOTALL)
-    matches = list(match)
-
-    # If there are 0  matches, return None
-    if len(matches) < 1:
+    if not solution_str:
         return None
-
-    # If there are 2 or more matches, return the last one
+    answer_pattern = r"<answer>(.*?)</answer>"
+    matches = list(re.finditer(answer_pattern, solution_str, re.DOTALL))
+    if not matches:
+        return None
     return matches[-1].group(1).strip()
 
-
 def wrong_format(text):
-    # 使用 OR 逻辑：只要满足其中一个错误条件，就返回 True
     return any([
         text.count("<answer>") > 4, 
         text.count("</answer>") > 4,
@@ -145,7 +93,6 @@ def wrong_format(text):
     ])
 
 def correct_format(text):
-    # 使用 AND 逻辑：必须全部满足才返回 True
     return all([
         text.count("<answer>") <= 4, 
         text.count("</answer>") <= 4,
@@ -154,65 +101,29 @@ def correct_format(text):
     ])
 
 def compute_score(solution_str, ground_truth, method="strict", format_score=0.1, score=1.0):
-    """The scoring function for exact match (EM).
-
-    Args:
-        solution_str: the solution text
-        ground_truth: the ground truth
-        method: the method to extract the solution, choices are 'strict' and 'flexible'
-        format_score: the score for the format
-        score: the score for the correct answer
-    """
     answer = extract_solution(solution_str=solution_str)
-    do_print = random.randint(1, 64) == 1
-
-    if do_print:
+    
+    # 只有当开启随机采样时才打印，避免日志溢出
+    if random.randint(1, 64) == 1:
         print("---------------start-----------------")
-        print(f"Golden answers: {ground_truth['target']}")
-        if answer is not None:
-            print(f"Extracted answer is not None: {answer}")
-        else:
-            print("Extracted answer: None!")
-        print(f"Solution string: {solution_str}")
+        print(f"Golden answers: {ground_truth.get('target')}")
+        print(f"Extracted answer: {answer}")
         print("---------------end-----------------")
 
+    # 1. 如果根本没提取到答案
     if answer is None:
         return 0
+
+    # 2. 计算内容得分 (包含全对 1.0 或部分对 0.2)
+    final_score = em_check(answer, ground_truth.get("target", []), score)
+    
+    if final_score > 0:
+        # 答案正确（或部分正确），但格式错误 -> 降级处罚
+        if wrong_format(solution_str):
+            return final_score / 4
+        return final_score
     else:
-        if em_check(answer, ground_truth["target"]):#answer correct
-            if wrong_format(solution_str):#right answer but wrong format
-                score = score / 4
-                return score
-            return score
-        else:#answer wrong
-            if correct_format(solution_str):#wrong answer but correct format
-                return format_score
-            return 0
-
-
-def compute_score_subem(solution_str, ground_truth, method="strict", format_score=0.0, score=1.0):
-    """The scoring function for substring exact match (EM).
-
-    Args:
-        solution_str: the solution text
-        ground_truth: the ground truth
-        method: the method to extract the solution, choices are 'strict' and 'flexible'
-        format_score: the score for the format
-        score: the score for the correct answer
-    """
-    answer = extract_solution(solution_str=solution_str)
-    do_print = random.randint(1, 64) == 1
-
-    if do_print:
-        print("--------------------------------")
-        print(f"Golden answers: {ground_truth['target']}")
-        print(f"Extracted answer: {answer}")
-        print(f"Solution string: {solution_str}")
-
-    if answer is None:
-        return 0
-    else:
-        if subem_check(answer, ground_truth["target"]):
-            return score
-        else:
+        # 答案错误，但格式完全正确 -> 给予微小鼓励分
+        if correct_format(solution_str):
             return format_score
+        return 0
