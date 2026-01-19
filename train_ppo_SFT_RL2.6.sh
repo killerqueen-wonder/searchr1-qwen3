@@ -95,8 +95,8 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.resume_mode=disable \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
-    +max_turns=5 \
+    +max_turns=4 \
     ray_kwargs.ray_init.num_cpus=16 \
     +retriever.url="http://127.0.0.1:8006/retrieve" \
-    +retriever.topk=8 \
+    +retriever.topk=9 \
     2>&1 | tee $EXPERIMENT_NAME.log
