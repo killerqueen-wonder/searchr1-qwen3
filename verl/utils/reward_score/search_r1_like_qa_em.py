@@ -105,7 +105,7 @@ def correct_format(text):
 
 def compute_score(solution_str, ground_truth, method="strict", format_score=0.1, score=1.0):
     answer = extract_solution(solution_str=solution_str)
-    think_content = re.findall(r"<think>(.*?)</think>", solution_str, re.DOTALL)
+    
     
     # 只有当开启随机采样时才打印，避免日志溢出
     if random.randint(1, 64) == 1:
@@ -118,7 +118,7 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.1,
     if answer is None:
         return -0.1
 
-    if not think_content or len(think_content[-1].strip()) < 5:#思考过程太短
+    if len(solution_str) < 10:#思考过程太短
         return 0  
     
     # 2. 计算内容得分 
