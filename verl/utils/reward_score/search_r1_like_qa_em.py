@@ -135,12 +135,23 @@ def extract_solution(solution_str):
     return matches[-1].group(1).strip()
 
 
-def count_answer_tags(text):
-    opening_tags = text.count("<answer>")
-    closing_tags = text.count("</answer>")
+def wrong_format(text):
+    # 使用 OR 逻辑：只要满足其中一个错误条件，就返回 True
+    return any([
+        text.count("<answer>") > 4, 
+        text.count("</answer>") > 4,
+        text.count("<search>") != text.count("</search>"),
+        text.count("<search>") != text.count("<information>")
+    ])
 
-    return opening_tags, closing_tags
-
+def correct_format(text):
+    # 使用 AND 逻辑：必须全部满足才返回 True
+    return all([
+        text.count("<answer>") <= 4, 
+        text.count("</answer>") <= 4,
+        text.count("<search>") == text.count("</search>"),
+        text.count("<search>") == text.count("<information>")
+    ])
 
 def compute_score(solution_str, ground_truth, method="strict", format_score=0.1, score=1.0):
     """The scoring function for exact match (EM).
@@ -153,7 +164,6 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.1,
         score: the score for the correct answer
     """
     answer = extract_solution(solution_str=solution_str)
-    open_count, close_count = count_answer_tags(solution_str)
     do_print = random.randint(1, 64) == 1
 
     if do_print:
@@ -169,13 +179,15 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.1,
     if answer is None:
         return 0
     else:
-        if em_check(answer, ground_truth["target"]):
-            if open_count > 4 or close_count > 4:  # prevent output a lot of </answer>
+        if em_check(answer, ground_truth["target"]):#answer correct
+            if wrong_format(solution_str):#right answer but wrong format
                 score = score / 4
                 return score
             return score
-        else:
-            return format_score
+        else:#answer wrong
+            if correct_format(solution_str):#wrong answer but correct format
+                return format_score
+            return 0
 
 
 def compute_score_subem(solution_str, ground_truth, method="strict", format_score=0.0, score=1.0):
