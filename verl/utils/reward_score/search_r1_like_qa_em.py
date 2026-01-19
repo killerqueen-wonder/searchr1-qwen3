@@ -84,24 +84,28 @@ def extract_solution(solution_str):
         return None
     return matches[-1].group(1).strip()
 
-def wrong_format(text):
-    return any([
-        text.count("<answer>") > 4, 
-        text.count("</answer>") > 4,
-        text.count("<search>") != text.count("</search>"),
-        text.count("<search>") != text.count("<information>")
-    ])
+# def wrong_format(text):
+#     return any([
+#         text.count("<answer>") > 4, 
+#         text.count("</answer>") > 4,
+#         text.count("<search>") != text.count("</search>"),
+#         text.count("<search>") != text.count("<information>")
+#     ])
 
 def correct_format(text):
+    
     return all([
         text.count("<answer>") <= 4, 
         text.count("</answer>") <= 4,
         text.count("<search>") == text.count("</search>"),
-        text.count("<search>") == text.count("<information>")
+        text.count("<search>") == text.count("<information>"),
+        text.count("<search>") >=1
+        
     ])
 
 def compute_score(solution_str, ground_truth, method="strict", format_score=0.1, score=1.0):
     answer = extract_solution(solution_str=solution_str)
+    think_content = re.findall(r"<think>(.*?)</think>", solution_str, re.DOTALL)
     
     # 只有当开启随机采样时才打印，避免日志溢出
     if random.randint(1, 64) == 1:
@@ -112,14 +116,17 @@ def compute_score(solution_str, ground_truth, method="strict", format_score=0.1,
 
     # 1. 如果根本没提取到答案
     if answer is None:
-        return 0
+        return -0.1
 
-    # 2. 计算内容得分 (包含全对 1.0 或部分对 0.2)
+    if not think_content or len(think_content[-1].strip()) < 5:#思考过程太短
+        return 0  
+    
+    # 2. 计算内容得分 
     final_score = em_check(answer, ground_truth.get("target", []), score)
     
     if final_score > 0:
         # 答案正确（或部分正确），但格式错误 -> 降级处罚
-        if wrong_format(solution_str):
+        if not correct_format(solution_str):
             return final_score / 4
         return final_score
     else:
