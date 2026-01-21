@@ -26,6 +26,7 @@ def normalize_answer(s):
     def white_space_fix(text):
         return " ".join(text.split())
 
+    
     def remove_punc_keep_numeric(text):
         numeric_whitelist = {'.', '-', '%'}
         res = []
@@ -33,8 +34,11 @@ def normalize_answer(s):
             cat = unicodedata.category(char)
             if char.isalnum() or char.isspace():
                 res.append(char)
-            elif cat.startswith('P') and char in numeric_whitelist:
-                res.append(char)
+            elif cat.startswith('P'):
+                if char in numeric_whitelist:
+                    res.append(char)
+                else:
+                    res.append(" ") # 将其他标点替换为空格，避免粘连
         return "".join(res)
 
     def lower(text):
