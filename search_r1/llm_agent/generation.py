@@ -253,7 +253,7 @@ class LLMGenerationManager:
 
             # Execute in environment and process observations
             next_obs, dones, valid_action, is_search = self.execute_predictions(
-                responses_str, self.tokenizer.pad_token, active_mask
+                responses_str, self.tokenizer.pad_token, active_mask, step
             )
             
             curr_active_mask = torch.tensor([not done for done in dones], dtype=torch.bool)
@@ -352,7 +352,7 @@ class LLMGenerationManager:
         
         return final_output
 
-    def execute_predictions(self, predictions: List[str], pad_token: str, active_mask=None, do_search=True) -> List[str]:
+    def execute_predictions(self, predictions: List[str], pad_token: str, active_mask=None, do_search=True,current_turn=0) -> List[str]:
         """
         Execute predictions across multiple environments.
         NOTE: the function is the actual `step` function in the environment
@@ -369,6 +369,13 @@ class LLMGenerationManager:
         cur_actions, contents = self.postprocess_predictions(predictions)
         next_obs, dones, valid_action, is_search = [], [], [], []
         
+        # 计算最大轮次
+        max_turns = self.config.max_turns
+        # 构造轮次提醒文本
+        turn_info = f"\n[系统提示] 当前为第 {current_turn} 轮检索（上限 {max_turns} 轮）。"
+        if current_turn >= max_turns:
+            turn_info += " 跳过检索阶段。注意：接下来总结以上思考，必须给出最终回答！把最终答案放在 <answer> 和 </answer>之间。"
+
         search_queries = [content for action, content in zip(cur_actions, contents) if action == 'search']
         if do_search:
             search_results = self.batch_search(search_queries)
@@ -377,20 +384,22 @@ class LLMGenerationManager:
             search_results = [''] * sum([1 for action in cur_actions if action == 'search'])
 
         for i, (action, active) in enumerate(zip(cur_actions, active_mask)):
-            
+
             if not active:
                 next_obs.append('')
                 dones.append(1)
                 valid_action.append(0)
                 is_search.append(0)
             else:
+                
                 if action == 'answer':
                     next_obs.append('')
                     dones.append(1)
                     valid_action.append(1)
                     is_search.append(0)
                 elif action == 'search':
-                    next_obs.append(f'\n\n<information>{search_results.pop(0).strip()}</information>\n\n')
+
+                    next_obs.append(f'\n{turn_info}\n<information>{search_results.pop(0).strip()}</information>\n\n')
                     dones.append(0)
                     valid_action.append(1)
                     is_search.append(1)
@@ -398,9 +407,6 @@ class LLMGenerationManager:
                     next_obs.append(f'\n我先前的操作有问题。 \
 如果我想搜索，应该把关键词放在<search> 和 </search>之间。 \
 如果我想给出最终回答，应该把答案放在 <answer> 和 </answer>之间。让我重新思考。\n')
-#                     next_obs.append(f'\nMy previous action is invalid. \
-# If I want to search, I should put the query between <search> and </search>. \
-# If I want to give the final answer, I should put the answer between <answer> and </answer>. Let me try again.\n')
                     dones.append(0)
                     valid_action.append(0)
                     is_search.append(0)
@@ -408,6 +414,7 @@ class LLMGenerationManager:
         assert len(search_results) == 0
             
         return next_obs, dones, valid_action, is_search
+
 
     def postprocess_predictions(self, predictions: List[Any]) -> Tuple[List[int], List[bool]]:
         """
