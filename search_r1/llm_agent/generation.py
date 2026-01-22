@@ -253,7 +253,7 @@ class LLMGenerationManager:
 
             # Execute in environment and process observations
             next_obs, dones, valid_action, is_search = self.execute_predictions(
-                responses_str, self.tokenizer.pad_token, active_mask, step
+                responses_str, self.tokenizer.pad_token, active_mask, current_turn=step
             )
             
             curr_active_mask = torch.tensor([not done for done in dones], dtype=torch.bool)
