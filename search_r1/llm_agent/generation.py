@@ -374,6 +374,7 @@ class LLMGenerationManager:
         # 构造轮次提醒文本
         turn_info = f"\n[系统提示] 当前为第 {current_turn} 轮检索（上限 {max_turns} 轮）。"
         if current_turn >= max_turns:
+            print('[debug]到达检索上限。')
             turn_info += " 跳过检索阶段。注意：接下来总结以上思考，必须给出最终回答！把最终答案放在 <answer> 和 </answer>之间。"
 
         search_queries = [content for action, content in zip(cur_actions, contents) if action == 'search']
