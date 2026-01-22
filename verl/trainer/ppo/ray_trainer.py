@@ -1561,6 +1561,8 @@ class RayPPOTrainer:
 
                         ####################
                         ####################
+                        if "response_mask" not in batch.batch.keys():
+                            batch.batch["response_mask"] = compute_response_mask(batch)
 
                         # balance the number of valid tokens on each dp rank.
                         # Note that this breaks the order of data inside the batch.
