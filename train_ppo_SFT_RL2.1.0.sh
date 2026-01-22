@@ -38,7 +38,6 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=gae \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
-    +data.max_turns = 5 \
     +data.train_data_num=null \
     +data.val_data_num=null \
     data.train_batch_size=16 \
