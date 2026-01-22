@@ -368,7 +368,7 @@ class LLMGenerationManager:
         """
         cur_actions, contents = self.postprocess_predictions(predictions)
         next_obs, dones, valid_action, is_search = [], [], [], []
-        
+        current_turn+=1
         # 计算最大轮次
         max_turns = self.config.max_turns
         # 构造轮次提醒文本
