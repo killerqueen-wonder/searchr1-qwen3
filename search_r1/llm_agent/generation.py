@@ -74,21 +74,64 @@ class LLMGenerationManager:
         responses = self._batch_tokenize(responses_str)
         return responses, responses_str
 
-    def _process_next_obs(self, next_obs: List[str]) -> torch.Tensor:
-        """Process next observations from environment."""
+    # def _process_next_obs(self, next_obs: List[str]) -> torch.Tensor:
+    #     """Process next observations from environment."""
         
-        next_obs_ids = self.tokenizer(
-            next_obs, 
-            padding='longest',
-            return_tensors='pt',
-            add_special_tokens=False,  # Prevents adding special tokens
-        )['input_ids']
+    #     next_obs_ids = self.tokenizer(
+    #         next_obs, 
+    #         padding='longest',
+    #         return_tensors='pt',
+    #         add_special_tokens=False,  # Prevents adding special tokens
+    #     )['input_ids']
 
-        if next_obs_ids.shape[1] > self.config.max_obs_length:
-            print(f"[WARNING] OBSERVATION TOO LONG, CONSIDER CHANGING YOUR CONFIG, {next_obs_ids.shape[1]} & {self.config.max_obs_length}")            
-            next_obs_ids = next_obs_ids[:, :self.config.max_obs_length]
+    #     if next_obs_ids.shape[1] > self.config.max_obs_length:
+    #         print(f"[WARNING] OBSERVATION TOO LONG, CONSIDER CHANGING YOUR CONFIG, {next_obs_ids.shape[1]} & {self.config.max_obs_length}")            
+    #         next_obs_ids = next_obs_ids[:, :self.config.max_obs_length]
 
-        return next_obs_ids
+    #     return next_obs_ids
+    
+
+    def _process_next_obs(self, next_obs: List[str], device: torch.device) -> torch.Tensor:
+        """
+        处理环境观察值：
+        1. 动态截断：若超长则截断并补全 </information>。
+        2. 动态 Padding：仅对齐到当前 Batch 内的最长长度，显著节省显存。
+        3. 设备对齐：直接将结果移动到指定的训练设备。
+        """
+        # 预设标签信息
+        suffix = "</information>"
+        suffix_token_ids = self.tokenizer(suffix, add_special_tokens=False)['input_ids']
+        suffix_len = len(suffix_token_ids)
+        
+        # 获取配置的硬上限
+        max_limit = self.config.max_obs_length
+        max_content_len = max_limit - suffix_len
+
+        processed_tensors = []
+        
+        for obs_text in next_obs:
+            # 单条 Tokenize，不在此处进行 Padding
+            full_ids = self.tokenizer(obs_text, add_special_tokens=False)['input_ids']
+
+            # 执行截断补全逻辑
+            if len(full_ids) > max_limit:
+                final_ids = full_ids[:max_content_len] + suffix_token_ids
+            else:
+                final_ids = full_ids
+            
+            # 创建 CPU Tensor（默认），此时占用显存极低
+            processed_tensors.append(torch.tensor(final_ids, dtype=torch.long))
+
+        # 执行动态 Padding（仅对齐到本 Batch 最长序列）
+        from torch.nn.utils.rnn import pad_sequence
+        next_obs_ids = pad_sequence(
+            processed_tensors, 
+            batch_first=True, 
+            padding_value=self.tokenizer.pad_token_id
+        )
+
+        # 从 CPU 移动到指定的“借用”设备（GPU）
+        return next_obs_ids.to(device)
 
     def _update_rolling_state(self, rollings: DataProto, cur_responses: torch.Tensor, 
                             next_obs_ids: torch.Tensor) -> Dict:
@@ -267,7 +310,10 @@ class LLMGenerationManager:
             valid_action_stats += torch.tensor(valid_action, dtype=torch.int)
             valid_search_stats += torch.tensor(is_search, dtype=torch.int)
 
-            next_obs_ids = self._process_next_obs(next_obs)
+            #获取当前 batch 所在的设备,在next_obs处理后返回
+            current_device = rollings.batch['input_ids'].device
+
+            next_obs_ids = self._process_next_obs(next_obs,current_device)
             
             # Update states
             rollings = self._update_rolling_state(
@@ -303,7 +349,8 @@ class LLMGenerationManager:
                 predictions=responses_str, 
                 pad_token=self.tokenizer.pad_token, 
                 active_mask=active_mask, 
-                do_search=False
+                do_search=False,
+                current_turn=self.config.max_turns
             )
 
             curr_active_mask = torch.tensor([not done for done in dones], dtype=torch.bool)
