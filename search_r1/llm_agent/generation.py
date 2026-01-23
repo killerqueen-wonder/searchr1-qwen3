@@ -253,7 +253,11 @@ class LLMGenerationManager:
 
             # Execute in environment and process observations
             next_obs, dones, valid_action, is_search = self.execute_predictions(
-                responses_str, self.tokenizer.pad_token, active_mask, current_turn=step
+                predictions=responses_str, 
+                pad_token=self.tokenizer.pad_token, 
+                active_mask=active_mask, 
+                do_search=True,
+                current_turn=step
             )
             
             curr_active_mask = torch.tensor([not done for done in dones], dtype=torch.bool)
@@ -296,7 +300,10 @@ class LLMGenerationManager:
 
             # # Execute in environment and process observations
             _, dones, valid_action, is_search = self.execute_predictions(
-                responses_str, self.tokenizer.pad_token, active_mask, do_search=False
+                predictions=responses_str, 
+                pad_token=self.tokenizer.pad_token, 
+                active_mask=active_mask, 
+                do_search=False
             )
 
             curr_active_mask = torch.tensor([not done for done in dones], dtype=torch.bool)
@@ -382,7 +389,7 @@ class LLMGenerationManager:
             search_results = self.batch_search(search_queries)
             assert len(search_results) == sum([1 for action in cur_actions if action == 'search'])
         else:
-            search_results = [''] * sum([1 for action in cur_actions if action == 'search'])
+            search_results = ['接下来总结以上思考，必须给出最终回答！'] * sum([1 for action in cur_actions if action == 'search'])
 
         for i, (action, active) in enumerate(zip(cur_actions, active_mask)):
 
