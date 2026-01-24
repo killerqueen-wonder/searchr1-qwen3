@@ -146,16 +146,16 @@ class BaseRetriever:
         self.index_path = config.index_path
         self.corpus_path = config.corpus_path
 
-    def _search(self, query: str, num: int, return_score: bool,context: Optional[List[str]] = None):
+    def _search(self, query: str, num: int, return_score: bool):
         raise NotImplementedError
 
-    def _batch_search(self, query_list: List[str], num: int, return_score: bool,context: Optional[List[str]] = None):
+    def _batch_search(self, query_list: List[str], num: int, return_score: bool):
         raise NotImplementedError
 
-    def search(self, query: str, num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def search(self, query: str, num: int = None, return_score: bool = False):
         return self._search(query, num, return_score)
     
-    def batch_search(self, query_list: List[str], num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
         return self._batch_search(query_list, num, return_score)
 
 
@@ -228,7 +228,7 @@ class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
         
         self.max_process_num = 8
 
-    def _search(self, query: str, num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def _search(self, query: str, num: int = None, return_score: bool = False):
         if num is None:
             num = self.topk
 
@@ -332,7 +332,7 @@ class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
         else:
             return results
 
-    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
         results = []
         scores = []
         for query in query_list:
@@ -370,7 +370,7 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
         
         self.max_process_num = 8
 
-    def _search(self, query: str, num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def _search(self, query: str, num: int = None, return_score: bool = False):
         if num is None:
             num = self.topk
 
@@ -474,7 +474,7 @@ class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
         else:
             return results
 
-    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
         results = []
         scores = []
         for query in query_list:
@@ -541,7 +541,7 @@ class DenseRetriever(BaseRetriever):
         self.topk = config.retrieval_topk
         self.batch_size = config.retrieval_batch_size
 
-    def _search(self, query: str, num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def _search(self, query: str, num: int = None, return_score: bool = False):
         if num is None:
             num = self.topk
         query_emb = self.encoder.encode(query)
@@ -554,7 +554,7 @@ class DenseRetriever(BaseRetriever):
         else:
             return results
 
-    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
         if isinstance(query_list, str):
             query_list = [query_list]
         if num is None:
@@ -586,6 +586,162 @@ class DenseRetriever(BaseRetriever):
         else:
             return results
 
+# class Text2vecRetriever(BaseRetriever):
+#     def __init__(self, config):
+#         super().__init__(config)
+        
+#         # 初始化 text2vec 模型
+#         self.embedder = SentenceModel(config.retrieval_model_path)
+        
+#         # 加载语料库
+#         self.corpus = load_corpus(self.corpus_path)
+        
+#         # 生成对应的embedding文件名
+#         self.embedding_file = self._get_embedding_filename(self.corpus_path)
+        
+#         # 加载或计算语料库嵌入
+#         self.corpus_embeddings = self._load_or_compute_embeddings()
+        
+#         self.topk = config.retrieval_topk
+#         self.batch_size = config.retrieval_batch_size
+
+#     def _get_embedding_filename(self, jsonl_filename):
+#         """
+#         根据jsonl文件名生成对应的embedding文件名
+#         """
+#         base_name = os.path.splitext(os.path.basename(jsonl_filename))[0]
+#         dir_name = os.path.dirname(jsonl_filename)
+#         embedding_filename = os.path.join(dir_name, f"{base_name}_embeddings.pt")
+#         return embedding_filename
+
+#     def _load_or_compute_embeddings(self):
+#         """
+#         加载预计算的嵌入向量，如果不存在则计算并保存
+#         """
+#         print(f"[INFO] 检查预计算的embedding文件: {self.embedding_file}")
+        
+#         if os.path.exists(self.embedding_file):
+#             print(f"[INFO] 发现预计算的embedding文件，正在加载...")
+#             corpus_embeddings = torch.load(self.embedding_file)
+#             print(f"[INFO] 已加载 embedding shape={corpus_embeddings.shape}")
+#         else:
+#             print(f"[INFO] 未找到预计算的embedding文件，开始计算...")
+#             corpus_embeddings = self._compute_and_save_embeddings()
+            
+#         return corpus_embeddings
+
+#     def _compute_and_save_embeddings(self):
+#         """
+#         计算语料库嵌入向量并保存
+#         """
+#         # 提取语料库文本内容
+#         corpus_texts = []
+#         for doc in self.corpus:
+#             if 'contents' in doc:
+#                 corpus_texts.append(doc['contents'])
+#             elif 'text' in doc:
+#                 corpus_texts.append(doc['text'])
+#             elif 'content' in doc:
+#                 corpus_texts.append(doc['content'])
+#             else:
+#                 corpus_texts.append(str(doc))
+        
+#         print(f"[INFO] 正在计算 {len(corpus_texts)} 个文档的语义向量...")
+#         start_time = time.time()
+        
+#         # 计算嵌入向量
+#         if torch.cuda.is_available():
+#             print(f"[INFO] 使用 GPU: {torch.cuda.get_device_name(0)}")
+#             pool = self.embedder.start_multi_process_pool()
+#             corpus_embeddings = self.embedder.encode_multi_process(corpus_texts, pool, normalize_embeddings=True)
+#             self.embedder.stop_multi_process_pool(pool)
+#         else:
+#             print("[INFO] 使用 CPU 计算")
+#             corpus_embeddings = self.embedder.encode(corpus_texts, normalize_embeddings=True)
+        
+#         # 保存嵌入向量
+#         print(f"[INFO] 保存 embedding 到: {self.embedding_file}")
+#         torch.save(corpus_embeddings, self.embedding_file)
+#         print(f"[INFO] 已保存 shape={corpus_embeddings.shape}")
+        
+#         end_time = time.time()
+#         print(f"[DEBUG] embedding 计算时间: {end_time - start_time:.2f} 秒")
+        
+#         return corpus_embeddings
+
+#     def _search(self, query: str, num: int = None, return_score: bool = False):
+#         if num is None:
+#             num = self.topk
+            
+#         # start_time = time.time()
+        
+#         # 计算查询嵌入向量
+#         query_embedding = self.embedder.encode(query, normalize_embeddings=True)
+        
+#         # 使用 semantic_search 进行检索
+#         hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
+        
+#         # end_time = time.time()
+#         # print(f"[DEBUG] t2v 单次检索时间: {end_time - start_time:.4f} 秒")
+        
+#         # 构建结果
+#         results = []
+#         scores = []
+        
+#         for hit in hits:
+#             doc_idx = hit['corpus_id']
+#             score = hit['score']
+            
+#             # 获取对应文档
+#             doc = self.corpus[doc_idx]
+#             results.append(doc)
+#             scores.append(score)
+        
+#         if return_score:
+#             return results, scores
+#         else:
+#             return results
+
+#     def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
+#         if isinstance(query_list, str):
+#             query_list = [query_list]
+#         if num is None:
+#             num = self.topk
+            
+#         start_time = time.time()
+        
+#         # 计算所有查询的嵌入向量
+#         query_embeddings = self.embedder.encode(query_list, normalize_embeddings=True)
+        
+#         # 批量检索
+#         batch_results = []
+#         batch_scores = []
+        
+#         for i, query_embedding in enumerate(query_embeddings):
+#             # 为每个查询单独进行检索（因为 semantic_search 需要单个查询向量）
+#             hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
+            
+#             results = []
+#             scores = []
+            
+#             for hit in hits:
+#                 doc_idx = hit['corpus_id']
+#                 score = hit['score']
+                
+#                 doc = self.corpus[doc_idx]
+#                 results.append(doc)
+#                 scores.append(score)
+            
+#             batch_results.append(results)
+#             batch_scores.append(scores)
+        
+#         end_time = time.time()
+#         print(f"[DEBUG] 批量检索时间 ({len(query_list)} 个查询): {end_time - start_time:.4f} 秒")
+        
+#         if return_score:
+#             return batch_results, batch_scores
+#         else:
+#             return batch_results
 
 class Text2vecRetriever(BaseRetriever):
     def __init__(self, config, device: str = None):
@@ -627,7 +783,7 @@ class Text2vecRetriever(BaseRetriever):
         torch.save(corpus_embeddings, self.embedding_file)
         return corpus_embeddings
 
-    def _search(self, query: str, num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def _search(self, query: str, num: int = None, return_score: bool = False):
         if num is None: num = self.topk
         if not query.strip(): return ([], []) if return_score else []
         
@@ -640,7 +796,7 @@ class Text2vecRetriever(BaseRetriever):
             scores.append(hit['score'])
         return (results, scores) if return_score else results
     
-    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
         if isinstance(query_list, str):
             query_list = [query_list]
         if num is None:
@@ -707,7 +863,7 @@ class HybridRetriever(BaseRetriever):
             return [0.0 for _ in scores]
         return [(s - min_s) / (max_s - min_s) for s in scores]
 
-    def _search(self, query: str, num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+    def _search(self, query: str, num: int = None, return_score: bool = False):
         if num is None:
             num = self.topk
 
@@ -780,7 +936,7 @@ class HybridRetriever(BaseRetriever):
             return results, scores
         return results
 
-    def _batch_search(self, query_list, num=None, return_score=False,context: Optional[List[str]] = None):
+    def _batch_search(self, query_list, num=None, return_score=False):
         results = []
         scores = []
         for q in query_list:
@@ -1001,19 +1157,18 @@ class HybridFilterRetriever(HybridRetriever):
         self.prompt_template = (
             "你的任务是从备选文本中筛选出符合检索词的文本，最多只能筛选出{topk}段.\n"
             "检索词为：{query}\n"
-            "语境信息为：{context}\n"
             "备选文本为：{results}\n"
             "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4]。输出最符合上下文的最多{topk}段文本的编号。不要输出其他解释性内容。"
             "如果全部不符合，则返回空列表。"
         )
 
-    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float], context: Optional[List[str]] = None) -> Tuple[List[Dict], List[float]]:
+    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float]) -> Tuple[List[Dict], List[float]]:
         if not candidates: return [], []
 
         # 保持 content 完整以供筛选
         candidates_data = [{"content": doc.get("content", "")} for doc in candidates]
         results_str = json.dumps(candidates_data, ensure_ascii=False)
-        prompt = self.prompt_template.format(results=results_str, query=query, topk=self.topk,context=context if context else "无")
+        prompt = self.prompt_template.format(results=results_str, query=query, topk=self.topk)
 
         try:
             messages = [{"role": "user", "content": prompt}]
@@ -1051,7 +1206,7 @@ class HybridFilterRetriever(HybridRetriever):
             return [int(n) for n in nums]
         return None
     
-    def _search(self, query: str, num: int = None, return_score: bool = False, context: str = None):
+    def _search(self, query: str, num: int = None, return_score: bool = False):
         # 1. 使用父类 HybridRetriever 进行初步检索 top_n个
         initial_num = num if num else self.top_n
 
@@ -1061,7 +1216,7 @@ class HybridFilterRetriever(HybridRetriever):
         start_time = time.time()
         
         # 2. 使用 LLM 进行过滤 (Precision)
-        filtered_results, filtered_scores = self._llm_filter(query, candidates, scores, context)
+        filtered_results, filtered_scores = self._llm_filter(query, candidates, scores)
         
         end_time = time.time()
         print(f"[DEBUG] LLM Filter time: {end_time - start_time:.4f} s, Input: {len(candidates)} -> Output: {len(filtered_results)}")
@@ -1069,22 +1224,6 @@ class HybridFilterRetriever(HybridRetriever):
         if return_score:
             return filtered_results, filtered_scores
         return filtered_results
-    
-    
-    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False, context_list: Optional[List[str]] = None):
-        results = []
-        scores = []
-        
-        # 如果没传 context，则补齐为 None 列表
-        if context_list is None:
-            context_list = [None] * len(query_list)
-            
-        # 一一对应分发
-        for q, ctx in zip(query_list, context_list):
-            r, s = self._search(q, num, True, context=ctx) # 传入单条 context
-            results.append(r)
-            scores.append(s)
-        return (results, scores) if return_score else results
 
 def max_memory_on_main(config):
     if isinstance(config.gpu_memory_limit_per_gpu, list):
@@ -1174,7 +1313,6 @@ class QueryRequest(BaseModel):
     queries: List[str]
     topk: Optional[int] = None
     return_scores: bool = False
-    context: Optional[List[str]] = None
 
 
 app = FastAPI()
@@ -1199,14 +1337,12 @@ def retrieve_endpoint(request: QueryRequest):
             query_list=request.queries,
             num=request.topk,
             return_score=True,
-            context=request.context
         )
     else:
         results = retriever.batch_search(
             query_list=request.queries,
             num=request.topk,
             return_score=False,
-            context=request.context
         )
         scores = None
     
