@@ -107,13 +107,13 @@ if __name__ == "__main__":
             "queries": [queries],
             "topk": topk,
             "return_scores": True,
-            'context':[context] 
+            "context":[context] 
 
         }
 
-    print(f'正在检索{queries}')
+    print(f'正在检索:{queries}')
     if context:
-        print(f'语境信息{context}')
+        print(f'语境信息:{context}')
     
     try:
         # test_response = verify_and_call_search_service(test_url, payload)

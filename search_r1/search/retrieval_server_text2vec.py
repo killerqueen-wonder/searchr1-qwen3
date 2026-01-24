@@ -153,10 +153,10 @@ class BaseRetriever:
         raise NotImplementedError
 
     def search(self, query: str, num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
-        return self._search(query, num, return_score)
+        return self._search(query, num, return_score,context)
     
     def batch_search(self, query_list: List[str], num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
-        return self._batch_search(query_list, num, return_score)
+        return self._batch_search(query_list, num, return_score,context)
 
 
 class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
@@ -1043,7 +1043,8 @@ class HybridFilterRetriever(HybridRetriever):
             "### 筛选结果（仅输出列表）："
         )
 
-    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float], context: Optional[str] = None) -> Tuple[List[Dict], List[float]]:
+    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float], 
+                    context: str = None) -> Tuple[List[Dict], List[float]]:
         if not candidates: return [], []
 
         # 保持 content 完整以供筛选
