@@ -1026,7 +1026,7 @@ class HybridFilterRetriever(HybridRetriever):
             "语境信息为：{context}\n"
             "备选文本为：{results}\n"
             "现在，给出一个列表，代表你判断第几段文本符合检索词和语境信息（从1开始）。例如：[1,3,4]。输出符合上下文的不超过{topk}段文本的编号。不要输出其他解释性内容。"
-            "如果全部不符合，则返回空列表。  /no_think"
+            "如果全部不符合，则返回空列表。"
         )
 
     def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float], context: Optional[List[str]] = None) -> Tuple[List[Dict], List[float]]:
