@@ -1020,14 +1020,14 @@ class HybridFilterRetriever(HybridRetriever):
         self.model.eval()
 
         
-        self.prompt_template = (
-            "你的任务是从备选文本中筛选出符合检索词和语境信息的文本，最多只能筛选出{topk}段.\n"
-            "检索词为：{query}\n"
-            "语境信息为：{context}\n"
-            "备选文本为：{results}\n"
-            "现在，给出一个列表，代表你判断第几段文本符合检索词和语境信息（从1开始）。例如：[1,3,4]。输出符合上下文的不超过{topk}段文本的编号。不要输出其他解释性内容。"
-            "如果全部不符合，则返回空列表。"
-        )
+        # self.prompt_template = (
+        #     "你的任务是从备选文本中筛选出符合检索词和语境信息的文本，最多只能筛选出{topk}段.\n"
+        #     "检索词为：{query}\n"
+        #     "语境信息为：{context}\n"
+        #     "备选文本为：{results}\n"
+        #     "现在，给出一个列表，代表你判断第几段文本符合检索词和语境信息（从1开始）。例如：[1,3,4]。输出符合上下文的不超过{topk}段文本的编号。不要输出其他解释性内容。"
+        #     "如果全部不符合，则返回空列表。"
+        # )
         self.prompt_template = (
             "### 任务指令\n"
             "你是一名资深的法律文书核查员。请根据提供的【语境信息】和【检索词】，从【备选文本】中筛选出语义最相关且完全符合法条要求的文档编号。\n\n"
@@ -1036,6 +1036,7 @@ class HybridFilterRetriever(HybridRetriever):
             "2. **严禁凑数**：筛选结果是不超过 {topk} 段。如果只有 1 段符合，仅返回该段编号；如果没有符合的，返回 []。严禁为了达到 {topk} 个而返回无关文本。\n"
             "3. **输出格式**：只允许输出一个 Python 格式的整数列表，例如：[1] 或 [1, 2]。\n"
             "4. **禁止解释**：严禁输出任何分析过程、思考内容（<think>）或多余的文字说明。\n\n"
+            "5. **索引对齐**：请仔细阅读每段备选文本的内容。如果【语境信息】要求‘第二条’，请找到内容中确实描述‘第二条’的文本，并输出该文本对应的【编号】。"
             "### 输入数据\n"
             "- 【检索词】：{query}\n"
             "- 【语境信息】：{context}\n"
@@ -1048,9 +1049,19 @@ class HybridFilterRetriever(HybridRetriever):
         if not candidates: return [], []
 
         # 保持 content 完整以供筛选
-        candidates_data = [{"content": doc.get("content", "")} for doc in candidates]
-        results_str = json.dumps(candidates_data, ensure_ascii=False)
-        prompt = self.prompt_template.format(results=results_str, query=query, topk=self.topk,context=context if context else "无")
+        # candidates_data = [{"content": doc.get("content", "")} for doc in candidates]
+        # results_str = json.dumps(candidates_data, ensure_ascii=False)
+        
+        # 显式为每一条候选文档添加序号标签
+        candidates_formatted = []
+        for i, doc in enumerate(candidates, 1):
+            content = doc.get("content", "").replace('\n', ' ')
+            candidates_formatted.append(f"编号 {i}: {content}")
+        
+        # 将列表转为带换行的字符串，方便模型阅读
+        results_str = "\n".join(candidates_formatted)
+        prompt = self.prompt_template.format(results=results_str, query=query, 
+                                             topk=self.topk,context=context if context else "无")
         print(f'[debug]{prompt}')
 
         try:
