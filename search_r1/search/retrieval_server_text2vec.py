@@ -1043,7 +1043,7 @@ class HybridFilterRetriever(HybridRetriever):
             "### 筛选结果（仅输出列表）："
         )
 
-    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float], context: Optional[List[str]] = None) -> Tuple[List[Dict], List[float]]:
+    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float], context: Optional[str] = None) -> Tuple[List[Dict], List[float]]:
         if not candidates: return [], []
 
         # 保持 content 完整以供筛选
