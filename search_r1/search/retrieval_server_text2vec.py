@@ -1056,7 +1056,7 @@ class HybridFilterRetriever(HybridRetriever):
             messages = [{"role": "user", "content": prompt}]
             input_ids = self.tokenizer.apply_chat_template(messages, tokenize=True, 
                                                            add_generation_prompt=True, 
-                                                        #    enable_thinking = False,
+                                                           enable_thinking = False,
                                                            return_tensors="pt").to(self.device)
 
             with torch.no_grad():
