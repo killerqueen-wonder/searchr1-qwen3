@@ -91,12 +91,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "test requests.")
 
     parser.add_argument('--queries', default= '抢劫罪',type=str)
+    parser.add_argument('--context', default= None,type=str)
     parser.add_argument('--test_url', default= "http://127.0.0.1:8006/retrieve",type=str)
     parser.add_argument('--topk', default= 3,type=int)
     # parser.add_argument("--retriever_name", type=str, default="e5", help="Name of the retriever model.")
     args = parser.parse_args()
 
     queries=args.queries
+    context=args.context
     topk=args.topk
     
     test_url=args.test_url
@@ -104,10 +106,15 @@ if __name__ == "__main__":
     payload = {
             "queries": [queries],
             "topk": topk,
-            "return_scores": True
+            "return_scores": True,
+            'context':[context]
+
         }
 
     print(f'正在检索{queries}')
+    if context:
+        print(f'语境信息{context}')
+    
     try:
         # test_response = verify_and_call_search_service(test_url, payload)
         # print(test_response)

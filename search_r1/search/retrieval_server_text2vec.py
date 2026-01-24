@@ -962,7 +962,29 @@ class HybridRetriever(BaseRetriever):
     
 class HybridFilterRetriever(HybridRetriever):
     def __init__(self, config):
-        # 锁定检索设备为第一张卡
+        """
+        初始化混合过滤检索器 (HybridFilterRetriever)。
+        
+        该类实现了“粗排+精排”的两阶段检索策略：
+        1. 粗排阶段：并行调用 BM25 权重检索器和 Text2vec 语义检索器，并进行分数融合。
+        2. 精排阶段：将粗排结果送入大语言模型 (LLM)，根据检索词和语境 (context) 进行意图对齐筛选。
+
+        Args:
+            config (Config): 全局配置对象，必须包含以下字段：
+                - retrieval_topk (int): 最终输出给用户的文档数量。
+                - search_depth (int): 混合检索的深度系数，用于粗排阶段计算候选池倍数。
+                - bm25_weight (float): 混合检索中 BM25 分数的权重（Text2vec 权重固定为 10）。
+                - top_n (int): 粗排阶段选出的、送往 LLM 进行过滤的初始候选文档数。
+                - filter_model (str): 用于过滤任务的 LLM 模型路径或名称。
+                - gpu_memory_limit_per_gpu (list/int): 每张显卡的内存限制（单位: GB）。
+                - retrieval_model_path (str): Text2vec 嵌入模型的路径。
+                - corpus_path (str): 语料库本地 JSONL 文件路径。
+
+        Note:
+            显存策略：为了在 2 张 V100 上优化性能，该构造函数将 Text2vec 锁定在 cuda:0，
+            并为 LLM 预留了分片加载空间。通过 max_memory 映射，手动在 0 号卡上预留了 3GB 
+            空间给系统和嵌入模型，以防止长文本推理时发生 OOM。
+        """
         retrieval_device = "cuda:0"
         
         self.bm25_retriever = BM25WeightRetriever(config)
