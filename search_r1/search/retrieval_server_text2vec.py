@@ -1026,7 +1026,7 @@ class HybridFilterRetriever(HybridRetriever):
             "语境信息为：{context}\n"
             "备选文本为：{results}\n"
             "现在，给出一个列表，代表你判断第几段文本符合检索词（从1开始）。例如：[1,3,4]。输出最符合上下文的最多{topk}段文本的编号。不要输出其他解释性内容。"
-            "如果全部不符合，则返回空列表。"
+            "如果全部不符合，则返回空列表。  /no_think"
         )
 
     def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float], context: Optional[List[str]] = None) -> Tuple[List[Dict], List[float]]:
@@ -1039,13 +1039,16 @@ class HybridFilterRetriever(HybridRetriever):
 
         try:
             messages = [{"role": "user", "content": prompt}]
-            input_ids = self.tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt").to(self.device)
+            input_ids = self.tokenizer.apply_chat_template(messages, tokenize=True, 
+                                                           add_generation_prompt=True, 
+                                                        #    enable_thinking = False,
+                                                           return_tensors="pt").to(self.device)
 
             with torch.no_grad():
                 output_ids = self.model.generate(
                     input_ids,
-                    max_new_tokens=1000,
-                    temperature=0.01,
+                    max_new_tokens=64,
+                    # temperature=0.01,
                     do_sample=False
                 )
             
