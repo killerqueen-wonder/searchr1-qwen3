@@ -1036,6 +1036,7 @@ class HybridFilterRetriever(HybridRetriever):
         candidates_data = [{"content": doc.get("content", "")} for doc in candidates]
         results_str = json.dumps(candidates_data, ensure_ascii=False)
         prompt = self.prompt_template.format(results=results_str, query=query, topk=self.topk,context=context if context else "无")
+        print(f'[debug]{prompt}')
 
         try:
             messages = [{"role": "user", "content": prompt}]
