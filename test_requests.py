@@ -55,7 +55,7 @@ def search(retrieve_path, payload):
         )
         response.raise_for_status()
         json_data = response.json()
-        print(f'[debug]response:{json_data}')
+        # print(f'[debug]response:{json_data}')
         results = json_data.get("result", [])
     except requests.exceptions.Timeout:
         print("[ERROR] Search request timed out.")
@@ -107,7 +107,7 @@ if __name__ == "__main__":
             "queries": [queries],
             "topk": topk,
             "return_scores": True,
-            'context':[context]
+            'context':[context] 
 
         }
 
