@@ -16,7 +16,7 @@ if target_dir not in sys.path:
 
 from local_LLM_judgement import VLLMRewardManager, reward_score_fn
 
-async def test_reward_manager():
+def test_reward_manager():
     print("开始测试 Reward Manager 逻辑...")
     
     # 1. 构造模拟数据 (符合 verl 格式)
@@ -57,4 +57,4 @@ async def test_reward_manager():
         print("✅ 基础流程测试通过！")
 
 if __name__ == "__main__":
-    asyncio.run(test_reward_manager())
+    (test_reward_manager())
