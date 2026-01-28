@@ -420,7 +420,7 @@ class LLMGenerationManager:
         Returns:
             List of observation strings
         """
-        cur_actions, contents = self.postprocess_predictions(predictions)
+        cur_actions, contents, contexts = self.postprocess_predictions(predictions)
         next_obs, dones, valid_action, is_search = [], [], [], []
         current_turn+=1
         # 计算最大轮次
@@ -429,11 +429,15 @@ class LLMGenerationManager:
         turn_info = f"\n[系统提示] 当前为第 {current_turn} 轮检索（上限 {max_turns} 轮）。"
         if current_turn >= max_turns:
             # print('[debug]到达检索上限。')
-            turn_info += " 跳过检索阶段。注意：接下来总结以上思考，必须给出最终回答！把最终答案放在 <answer> 和 </answer>之间。"
+            turn_info += " 以下是最后一次检索结果。注意：接下来总结以上思考，必须给出最终回答！"
 
-        search_queries = [content for action, content in zip(cur_actions, contents) if action == 'search']
+        # search_queries = [content for action, content in zip(cur_actions, contents) if action == 'search']
+        # 同时提取搜索词和对应的上下文
+        search_pairs = [(cont, ctx) for action, cont, ctx in zip(cur_actions, contents, contexts) if action == 'search']
+        search_queries = [p[0] for p in search_pairs]
+        search_contexts = [p[1] for p in search_pairs] # 提取对应的上下文列表
         if do_search:
-            search_results = self.batch_search(search_queries)
+            search_results = self.batch_search(search_queries, search_contexts)
             assert len(search_results) == sum([1 for action in cur_actions if action == 'search'])
         else:
             search_results = ['接下来总结以上思考，必须给出最终回答！'] * sum([1 for action in cur_actions if action == 'search'])
@@ -483,6 +487,7 @@ class LLMGenerationManager:
         """
         actions = []
         contents = []
+        contexts = [] # 新增：存储标签外的内容
                 
         for prediction in predictions:
             if isinstance(prediction, str): # for llm output
@@ -491,18 +496,22 @@ class LLMGenerationManager:
                 if match:
                     content = match.group(2).strip()  # Return only the content inside the tags
                     action = match.group(1)
+                    context = prediction[:match.start()].strip()
                 else:
                     content = ''
                     action = None
+                    context = ''
             else:
                 raise ValueError(f"Invalid prediction type: {type(prediction)}")
             
             actions.append(action)
             contents.append(content)
+            contexts.append(context)
             
-        return actions, contents
+        # return actions, contents
+        return actions, contents, contexts
 
-    def batch_search(self, queries: List[str] = None) -> str:
+    def batch_search(self, queries: List[str] = None, contexts: List[str] = None) -> str:
         """
         Batchified search for queries.
         Args:
@@ -510,16 +519,17 @@ class LLMGenerationManager:
         Returns:
             search results which is concatenated into a string
         """
-        results = self._batch_search(queries)['result']
+        results = self._batch_search(queries, contexts)['result']
         
         return [self._passages2string(result) for result in results]
 
-    def _batch_search(self, queries):
+    def _batch_search(self, queries: List[str], contexts: List[str]):
         
         payload = {
             "queries": queries,
             "topk": self.config.topk,
-            "return_scores": True
+            "return_scores": True,
+            "context":contexts
         }
         
         return requests.post(self.config.search_url, json=payload,proxies={"http": None, "https": None},).json()
