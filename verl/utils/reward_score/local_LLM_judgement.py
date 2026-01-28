@@ -19,7 +19,7 @@ EVALUATION_PROMPT = """扮演一个公正的评委，评估用户与两个AI助�
 
 你的评估需要考虑AI助手回复是否满足以下标准：1.准确，专业。2.匹配问题，完整作答。3.逻辑清晰，推理合理。4.实用。
 请先针对以上规定细致分析，最后严格按照以下格式输出结论：
-如果AI助手 1 表现更好，输出“[[1]]”；如果AI助手 2 表现更好，输出“[[2]]”；如果平局，输出“[[3]]”。"""
+如果AI助手 1 表现更好，输出“[[1]]”；如果AI助手 2 表现更好，输出“[[2]]”；如果平局，输出“[[3]]”。 /no_think"""
 
 class VLLMRewardManager:
     def __init__(self, api_url="http://localhost:9000/v1", api_key="EMPTY"):
@@ -28,34 +28,22 @@ class VLLMRewardManager:
         self.model_name = "qwen3-8b-reward" # 需与 vLLM 启动名一致
 
     def parse_score(self, completion_text: str, swapped: bool) -> float:
-        """
-        解析模型输出并计算 Reward。
-        RL 需要标量分，我们将判定结果映射到 [0, 1] 或 [-1, 1]。
-        """
-        try:
-            # 匹配最后一个 [[x]]
-            match = re.findall(r"\[\[(\d)\]\]", completion_text)
-            if not match:
-                return 0.0  # 解析失败给中性分
-            
-            label = match[-1]
-            
-            # 定义基础分：1是更好，2是更差，3是平局
-            # 注意：这里的 1 和 2 是相对于 Prompt 里的顺序的
-            score_map = {
-                "1": 1.0,  # 助手1胜
-                "2": -1.0, # 助手2胜
-                "3": 0.0   # 平局
-            }
-            raw_score = score_map.get(label, 0.0)
-
-            # 如果我们在构造请求时交换了顺序，则分号也需要取反
-            # 目的是让 Reward 始终代表“当前模型生成结果”的质量
-            return -raw_score if swapped else raw_score
-
-        except Exception as e:
-            print(f"Parsing error: {e}")
+        match = re.findall(r"\[\[(\d)\]\]", completion_text)
+        if not match: return 0.0
+        
+        label = match[-1]
+        
+        # 核心逻辑：
+        # 如果没有交换 (d1=GT, d2=Model)：label "2" 是模型赢 (+1), label "1" 是模型输 (-1)
+        # 如果交换了 (d1=Model, d2=GT)：label "1" 是模型赢 (+1), label "2" 是模型输 (-1)
+        
+        if label == "3": # 平局
             return 0.0
+            
+        if not swapped:
+            return 1.0 if label == "2" else -1.0
+        else:
+            return 1.0 if label == "1" else -1.0
 
     async def get_reward_async(self, needs: str, ground_truth: str, model_output: str) -> float:
         """单条数据的异步判分逻辑"""
