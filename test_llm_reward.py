@@ -5,12 +5,15 @@ import json
 import sys
 import os
 
-# 将当前脚本所在的目录（或其父目录）加入 sys.path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# 如果 vllm_judge_reward.py 在当前文件夹
-sys.path.append(current_dir)
-# 导入你的脚本逻辑
-# 假设你的文件名是 vllm_judge_reward.py
+# 1. 指向包含该文件的“目录”路径（注意：不要带文件名）
+target_dir = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3/verl/utils/reward_score"
+
+# 2. 加入系统路径
+if target_dir not in sys.path:
+    sys.path.append(target_dir)
+
+# 3. 直接引用文件名（不带 .py）
+
 from local_LLM_judgement import VLLMRewardManager, reward_score_fn
 
 async def test_reward_manager():
