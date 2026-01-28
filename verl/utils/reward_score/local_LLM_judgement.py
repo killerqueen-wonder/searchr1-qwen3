@@ -90,8 +90,19 @@ def reward_score_fn(data_batch):
     data_batch: verl 提供的包含输入输出的 batch
     """
     manager = VLLMRewardManager()
-    loop = asyncio.get_event_loop()
+    # 获取或创建事件循环
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    # 关键：如果在异步环境运行（如测试脚本里有 asyncio.run）
+    # 使用以下方式可以避免嵌套 loop 错误
+    if loop.is_running():
+        # 这里需要用到 nest_asyncio 或者改写调用逻辑
+        # 对于 verl，它通常从同步 worker 调用，所以下面这行通常足够：
+        import nest_asyncio
+        nest_asyncio.apply()
     
-    # 执行异步任务并返回结果列表
-    scores = loop.run_until_complete(manager.batch_get_rewards(data_batch))
-    return scores
+    return loop.run_until_complete(manager.batch_get_rewards(data_batch))
