@@ -11,7 +11,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 # 导入你的脚本逻辑
 # 假设你的文件名是 vllm_judge_reward.py
-from local_LLM_judgement.py import VLLMRewardManager, reward_score_fn
+from local_LLM_judgement import VLLMRewardManager, reward_score_fn
 
 async def test_reward_manager():
     print("开始测试 Reward Manager 逻辑...")
