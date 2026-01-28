@@ -25,7 +25,7 @@ class MockResponse:
             MagicMock(message=MagicMock(content=content))
         ]
 
-async def test_reward_manager():
+def test_reward_manager():
     print("开始测试 Reward Manager 逻辑...")
     
     test_batch = [
