@@ -538,9 +538,25 @@ class LLMGenerationManager:
         format_reference = ''
         for idx, doc_item in enumerate(retrieval_result):
             
-            content = doc_item['document']['content']
-            title = content.split("\n")[0]
-            text = "\n".join(content.split("\n")[1:])
-            format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+            # content = doc_item['document']['content']
+            # title = content.split("\n")[0]
+            # text = "\n".join(content.split("\n")[1:])
+            # format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+            try:
+                # 增加安全性检查：确保层级 key 存在
+                doc = doc_item.get('document', {})
+                # 这里是报错的地方，我们改用 .get() 并提供默认值，或者在这里打印
+                content = doc.get('content', None)
+                
+                if content is None:
+                    print(f"[DEBUG] 接口返回结构异常，当前 doc 键值对为: {doc}")
+                    content = "无可用内容" # 默认填充
+                
+                title = content.split("\n")[0] if "\n" in content else "No Title"
+                text = "\n".join(content.split("\n")[1:]) if "\n" in content else content
+                format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+            except Exception as e:
+                print(f"[ERROR] 解析文档失败: {e}, doc_item 内容为: {doc_item}")
+                format_reference += f"Doc {idx+1}: [解析失败]\n"
 
         return format_reference

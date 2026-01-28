@@ -1095,15 +1095,27 @@ def retrieve_endpoint(request: QueryRequest):
     
     # Format response
     resp = []
+    # for i, single_result in enumerate(results):
+    #     if request.return_scores:
+    #         # If scores are returned, combine them with results
+    #         combined = []
+    #         for doc, score in zip(single_result, scores[i]):
+    #             combined.append({"document": doc, "score": score})
+    #         resp.append(combined)
+    #     else:
+    #         resp.append(single_result)
     for i, single_result in enumerate(results):
-        if request.return_scores:
-            # If scores are returned, combine them with results
-            combined = []
-            for doc, score in zip(single_result, scores[i]):
-                combined.append({"document": doc, "score": score})
-            resp.append(combined)
-        else:
-            resp.append(single_result)
+        processed_docs = []
+        for j, doc in enumerate(single_result):
+            # 强制统一字段名为 content，兼容多种原始格式
+            standard_doc = doc.copy()
+            standard_doc['content'] = doc.get('content') or doc.get('contents') or doc.get('text') or ""
+            
+            if request.return_scores:
+                processed_docs.append({"document": standard_doc, "score": scores[i][j]})
+            else:
+                processed_docs.append(standard_doc)
+        resp.append(processed_docs)
     return {"result": resp}
 
 
