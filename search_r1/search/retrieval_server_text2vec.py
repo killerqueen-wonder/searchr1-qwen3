@@ -244,7 +244,7 @@ class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
         #转换数字
         def num_to_chinese(num):
             if not (0 <= num <= 9999): # 限制在0-9999范围内
-                return num
+                return str(num)
             num_map = {
                 '0': '零', '1': '一', '2': '二', '3': '三', '4': '四',
                 '5': '五', '6': '六', '7': '七', '8': '八', '9': '九'

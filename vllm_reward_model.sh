@@ -23,6 +23,6 @@ python -m vllm.entrypoints.openai.api_server \
     --port 9000 \
     --enable-prefix-caching \
     --max-num-seqs 4 \
-    --max-model-len 20000 \
+    --max-model-len 4000 \
     --gpu-memory-utilization 0.80 \
     --trust-remote-code
