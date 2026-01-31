@@ -24,5 +24,5 @@ python -m vllm.entrypoints.openai.api_server \
     --enable-prefix-caching \
     --max-num-seqs 128 \
     --max-model-len 4096 \
-    --gpu-memory-utilization 0.80 \
+    --gpu-memory-utilization 0.40 \
     --trust-remote-code
