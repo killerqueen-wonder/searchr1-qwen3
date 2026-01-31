@@ -40,7 +40,7 @@ class VLLMRewardManager:
         match = re.findall(r"\[\[(\d)\]\]", completion_text)
         if not match: return 0.0
         label = match[-1]
-        if label == "3": return 0.0
+        if label == "3": return 0.5
         if not swapped:
             return 1.0 if label == "2" else -1.0
         else:
@@ -67,20 +67,73 @@ class VLLMRewardManager:
             print(f"API Call Error: {e}")
             return 0.0
 
+def extract_solution(solution_str):#抽取最终答案
+    if not solution_str:
+        return None
+    answer_pattern = r"<answer>(.*?)</answer>"
+    matches = list(re.finditer(answer_pattern, solution_str, re.DOTALL))
+    if not matches:
+        return None
+    return matches[-1].group(1).strip()
+
+def correct_format(text):
+    
+    return all([
+        text.count("<answer>") <= 4, 
+        text.count("</answer>") <= 4,
+        text.count("<search>") == text.count("</search>"),
+        text.count("<search>") == text.count("<information>"),
+        text.count("<search>") >=1
+        
+    ])
+
 # --- verl 调用的核心接口 ---
 def compute_score(solution_str, ground_truth, extra_info=None):
     """
     现在是纯同步实现，不再需要 nest_asyncio 或 ThreadPoolExecutor。
     """
     needs = extra_info.get('question', "请根据要求判分") if extra_info else "请根据要求判分"
+    # needs=''
     reference = ground_truth[0] if isinstance(ground_truth, list) and len(ground_truth) > 0 else str(ground_truth)
     
+    #只取最终答案部分
+    answer = extract_solution(solution_str=solution_str)
+
+    # 1. 如果根本没提取到答案
+    if answer is None:
+        return -1
+
+    if len(solution_str) < 20:#思考过程太短
+        return 0  
     # 实例化 Manager（实际上复用了全局 Client）
     manager = VLLMRewardManager()
-    
-    # 直接同步获取分数
-    return manager.get_reward_sync(
+
+    final_score=manager.get_reward_sync(
         needs=needs,
         ground_truth=reference,
-        model_output=solution_str
+        model_output=answer
     )
+
+    if final_score == 1:
+        # 答案正确（或部分正确），但格式错误 -> 降级处罚
+        if not correct_format(solution_str):
+            final_score -= 0.2
+        
+    else:
+        # 答案错误，但格式完全正确 -> 给予微小鼓励分
+        if correct_format(solution_str):
+            final_score += 0.2
+        return 0
+    
+    # 只有当开启随机采样时才打印，避免日志溢出
+    if random.randint(1, 64) == 1:
+        print("---------------start-----------------")
+        print(f"Golden answers: {reference}")
+        print(f"Extracted answer: {answer}")
+        print(f"final_score: {final_score}")
+        print("---------------end-----------------")
+
+
+    
+    # 直接同步获取分数
+    return final_score
