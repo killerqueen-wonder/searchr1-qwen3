@@ -106,9 +106,9 @@ def default_compute_score(
     elif data_source in [
         'DISC',
     ]:
-        from . import LLM_judgement
+        from . import local_LLM_judgement
 
-        res = LLM_judgement.compute_score(solution_str, ground_truth,extra_info)
+        res = local_LLM_judgement.compute_score(solution_str, ground_truth,extra_info)
 
     else:
         raise NotImplementedError(f"Reward function is not implemented for {data_source=}")

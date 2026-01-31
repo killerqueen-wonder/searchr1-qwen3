@@ -58,7 +58,7 @@ class VLLMRewardManager:
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0, # 判分必须用 0 温度保证稳定性
-                max_tokens=512,
+                max_tokens=48,
                 stop=["]]"] # 提前截断，节省 Token
             )
             # 由于加了 stop，输出可能是 "...[[1"
@@ -106,3 +106,33 @@ def reward_score_fn(data_batch):
         nest_asyncio.apply()
     
     return loop.run_until_complete(manager.batch_get_rewards(data_batch))
+
+def compute_score(solution_str, ground_truth, extra_info=None):
+    """
+    verl __init__.py 调用此接口进行单条判分 。
+    solution_str: 模型生成的回答。
+    ground_truth: Parquet 中的 golden_answers 。
+    extra_info: Parquet 中的 extra_info 字典 。
+    """
+    # 字段映射：从 Parquet 结构提取数据 
+    # 1. 提取需求：优先从 extra_info 字典拿 question 字段
+    needs = extra_info.get('question', "请根据要求判分") if extra_info else "请根据要求判分"
+    
+    # 2. 提取参考答案：Parquet 中 golden_answers 是列表，取第一个元素 
+    reference = ground_truth[0] if isinstance(ground_truth, list) and len(ground_truth) > 0 else str(ground_truth)
+
+    # 异步环境适配 
+    import nest_asyncio
+    nest_asyncio.apply()
+    
+    manager = VLLMRewardManager()
+    loop = asyncio.get_event_loop()
+    
+    # 调用现有的异步判分逻辑
+    score = loop.run_until_complete(manager.get_reward_async(
+        needs=needs,
+        ground_truth=reference,
+        model_output=solution_str
+    ))
+    
+    return score
