@@ -123,7 +123,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         # 答案错误，但格式完全正确 -> 给予微小鼓励分
         if correct_format(solution_str):
             final_score += 0.2
-        return 0
+        
     
     # 只有当开启随机采样时才打印，避免日志溢出
     if random.randint(1, 64) == 1:
