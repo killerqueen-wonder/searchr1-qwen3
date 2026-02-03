@@ -97,7 +97,7 @@ def default_compute_score(
         "searchR1_2wikimultihopqa",
         "searchR1_musique",
         "searchR1_bamboogle",
-        'legal_exam',
+        # 'legal_exam',
     ]:
         from . import search_r1_like_qa_em
 
@@ -109,6 +109,12 @@ def default_compute_score(
         from . import local_LLM_judgement
 
         res = local_LLM_judgement.compute_score(solution_str, ground_truth,extra_info)
+    elif data_source in [
+        'legal_exam',
+    ]:
+        from . import local_LLM_judgement_choice
+
+        res = local_LLM_judgement_choice.compute_score(solution_str, ground_truth,extra_info)
 
     else:
         raise NotImplementedError(f"Reward function is not implemented for {data_source=}")
