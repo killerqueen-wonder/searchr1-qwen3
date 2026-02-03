@@ -4,7 +4,8 @@
 export CUDA_VISIBLE_DEVICES=3
 
 # 2. 模型路径
-MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-4B-Instruct-2507" # 请修改为你的实际路径
+# MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-4B-Instruct-2507" # 请修改为你的实际路径
+MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B" # 请修改为你的实际路径
 
 # 3. 启动 vLLM API 服务
 # 建议参数说明：
@@ -22,7 +23,7 @@ python -m vllm.entrypoints.openai.api_server \
     --host 0.0.0.0 \
     --port 9000 \
     --enable-prefix-caching \
-    --max-num-seqs 8 \
-    --max-model-len 3000 \
-    --gpu-memory-utilization 0.15 \
+    --max-num-seqs 2 \
+    --max-model-len 20000 \
+    --gpu-memory-utilization 0.3 \
     --trust-remote-code
