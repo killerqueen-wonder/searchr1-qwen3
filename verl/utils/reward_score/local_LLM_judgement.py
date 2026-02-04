@@ -128,6 +128,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     # --- Step 1: 解析输入数据 ---
     # parquet 中的 golden_answers 是一个 list，通常包含参考文本
     # 我们将其拼接成字符串，作为 Reference 提供给 Judge
+    ground_truth=ground_truth.get("target", [])
     if isinstance(ground_truth, list):
         reference = "\n".join([str(x) for x in ground_truth if x])
     else:
