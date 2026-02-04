@@ -177,10 +177,12 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     #     reference = ground_truth[0]
     # reference = str(reference).strip().upper() # 转大写，方便比对
     # 假设 GT 可能是 "ABD" 或 "A,B,D" 或 list ["A","B","D"]
-    reference_raw = ground_truth
+    reference_raw = ground_truth.get("target", [])
     if isinstance(ground_truth, list) and len(ground_truth) > 0:
         # 如果 GT 本身是 list，先转成字符串处理
         reference_raw = "".join(str(x) for x in ground_truth)
+    # elif isinstance(ground_truth, dict) and 'target' in ground_truth:
+    #     reference_raw = ground_truth['target']
     else:
         reference_raw = str(reference_raw)
     
