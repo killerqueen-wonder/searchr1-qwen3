@@ -208,8 +208,8 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     # ---------------- Step 3: 准确率硬约束 (Accuracy Gate) ----------------
     # 如果选项选错了，直接罚分，不需要浪费 LLM Judge
     if prediction != reference:
-        print(f"[debug] prediction:{prediction}")
-        print(f"[debug] reference:{reference}")
+        # print(f"[debug] prediction:{prediction}")
+        # print(f"[debug] reference:{reference}")
         return -0.2
 
     # ---------------- Step 4: 过程质量评估 (Quality Gate) ----------------
@@ -233,7 +233,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     final_score = 0.5 + (0.5 * quality_score)
     
     # ---------------- 日志采样 ----------------
-    if random.randint(1, 32) == 1:
+    if random.randint(1, 10) == 1:
         print(f"\n[RL Log] GT:{reference} | Pred:{prediction} | Judge:{quality_score:.2f} | Final:{final_score:.2f}")
 
     return final_score
