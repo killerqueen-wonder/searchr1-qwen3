@@ -1,39 +1,14 @@
-#适用4A800
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-export DATA_DIR='/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/legal_exam'
-
-WAND_PROJECT='Search-R1'
-
-# export BASE_MODEL='meta-llama/Llama-3.2-3B'
-# export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.2-3b-em
-# export BASE_MODEL='meta-llama/Llama-3.2-3B'
-# export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.2-3b-em
-# export BASE_MODEL='meta-llama/Llama-3.2-3B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.2-3b-it-em
-# export BASE_MODEL='meta-llama/Llama-3.1-8B'
-# export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.1-8b-em
-# export BASE_MODEL='meta-llama/Llama-3.1-8B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.1-8b-it-em
-
-# export BASE_MODEL='Qwen/Qwen2.5-3B'
-# export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-3b-em
-# export BASE_MODEL='Qwen/Qwen2.5-3B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-3b-it-em
+# === 原始 SFT 模型路径 (用于初始化架构和Tokenizer) ===
+# 保持原有的 SFT 路径不变
 export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_SFT5.5_0127/checkpoint-2-504/tfmr"
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-5.1-0205
-# export BASE_MODEL="/caizhenyang/panghuaiwen/legal_LLM/model/Qwen/Qwen3-8B"
-# export EXPERIMENT_NAME=legal_exam-search-r1-ppo-qwen3-8b-em
-# export BASE_MODEL="/caizhenyang/panghuaiwen/legal_LLM/model/Qwen/Qwen2.5-7B"
-# export EXPERIMENT_NAME=legal_exam-search-r1-ppo-qwen2.5-7b-em
-# export BASE_MODEL='Qwen/Qwen2.5-7B'
-# export EXPERIMENT_NAME=legal_exam-search-r1-ppo-qwen2.5-7b-em
-# export BASE_MODEL='Qwen/Qwen2.5-7B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-7b-it-em
 
-# set -x
-# export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
+# === [核心修改] 未合并的 Checkpoint 路径 ===
+# 指向您要恢复的具体 Step 文件夹
+# 结构通常是: .../experiment_name/global_step_xxx
+export RESUME_CHECKPOINT="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-5.0-0203/global_step_120"
 
-# max_prompt_length = (config['training']['max_start_length'] + config['training']['max_response_length'] * (config['training']['max_turns'] - 1) + config['training']['max_obs_length'] * config['training']['max_turns'])
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-5.1
+
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=gae \
     data.train_files=$DATA_DIR/train.parquet \
@@ -48,6 +23,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     +data.max_obs_length=700 \
     +data.shuffle_train_dataloader=True \
     actor_rollout_ref.model.path=$BASE_MODEL \
+    actor_rollout_ref.ref.model.path=$BASE_MODEL \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.actor.strategy=fsdp \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
@@ -91,8 +67,9 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.total_epochs=10 \
-    trainer.total_training_steps=150 \
-    trainer.resume_mode=disable \
+    trainer.total_training_steps=300 \
+    trainer.resume_mode=resume_path \
+    trainer.resume_from_path=$RESUME_CHECKPOINT \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
     +max_turns=10 \
