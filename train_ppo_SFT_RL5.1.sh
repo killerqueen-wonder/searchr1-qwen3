@@ -23,7 +23,6 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     +data.max_obs_length=700 \
     +data.shuffle_train_dataloader=True \
     actor_rollout_ref.model.path=$BASE_MODEL \
-    actor_rollout_ref.ref.model.path=$BASE_MODEL \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.actor.strategy=fsdp \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
