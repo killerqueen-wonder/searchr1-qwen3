@@ -7,7 +7,7 @@ export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/
 # 结构通常是: .../experiment_name/global_step_xxx
 export RESUME_CHECKPOINT="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-5.0-0203/global_step_120"
 
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-5.1
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-5.1-0205
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=gae \
