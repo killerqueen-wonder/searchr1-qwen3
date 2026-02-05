@@ -1,3 +1,8 @@
+
+#适用4A800
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+export DATA_DIR='/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/legal_exam'
+
 # === 原始 SFT 模型路径 (用于初始化架构和Tokenizer) ===
 # 保持原有的 SFT 路径不变
 export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_SFT5.5_0127/checkpoint-2-504/tfmr"
