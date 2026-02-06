@@ -42,6 +42,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=true \
     actor_rollout_ref.rollout.temperature=0.2 \
+    actor_rollout_ref.rollout.max_num_batched_tokens=30000 \
     algorithm.use_kl_in_reward=false \
     trainer.critic_warmup=0 \
     trainer.logger='["console","wandb"]' \
