@@ -10,6 +10,7 @@ WAND_PROJECT='Search-R1'
 export NCCL_TIMEOUT=3600
 export TORCH_DISTRIBUTED_DEFAULT_TIMEOUT=3600
 # set -x
+# max_prompt_length = (config['training']['max_start_length'] + config['training']['max_response_length'] * (config['training']['max_turns'] - 1) + config['training']['max_obs_length'] * config['training']['max_turns'])
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -17,8 +18,8 @@ python3 -m verl.trainer.main_ppo \
     data.val_files=$DATA_DIR/test.parquet \
     data.train_batch_size=32 \
     data.val_batch_size=32 \
-    data.max_prompt_length=25900 \
-    data.max_response_length=1500 \
+    data.max_prompt_length=19000 \
+    data.max_response_length=1200 \
     +data.max_start_length=1000 \
     +data.max_obs_length=700 \
     +data.shuffle_train_dataloader=true \
@@ -39,12 +40,12 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.3 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.35 \
     actor_rollout_ref.rollout.n=4 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=true \
     actor_rollout_ref.rollout.temperature=0.2 \
-    actor_rollout_ref.rollout.max_num_batched_tokens=30000 \
+    actor_rollout_ref.rollout.max_num_batched_tokens=20000 \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
     trainer.critic_warmup=0 \
