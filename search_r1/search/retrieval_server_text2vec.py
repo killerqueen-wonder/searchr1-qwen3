@@ -1138,7 +1138,7 @@ if __name__ == "__main__":
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
 
     parser.add_argument("--port", type=int, default=8006, help="the API port")
-    parser.add_argument("--gpu_ids", type=int, nargs='+', default=[3, 4, 5, 7], help="GPU device IDs to use.")
+    parser.add_argument("--gpu_ids", type=int, nargs='+', default=[2, 3], help="GPU device IDs to use.")
     parser.add_argument("--gpu_memory_limit_per_gpu", type=int, nargs='+', default=[18], help="GPU memory limit per GPU in GB.")
 
 
@@ -1172,6 +1172,11 @@ if __name__ == "__main__":
 
         filter_model=args.filter_model,
     )
+    # 将列表转换为逗号分隔的字符串
+    gpu_ids = ','.join(str(gpu_id) for gpu_id in args.gpu_ids)
+
+    # 设置环境变量
+    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_ids
     
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
