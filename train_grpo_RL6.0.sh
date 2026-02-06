@@ -15,8 +15,8 @@ python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
-    data.train_batch_size=64 \
-    data.val_batch_size=64 \
+    data.train_batch_size=32 \
+    data.val_batch_size=32 \
     data.max_prompt_length=25900 \
     data.max_response_length=1500 \
     +data.max_start_length=1000 \
@@ -48,7 +48,7 @@ python3 -m verl.trainer.main_ppo \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
     trainer.critic_warmup=0 \
-    trainer.logger='["console","wandb"]' \
+    trainer.logger='["wandb"]' \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.val_before_train=false \
