@@ -7,7 +7,9 @@ export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-6.0-0205
 
 WAND_PROJECT='Search-R1'
 
-set -x
+export NCCL_TIMEOUT=3600
+export TORCH_DISTRIBUTED_DEFAULT_TIMEOUT=3600
+# set -x
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
