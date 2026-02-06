@@ -743,7 +743,6 @@ class RayPPOTrainer:
                     timing_raw = {}
                     test_batch: DataProto = DataProto.from_single_dict(batch_dict)
                     # test_batch = test_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n_agent, interleave=True)
-                    # test_batch = test_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                     
                     test_gen_batch = test_batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])
                     test_gen_batch.meta_info = {
@@ -1494,7 +1493,6 @@ class RayPPOTrainer:
                     timing_raw = {}
 
                     batch: DataProto = DataProto.from_single_dict(batch_dict)
-                    batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                     # batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n_agent, interleave=True)
 
                     # pop those keys for generation
@@ -1510,7 +1508,7 @@ class RayPPOTrainer:
                             batch.non_tensor_batch['uid'] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))],
                                                                     dtype=object)
                             # repeat to align with repeated responses in rollout
-                            # batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
+                            batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                             batch = batch.union(gen_batch_output)
 
                     ####################
@@ -1558,7 +1556,7 @@ class RayPPOTrainer:
                             batch.non_tensor_batch['uid'] = batch.non_tensor_batch['index'].copy()
                                                 
                             # repeat to align with repeated responses in rollout
-                            # batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
+                            batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                             batch = batch.union(final_gen_batch_output)
 
                         ####################
