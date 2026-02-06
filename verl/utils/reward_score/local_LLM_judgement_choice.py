@@ -195,6 +195,12 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     if prediction:
         prediction = prediction.strip().upper()
 
+    if random.randint(1, 64) == 1:
+        print(f"\n[RL Log]solution_str:{solution_str} ")
+        print(f"\n[RL Log]Pred:{prediction}")
+        print(f"\n[RL Log] GT:{reference} ")
+
+
     # ---------------- Step 2: 格式硬约束 (Format Gate) ----------------
     # 如果连答案都提不出来，或者是格式严重破损（缺检索），直接惩罚
     if prediction is None:
@@ -233,7 +239,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     final_score = 0.5 + (0.5 * quality_score)
     
     # ---------------- 日志采样 ----------------
-    if random.randint(1, 10) == 1:
-        print(f"\n[RL Log] GT:{reference} | Pred:{prediction} | Judge:{quality_score:.2f} | Final:{final_score:.2f}")
+    # if random.randint(1, 10) == 1:
+    #     print(f"\n[RL Log] GT:{reference} | Pred:{prediction} | Judge:{quality_score:.2f} | Final:{final_score:.2f}")
 
     return final_score
