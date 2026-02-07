@@ -48,7 +48,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.max_num_batched_tokens=23000 \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
-    trainer.use_critic=false \
+    +trainer.use_critic=false \
     trainer.do_search=true \
     trainer.critic_warmup=0 \
     trainer.logger='["wandb"]' \
