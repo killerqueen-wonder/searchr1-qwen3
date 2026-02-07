@@ -49,7 +49,7 @@ python3 -m verl.trainer.main_ppo \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
     +trainer.use_critic=false \
-    trainer.do_search=true \
+    +trainer.do_search=true \
     trainer.critic_warmup=0 \
     trainer.logger='["wandb"]' \
     trainer.project_name=$WAND_PROJECT \
