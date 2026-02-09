@@ -362,15 +362,14 @@ class LLM_retriever:
                 tmp_query = self._extract_query(output_text)
                 print(f'[debug] search query="{tmp_query}"')
                 if search_word_before==tmp_query:#重复检索
-                    instruct="如果我想给出最终回答，应该把答案放在 <answer> 和 </answer>之间。 \
-                        如果需要继续搜索，应该把新的关键词放在<search> 和 </search>之间。重新思考。"
+                    instruct="请勿重复检索。修改检索词，重新检索或直接回答。"
                 
                 elif tmp_query and( cnt < self.max_turn):
                     search_word_before=tmp_query
                     search_results = self._search(tmp_query)
                 
                 elif cnt==self.max_turn:
-                    instruct = "跳过检索阶段。注意：接下来总结以上思考，必须给出最终回答！把最终答案放在 <answer> 和 </answer>之间。"
+                    instruct = "以上是最后一次检索结果。注意：接下来总结以上思考，必须给出最终回答！"
 
                 else:
                     instruct="检索失败。重新检索或直接回答。"
