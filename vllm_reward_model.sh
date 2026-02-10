@@ -4,8 +4,8 @@
 export CUDA_VISIBLE_DEVICES=3
 
 # 2. 模型路径
-# MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-4B-Instruct-2507" # 请修改为你的实际路径
-MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B" # 请修改为你的实际路径
+MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-4B-Instruct-2507" # 请修改为你的实际路径
+# MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B" # 请修改为你的实际路径
 
 # 3. 启动 vLLM API 服务
 # 建议参数说明：
