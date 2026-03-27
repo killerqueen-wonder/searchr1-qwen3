@@ -380,7 +380,7 @@ def retrieve_case_endpoint(request: CaseQueryRequest):
         try:
             # 向主服务 8006 发起推理请求
             llm_resp = requests.post(
-                "http://127.0.0.1:8006/llm_generate", 
+                "http://127.0.0.1:8007/llm_generate", 
                 json={"prompt": prompt, "max_new_tokens": 400}, 
                 timeout=30,
                 proxies={"http": None, "https": None}  
