@@ -407,11 +407,12 @@ def retrieve_case_endpoint(request: CaseQueryRequest):
                 # 判断是否被 LLM 判定为不相关
                 if "【不相关】" in analysis or "不相关" in analysis[:10]:
                     print(f"[DEBUG] 案例 {doc.get('pid', i)} 与案情不匹配，LLM 已将其过滤。")
-                    # print(f"[DEBUG] 案例 {doc.get('fact', i)} ")
+                    # print(f"[DEBUG] 案例 {doc.get('fact')} ")
                     continue
                 
                 # 如果相关，则记录该案例及专属简报
                 print(f"[DEBUG] 案例 {doc.get('pid', i)} 匹配成功，已生成简报。")
+                print(f"[DEBUG] {analysis}")
                 doc_record = {
                     "score": round(score, 4),
                     "pid": doc.get("pid", ""),
