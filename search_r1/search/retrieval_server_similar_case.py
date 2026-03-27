@@ -233,7 +233,7 @@ class SimilarCaseRetriever:
         final_scores = [scores[i] for i in selected_indices]
         return final_docs, final_scores
 
-# 【修改】：charge_query 的类型提示改为 List[str]
+
     def search(self, fact_query: str, charge_query: List[str], reason_query: str, num: int = None):
         target_k = num if num else self.topk
         candidate_k = target_k * self.search_depth  # 扩大候选池
@@ -286,6 +286,7 @@ class SimilarCaseRetriever:
                 intersection = set_query.intersection(set_doc)
                 union = set_query.union(set_doc)
                 charge_score = len(intersection) / len(union)  # 算出 0.0 到 1.0 的重合度比例
+                charge_score = charge_score ** 3
             
             # 基础融合分
             hybrid_score = (self.w_charge * charge_score) + (self.w_t2v * tn) + (self.w_bm25 * bn)
