@@ -32,6 +32,21 @@ def load_corpus(corpus_path: str):
     )
     return corpus
 
+def load_corpus(corpus_path: str):
+    print(f"[INFO] Using native JSON loader for {corpus_path}...")
+    corpus = []
+    with open(corpus_path, 'r', encoding='utf-8') as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                corpus.append(json.loads(line))
+            except json.JSONDecodeError:
+                print(f"[WARNING] 无法解析第 {i+1} 行的 JSON，已跳过。")
+    print(f"[INFO] 成功加载 {len(corpus)} 条数据。")
+    return corpus
+
 def load_docs(corpus, doc_idxs):
     return [corpus[int(idx)] for idx in doc_idxs]
 
