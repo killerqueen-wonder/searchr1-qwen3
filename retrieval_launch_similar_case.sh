@@ -16,5 +16,4 @@ python search_r1/search/retrieval_server_similar_case.py \
     --topk 6 \
     --search_depth 10 \
     --port 7007 \
-    --gpu_ids 2,3 \
     "$@"

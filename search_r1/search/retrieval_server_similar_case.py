@@ -338,7 +338,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8007)
     parser.add_argument("--gpu_ids", type=str, default="0", help="Comma separated GPU ids")
     args = parser.parse_args()
-    
+
     # 将列表转换为逗号分隔的字符串
     gpu_ids = ','.join(str(gpu_id) for gpu_id in args.gpu_ids)
 
@@ -353,6 +353,6 @@ if __name__ == "__main__":
         topk=args.topk,
         search_depth=args.search_depth
     )
-
+    print(f"[debug]port : {args.port}")
     retriever = SimilarCaseRetriever(cfg)
     uvicorn.run(app, host="0.0.0.0", port=args.port)
