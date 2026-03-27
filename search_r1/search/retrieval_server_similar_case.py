@@ -146,7 +146,7 @@ class ReasonBM25Retriever:
 
 class SimilarCaseRetriever:
     def __init__(self, config):
-        self.t2v_retriever = FactText2vecRetriever(config)
+        self.t2v_retriever = FactText2vecRetriever(config,f"cuda:{config.gpu_ids}")
         self.bm25_retriever = ReasonBM25Retriever(config)
         
         self.topk = config.topk
@@ -367,14 +367,9 @@ if __name__ == "__main__":
     parser.add_argument("--search_depth", type=int, default=10, help="Recall multiplier for MMR pool.")
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--port", type=int, default=8007)
-    parser.add_argument("--gpu_ids", type=int, nargs='+', default=[2, 3], help="GPU device IDs to use.")
+    parser.add_argument("--gpu_ids", type=int, default=0, help="GPU device IDs to use.")
     args = parser.parse_args()
 
-    # 将列表转换为逗号分隔的字符串
-    gpu_ids = ','.join(str(gpu_id) for gpu_id in args.gpu_ids)
-
-    # 设置环境变量
-    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_ids
 
     cfg = Config(
         corpus_path=args.corpus_path,
@@ -384,6 +379,6 @@ if __name__ == "__main__":
         topk=args.topk,
         search_depth=args.search_depth
     )
-    print(f"[debug]port : {args.port}")
+
     retriever = SimilarCaseRetriever(cfg)
     uvicorn.run(app, host="0.0.0.0", port=args.port)
