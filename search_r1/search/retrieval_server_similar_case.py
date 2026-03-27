@@ -382,7 +382,8 @@ def retrieve_case_endpoint(request: CaseQueryRequest):
             llm_resp = requests.post(
                 "http://127.0.0.1:8006/llm_generate", 
                 json={"prompt": prompt, "max_new_tokens": 400}, 
-                timeout=30 # 单个案件设置30秒超时
+                timeout=30,
+                proxies={"http": None, "https": None}  
             )
             
             if llm_resp.status_code == 200:
@@ -426,7 +427,7 @@ def retrieve_case_endpoint(request: CaseQueryRequest):
         overall_summary = "检索完毕。未发现与您输入案情高度相似的典型案例，或 LLM 后处理服务当前正忙。"
         # Fallback: 如果被全过滤了，把引擎原始粗排的第一名强行塞进去兜底，避免完全无结果
         if docs:
-            overall_summary = "检索完毕。未发现与您输入案情高度相似的典型案例。"
+            overall_summary = "检索完毕。LLM未返回与您输入案情高度相似的典型案例。"
             # final_resp.append({
             #     "score": round(scores[0], 4),
             #     "pid": docs[0].get("pid", ""),
@@ -453,7 +454,8 @@ if __name__ == "__main__":
     parser.add_argument("--topk", type=int, default=5, help="Number of final results.")
     parser.add_argument("--search_depth", type=int, default=10, help="Recall multiplier for MMR pool.")
     parser.add_argument("--batch_size", type=int, default=128)
-    parser.add_argument("--port", type=int, default=8007)
+    parser.add_argument("--port", type=int, default=7007)
+    parser.add_argument("--LLM_port", type=int, default=8007)
     parser.add_argument("--gpu_ids", type=int, default=0, help="GPU device IDs to use.")
     args = parser.parse_args()
 
