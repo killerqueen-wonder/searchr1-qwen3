@@ -4,7 +4,7 @@ import time
 import re
 import argparse
 from typing import List, Dict, Optional, Tuple
-
+import requests
 import faiss
 import torch
 import numpy as np
@@ -339,23 +339,110 @@ def retrieve_case_endpoint(request: CaseQueryRequest):
     charge_q = request.query.charge
     reason_q = request.query.other_reason
     
-    docs, scores = retriever.search(fact_query=fact_q, charge_query=charge_q, reason_query=reason_q, num=req_topk)
+    # 1. 引擎执行多路混合检索 + 多样性 MMR 重排
+    # 策略：增加召回冗余度。因为 LLM 会过滤掉不相关的案件，
+    # 我们先多捞取一些（比如 req_topk 的 2 倍），保证最终能凑够用户需要的数量。
+    search_k = req_topk * 2 
+    docs, scores = retriever.search(fact_query=fact_q, charge_query=charge_q, reason_query=reason_q, num=search_k)
     
-    # 构建返回值
-    resp = []
-    for doc, score in zip(docs, scores):
-        resp.append({
-            "score": round(score, 4),
-            "pid": doc.get("pid", ""),
-            "charge": doc.get("charge", []),
-            "court_level": doc.get("court_level", 4),
-            "psi_score": doc.get("psi_score", 0),
-            "fact": doc.get("fact", ""),
-            "reason": doc.get("reason", ""),
-            "result": doc.get("result", "")
-        })
+    final_resp = []
+    llm_summaries = []
+    
+    # 2. 依次遍历每个案件，送入 8006 端口的主服务 LLM 进行研判和压缩
+    valid_count = 0
+    for i, (doc, score) in enumerate(zip(docs, scores)):
+        if valid_count >= req_topk:
+            break  # 已经凑齐了用户请求的高相关度案件数量，提前结束循环
+            
+        doc_fact = doc.get("fact", "")
+        doc_reason = doc.get("reason", "")
+        doc_result = doc.get("result", "")
         
-    return {"results": resp}
+        # 构建甄别与压缩 Prompt
+        # 加入字数截断 ([:800]) 防止极端超长文书撑爆 LLM 上下文
+        prompt = (
+            "### 任务指令\n"
+            "你是一名资深的法官助理。请仔细对比用户的【检索案情】与检索到的【候选案例】。\n"
+            "第一步：判断【候选案例】的案情与用户的【检索案情】是否具有较高的相似度和参考价值。如果相关度低，请**严格并且仅仅**输出“【不相关】”三个字，禁止输出任何其他内容。\n"
+            "第二步：如果判断相关度高，请结合候选案例的“案情”、“裁判推理”和“判决结果”，写一份200字左右的案例简报。\n\n"
+            "### 简报撰写要求：\n"
+            "1. 明确指出该案例与【检索案情】的相似之处。\n"
+            "2. 简明扼要地概括法院的裁判推理（尤其是对关键情节的认定逻辑）。\n"
+            "3. 清楚写明最终的判决结论。\n\n"
+            "### 输入数据\n"
+            f"- 【检索案情】：{fact_q}\n"
+            f"- 【候选案例 - 案情】：{doc_fact[:800]}...\n"
+            f"- 【候选案例 - 裁判推理】：{doc_reason[:800]}...\n"
+            f"- 【候选案例 - 判决结果】：{doc_result[:400]}...\n\n"
+            "### 输出（请直接输出“【不相关】”或200字简报）："
+        )
+        
+        try:
+            # 向主服务 8006 发起推理请求
+            llm_resp = requests.post(
+                "http://127.0.0.1:8006/llm_generate", 
+                json={"prompt": prompt, "max_new_tokens": 400}, 
+                timeout=30 # 单个案件设置30秒超时
+            )
+            
+            if llm_resp.status_code == 200:
+                analysis = llm_resp.json().get("response", "").strip()
+                
+                # 判断是否被 LLM 判定为不相关
+                if "【不相关】" in analysis or "不相关" in analysis[:10]:
+                    print(f"[DEBUG] 案例 {doc.get('pid', i)} 与案情不匹配，LLM 已将其过滤。")
+                    continue
+                
+                # 如果相关，则记录该案例及专属简报
+                print(f"[DEBUG] 案例 {doc.get('pid', i)} 匹配成功，已生成简报。")
+                doc_record = {
+                    "score": round(score, 4),
+                    "pid": doc.get("pid", ""),
+                    "charge": doc.get("charge", []),
+                    "court_level": doc.get("court_level", 4),
+                    "psi_score": doc.get("psi_score", 0),
+                    "fact": doc_fact,
+                    "reason": doc_reason,
+                    "result": doc_result,
+                    "llm_summary": analysis # 专属简报挂载在单条记录内，方便前端展示
+                }
+                final_resp.append(doc_record)
+                llm_summaries.append(f"【参考类案 {valid_count + 1}】\n{analysis}")
+                valid_count += 1
+                
+            else:
+                print(f"[ERROR] LLM returned status code: {llm_resp.status_code}")
+                
+        except requests.exceptions.Timeout:
+            print(f"[WARNING] 案例 {i} LLM 请求超时，跳过。")
+            continue
+        except Exception as e:
+            print(f"[ERROR] HTTP Request to Host LLM failed for doc {i}: {e}")
+            continue
+
+    # 3. 整合总体汇报
+    # 如果极端情况下，全部候选案例都被 LLM 判定为不相关，或者 LLM 服务挂了
+    if not llm_summaries:
+        overall_summary = "检索完毕。未发现与您输入案情高度相似的典型案例，或 LLM 后处理服务当前正忙。"
+        # Fallback: 如果被全过滤了，把引擎原始粗排的第一名强行塞进去兜底，避免完全无结果
+        if docs:
+            overall_summary = "检索完毕。未发现与您输入案情高度相似的典型案例。"
+            # final_resp.append({
+            #     "score": round(scores[0], 4),
+            #     "pid": docs[0].get("pid", ""),
+            #     "fact": docs[0].get("fact", ""),
+            #     "reason": docs[0].get("reason", ""),
+            #     "result": docs[0].get("result", ""),
+            #     "llm_summary": "系统未对本案生成分析简报，请参考原文。"
+            # })
+    else:
+        # 将各篇简报拼接成一份总报告返回
+        overall_summary = "\n\n".join(llm_summaries)
+        
+    return {
+        "llm_summary": overall_summary,
+        "results": final_resp
+    }
 
 
 if __name__ == "__main__":

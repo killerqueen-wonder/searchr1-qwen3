@@ -76,6 +76,58 @@ def pooling(
     else:
         raise NotImplementedError("Pooling method not implemented!")
 
+# ==========================================
+# 新增：全局共享大模型管理器
+# ==========================================
+class SharedLLM:
+    def __init__(self, config):
+        if config.filter_model:
+            print(f"[INFO] Loading Shared LLM: {config.filter_model}")
+            self.tokenizer = AutoTokenizer.from_pretrained(config.filter_model, trust_remote_code=True)
+            
+            # 显存预留策略
+            mem_limit = config.gpu_memory_limit_per_gpu[0] if isinstance(config.gpu_memory_limit_per_gpu, list) else config.gpu_memory_limit_per_gpu
+            max_mem = {
+                0: f"{mem_limit - 3}GiB", 
+                1: f"{mem_limit - 1}GiB"
+            }
+            self.model = AutoModelForCausalLM.from_pretrained(
+                config.filter_model, 
+                device_map="auto", 
+                max_memory=max_mem, 
+                trust_remote_code=True,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True
+            )
+            self.device = self.model.device
+            self.model.eval()
+            print("[INFO] Shared LLM loaded successfully.")
+        else:
+            self.model = None
+            self.tokenizer = None
+
+    def generate(self, prompt: str, max_new_tokens: int = 64) -> str:
+        if not self.model:
+            return "LLM is not loaded on host server."
+        try:
+            messages = [{"role": "user", "content": prompt}]
+            input_ids = self.tokenizer.apply_chat_template(messages, tokenize=True, 
+                                                           add_generation_prompt=True, 
+                                                           enable_thinking=False,
+                                                           return_tensors="pt").to(self.device)
+            with torch.no_grad():
+                output_ids = self.model.generate(
+                    input_ids,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False
+                )
+            response = self.tokenizer.decode(output_ids[0][len(input_ids[0]):], skip_special_tokens=True)
+            return response
+        except Exception as e:
+            print(f"[ERROR] Shared LLM generation failed: {e}")
+            return ""
+
+
 class Encoder:
     def __init__(self, model_name, model_path, pooling_method, max_length, use_fp16):
         self.model_name = model_name
@@ -816,7 +868,7 @@ class HybridFilterRetriever(HybridRetriever):
             并为 LLM 预留了分片加载空间。通过 max_memory 映射，手动在 0 号卡上预留了 3GB 
             空间给系统和嵌入模型，以防止长文本推理时发生 OOM。
         """
-        retrieval_device = "cuda:0"
+        retrieval_device = f"cuda:{config.gpu_ids}"
         
         self.bm25_retriever = BM25WeightRetriever(config)
         self.text2vec_retriever = Text2vecRetriever(config, device=retrieval_device)
@@ -827,38 +879,27 @@ class HybridFilterRetriever(HybridRetriever):
         self.w_t2v = 10
         self.top_n = config.top_n
         
-        self.tokenizer = AutoTokenizer.from_pretrained(config.filter_model, trust_remote_code=True)
+        # self.tokenizer = AutoTokenizer.from_pretrained(config.filter_model, trust_remote_code=True)
         
-        # 显存预留策略：针对 2 张 V100
-        # 假设单卡显存限额为 config.gpu_memory_limit_per_gpu (例如 16 或 32)
-        mem_limit = config.gpu_memory_limit_per_gpu[0] if isinstance(config.gpu_memory_limit_per_gpu, list) else config.gpu_memory_limit_per_gpu
+        # mem_limit = config.gpu_memory_limit_per_gpu[0] if isinstance(config.gpu_memory_limit_per_gpu, list) else config.gpu_memory_limit_per_gpu
         
-        # 逻辑 ID 映射：0 号卡留 3GB 给 Text2vec 和系统开销，1 号卡全速运行
-        max_mem = {
-            0: f"{mem_limit - 3}GiB", 
-            1: f"{mem_limit - 1}GiB"
-        }
+        # # 逻辑 ID 映射：0 号卡留 3GB 给 Text2vec 和系统开销，1 号卡全速运行
+        # max_mem = {
+        #     0: f"{mem_limit - 3}GiB", 
+        #     1: f"{mem_limit - 1}GiB"
+        # }
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            config.filter_model, 
-            device_map="auto", 
-            max_memory=max_mem, 
-            trust_remote_code=True,
-            torch_dtype=torch.float16,
-            low_cpu_mem_usage=True
-        )
-        self.device = self.model.device
-        self.model.eval()
-
-        
-        # self.prompt_template = (
-        #     "你的任务是从备选文本中筛选出符合检索词和语境信息的文本，最多只能筛选出{topk}段.\n"
-        #     "检索词为：{query}\n"
-        #     "语境信息为：{context}\n"
-        #     "备选文本为：{results}\n"
-        #     "现在，给出一个列表，代表你判断第几段文本符合检索词和语境信息（从1开始）。例如：[1,3,4]。输出符合上下文的不超过{topk}段文本的编号。不要输出其他解释性内容。"
-        #     "如果全部不符合，则返回空列表。"
+        # self.model = AutoModelForCausalLM.from_pretrained(
+        #     config.filter_model, 
+        #     device_map="auto", 
+        #     max_memory=max_mem, 
+        #     trust_remote_code=True,
+        #     torch_dtype=torch.float16,
+        #     low_cpu_mem_usage=True
         # )
+        # self.device = self.model.device
+        # self.model.eval()
+
         self.prompt_template = (
             "### 任务指令\n"
             "你是一名资深的法律文书核查员。请根据提供的【语境信息】和【检索词】，从【备选文本】中筛选出语义最相关且完全符合法条要求的文档编号。\n\n"
@@ -895,34 +936,51 @@ class HybridFilterRetriever(HybridRetriever):
                                              topk=self.topk,context=context if context else "无")
         print(f'[debug]{prompt}')
 
-        try:
-            messages = [{"role": "user", "content": prompt}]
-            input_ids = self.tokenizer.apply_chat_template(messages, tokenize=True, 
-                                                           add_generation_prompt=True, 
-                                                           enable_thinking = False,
-                                                           return_tensors="pt").to(self.device)
+        # try:
+        #     messages = [{"role": "user", "content": prompt}]
+        #     input_ids = self.tokenizer.apply_chat_template(messages, tokenize=True, 
+        #                                                    add_generation_prompt=True, 
+        #                                                    enable_thinking = False,
+        #                                                    return_tensors="pt").to(self.device)
 
-            with torch.no_grad():
-                output_ids = self.model.generate(
-                    input_ids,
-                    max_new_tokens=64,
-                    # temperature=0.01,
-                    do_sample=False
-                )
+        #     with torch.no_grad():
+        #         output_ids = self.model.generate(
+        #             input_ids,
+        #             max_new_tokens=64,
+        #             # temperature=0.01,
+        #             do_sample=False
+        #         )
             
-            response = self.tokenizer.decode(output_ids[0][len(input_ids[0]):], skip_special_tokens=True)
-            text_num = self._extract_numbers(response)
-            print(f'[debug]response:{response}')
-            print(f'[debug]text_num:{text_num}')
-            if not text_num: 
-                # return candidates[:self.topk], scores[:self.topk]
-                return [{'content':'检索不到相关内容，请尝试修改检索词或搜索其他方向。'}], [0]
+        #     response = self.tokenizer.decode(output_ids[0][len(input_ids[0]):], skip_special_tokens=True)
+        #     text_num = self._extract_numbers(response)
+        #     print(f'[debug]response:{response}')
+        #     print(f'[debug]text_num:{text_num}')
+        #     if not text_num: 
+        #         # return candidates[:self.topk], scores[:self.topk]
+        #         return [{'content':'检索不到相关内容，请尝试修改检索词或搜索其他方向。'}], [0]
 
-            filtered_results = [candidates[i-1] for i in text_num if i-1 < len(candidates)]
-            filtered_scores = [scores[i-1] for i in text_num if i-1 < len(scores)]
-            return filtered_results[:self.topk], filtered_scores[:self.topk]
-        except Exception as e:
+        #     filtered_results = [candidates[i-1] for i in text_num if i-1 < len(candidates)]
+        #     filtered_scores = [scores[i-1] for i in text_num if i-1 < len(scores)]
+        #     return filtered_results[:self.topk], filtered_scores[:self.topk]
+        # except Exception as e:
+        #     return candidates[:self.topk], scores[:self.topk]
+
+        global shared_llm
+        if not shared_llm or not shared_llm.model:
+            print("[WARNING] LLM filter triggered but model not loaded. Skipping filter.")
             return candidates[:self.topk], scores[:self.topk]
+
+        response = shared_llm.generate(prompt, max_new_tokens=64)
+        text_num = self._extract_numbers(response)
+        print(f'[debug]response:{response}')
+        print(f'[debug]text_num:{text_num}')
+        
+        if not text_num: 
+            return [{'content':'检索不到相关内容，请尝试修改检索词或搜索其他方向。'}], [0]
+
+        filtered_results = [candidates[i-1] for i in text_num if i-1 < len(candidates)]
+        filtered_scores = [scores[i-1] for i in text_num if i-1 < len(scores)]
+        return filtered_results[:self.topk], filtered_scores[:self.topk]
         
 
 
@@ -1059,8 +1117,19 @@ class QueryRequest(BaseModel):
     return_scores: bool = False
     context: Optional[List[str]] = None
 
+# 增加 LLM 请求体定义
+class LLMRequest(BaseModel):
+    prompt: str
+    max_new_tokens: int = 2512
 
 app = FastAPI()
+
+# 增加开放推理接口
+@app.post("/llm_generate")
+def llm_generate_endpoint(request: LLMRequest):
+    global shared_llm
+    response_text = shared_llm.generate(request.prompt, request.max_new_tokens)
+    return {"response": response_text}
 
 @app.post("/retrieve")
 def retrieve_endpoint(request: QueryRequest):
@@ -1138,7 +1207,8 @@ if __name__ == "__main__":
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
 
     parser.add_argument("--port", type=int, default=8006, help="the API port")
-    parser.add_argument("--gpu_ids", type=int, nargs='+', default=[2, 3], help="GPU device IDs to use.")
+    # parser.add_argument("--gpu_ids", type=int, nargs='+', default=[2, 3], help="GPU device IDs to use.")
+    parser.add_argument("--gpu_ids", type=int,  default=2, help="GPU device IDs to use.")
     parser.add_argument("--gpu_memory_limit_per_gpu", type=int, nargs='+', default=[18], help="GPU memory limit per GPU in GB.")
 
 
@@ -1172,11 +1242,15 @@ if __name__ == "__main__":
 
         filter_model=args.filter_model,
     )
-    # 将列表转换为逗号分隔的字符串
-    gpu_ids = ','.join(str(gpu_id) for gpu_id in args.gpu_ids)
+    # # 将列表转换为逗号分隔的字符串
+    # gpu_ids = ','.join(str(gpu_id) for gpu_id in args.gpu_ids)
 
-    # 设置环境变量
-    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_ids
+    # # 设置环境变量
+    # os.environ['CUDA_VISIBLE_DEVICES'] = gpu_ids
+
+    # 【修改点 3】：初始化全局 shared_llm
+    global shared_llm
+    shared_llm = SharedLLM(config)
     
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
