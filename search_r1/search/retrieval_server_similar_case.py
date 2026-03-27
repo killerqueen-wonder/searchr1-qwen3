@@ -338,8 +338,12 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8007)
     parser.add_argument("--gpu_ids", type=str, default="0", help="Comma separated GPU ids")
     args = parser.parse_args()
+    
+    # 将列表转换为逗号分隔的字符串
+    gpu_ids = ','.join(str(gpu_id) for gpu_id in args.gpu_ids)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_ids
+    # 设置环境变量
+    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_ids
 
     cfg = Config(
         corpus_path=args.corpus_path,
