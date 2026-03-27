@@ -331,6 +331,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Launch Similar Case Retriever.")
     parser.add_argument("--corpus_path", type=str, required=True, help="Path to lecard_court_psi.jsonl")
     parser.add_argument("--retriever_model", type=str, default="shibing624/text2vec-base-chinese-paraphrase")
+    parser.add_argument("--dictionary_path", type=str, default='', help="jieba dictionary for law")
     parser.add_argument("--topk", type=int, default=5, help="Number of final results.")
     parser.add_argument("--search_depth", type=int, default=10, help="Recall multiplier for MMR pool.")
     parser.add_argument("--batch_size", type=int, default=128)
@@ -343,6 +344,7 @@ if __name__ == "__main__":
     cfg = Config(
         corpus_path=args.corpus_path,
         retrieval_model_path=args.retriever_model,
+        dictionary_path=args.dictionary_path,
         retrieval_batch_size=args.batch_size,
         topk=args.topk,
         search_depth=args.search_depth
