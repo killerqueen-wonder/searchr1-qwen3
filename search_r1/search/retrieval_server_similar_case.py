@@ -23,14 +23,14 @@ import lawa # 确保你安装并配置了 lawa (或使用 jieba)
 # 1. 基础工具与配置
 # ==========================================
 
-def load_corpus(corpus_path: str):
-    corpus = datasets.load_dataset(
-        'json', 
-        data_files=corpus_path,
-        split="train",
-        num_proc=4
-    )
-    return corpus
+# def load_corpus(corpus_path: str):
+#     corpus = datasets.load_dataset(
+#         'json', 
+#         data_files=corpus_path,
+#         split="train",
+#         num_proc=4
+#     )
+#     return corpus
 
 def load_corpus(corpus_path: str):
     print(f"[INFO] Using native JSON loader for {corpus_path}...")
@@ -233,9 +233,10 @@ class SimilarCaseRetriever:
         final_scores = [scores[i] for i in selected_indices]
         return final_docs, final_scores
 
-    def search(self, fact_query: str, charge_query: str, reason_query: str, num: int = None):
+# 【修改】：charge_query 的类型提示改为 List[str]
+    def search(self, fact_query: str, charge_query: List[str], reason_query: str, num: int = None):
         target_k = num if num else self.topk
-        candidate_k = target_k * self.search_depth  # 扩大候选池 (e.g., 50)
+        candidate_k = target_k * self.search_depth  # 扩大候选池
         
         start_time = time.time()
 
@@ -247,7 +248,6 @@ class SimilarCaseRetriever:
         pool = {}  
         def add_pool(docs, scores, key):
             for doc, sc in zip(docs, scores):
-                # 兼容不同数据集的 id 字段
                 doc_id = doc.get("id") or doc.get("pid") or id(doc)
                 if doc_id not in pool:
                     pool[doc_id] = {"doc": doc, "bm25": 0.0, "t2v": 0.0}
@@ -266,10 +266,26 @@ class SimilarCaseRetriever:
         for (doc_id, info), bn, tn in zip(pool.items(), bm25_norm, t2v_norm):
             doc = info["doc"]
             
-            # --- 软匹配罪名 (Highest Weight) ---
-            charge_list = doc.get("charge", [])
-            if not isinstance(charge_list, list): charge_list = [charge_list]
-            charge_score = 1.0 if charge_query in charge_list else 0.0
+            # ==========================================
+            # 【核心修改】：软匹配罪名 (Jaccard 重合度计算)
+            # ==========================================
+            doc_charge_list = doc.get("charge", [])
+            # 防错：如果原数据里的 charge 是字符串，转成列表
+            if not isinstance(doc_charge_list, list): 
+                doc_charge_list = [doc_charge_list] if doc_charge_list else []
+            
+            set_query = set(charge_query)
+            set_doc = set(doc_charge_list)
+            
+            # 计算交集与并集
+            if not set_query and not set_doc:
+                charge_score = 0.0  # 都没有罪名记录
+            elif not set_query or not set_doc:
+                charge_score = 0.0  # 其中一方为空
+            else:
+                intersection = set_query.intersection(set_doc)
+                union = set_query.union(set_doc)
+                charge_score = len(intersection) / len(union)  # 算出 0.0 到 1.0 的重合度比例
             
             # 基础融合分
             hybrid_score = (self.w_charge * charge_score) + (self.w_t2v * tn) + (self.w_bm25 * bn)
@@ -293,7 +309,6 @@ class SimilarCaseRetriever:
         print(f"[DEBUG] 类案检索完成，耗时: {end_time - start_time:.4f}s")
         
         return final_docs, final_scores
-
 # ==========================================
 # 4. FastAPI 服务端
 # ==========================================
@@ -304,7 +319,7 @@ app = FastAPI()
 class CaseQueryItem(BaseModel):
     search_type: str = Field(alias="检索类型", default="类案检索")
     fact_query: str = Field(alias="检索案情", default="")
-    charge: str = Field(alias="罪名", default="")
+    charge: List[str] = Field(alias="罪名", default_factory=list) 
     other_reason: str = Field(alias="其他情节", default="")
 
 class CaseQueryRequest(BaseModel):
