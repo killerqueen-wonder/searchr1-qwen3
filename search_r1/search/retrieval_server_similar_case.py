@@ -377,6 +377,7 @@ if __name__ == "__main__":
         dictionary_path=args.dictionary_path,
         retrieval_batch_size=args.batch_size,
         topk=args.topk,
+        gpu_ids=args.gpu_ids,
         search_depth=args.search_depth
     )
 
