@@ -336,7 +336,7 @@ if __name__ == "__main__":
     parser.add_argument("--search_depth", type=int, default=10, help="Recall multiplier for MMR pool.")
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--port", type=int, default=8007)
-    parser.add_argument("--gpu_ids", type=str, default="0", help="Comma separated GPU ids")
+    parser.add_argument("--gpu_ids", type=int, nargs='+', default=[2, 3], help="GPU device IDs to use.")
     args = parser.parse_args()
 
     # 将列表转换为逗号分隔的字符串
