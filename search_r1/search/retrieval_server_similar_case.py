@@ -17,20 +17,12 @@ from pydantic import BaseModel, Field
 
 from text2vec import SentenceModel, semantic_search
 from rank_bm25 import BM25Okapi
-import lawa # 确保你安装并配置了 lawa (或使用 jieba)
+import lawa 
 
 # ==========================================
 # 1. 基础工具与配置
 # ==========================================
 
-# def load_corpus(corpus_path: str):
-#     corpus = datasets.load_dataset(
-#         'json', 
-#         data_files=corpus_path,
-#         split="train",
-#         num_proc=4
-#     )
-#     return corpus
 
 def load_corpus(corpus_path: str):
     print(f"[INFO] Using native JSON loader for {corpus_path}...")
@@ -310,6 +302,7 @@ class SimilarCaseRetriever:
         print(f"[DEBUG] 类案检索完成，耗时: {end_time - start_time:.4f}s")
         
         return final_docs, final_scores
+
 # ==========================================
 # 4. FastAPI 服务端
 # ==========================================

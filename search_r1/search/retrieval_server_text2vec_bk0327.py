@@ -13,7 +13,7 @@ import datasets
 
 import uvicorn
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 import sys
 import os
@@ -31,18 +31,12 @@ import re
 '''start a RAG system'''
 
 def load_corpus(corpus_path: str):
-    print(f"[INFO] Using native JSON loader for {corpus_path}...")
-    corpus = []
-    with open(corpus_path, 'r', encoding='utf-8') as f:
-        for i, line in enumerate(f):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                corpus.append(json.loads(line))
-            except json.JSONDecodeError:
-                print(f"[WARNING] 无法解析第 {i+1} 行的 JSON，已跳过。")
-    print(f"[INFO] 成功加载 {len(corpus)} 条数据。")
+    corpus = datasets.load_dataset(
+        'json', 
+        data_files=corpus_path,
+        split="train",
+        num_proc=4
+    )
     return corpus
 
 def read_jsonl(file_path):
@@ -83,7 +77,7 @@ def pooling(
         raise NotImplementedError("Pooling method not implemented!")
 
 # ==========================================
-# 全局共享大模型管理器
+# 新增：全局共享大模型管理器
 # ==========================================
 class SharedLLM:
     def __init__(self, config):
@@ -397,6 +391,248 @@ class BM25WeightRetriever(BaseRetriever):#rank bm25+jieba or lawa
             item_result, item_score = self._search(query, num, True)
             results.append(item_result)
             scores.append(item_score)
+        if return_score:
+            return results, scores
+        else:
+            return results
+
+class BM25Retriever(BaseRetriever):#rank bm25+jieba or lawa
+    def __init__(self, config):
+        super().__init__(config)
+        
+
+        
+        #自定义词典
+        if len(config.dictionary_path) !=0:
+            print(f'[debug] load userdict :{config.dictionary_path}')
+            lawa.load_userdict(config.dictionary_path)
+
+        # 加载语料库（必须是 jsonl，每条含 content 字段）
+        self.corpus = load_corpus(self.corpus_path)
+
+        # 对语料库进行分词与预处理
+        self.docs_raw = [doc["content"] for doc in self.corpus]
+
+        
+        self.docs_tokenized = [list(lawa.cut(text)) for text in self.docs_raw]
+        
+        # 构建 BM25
+        self.bm25 = BM25Okapi(self.docs_tokenized,k1=1.5, b=0.5)
+
+        
+        self.max_process_num = 8
+
+    def _search(self, query: str, num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+        if num is None:
+            num = self.topk
+
+        
+        def clean_string_regex(text):
+            # 使用正则表达式移除标点符号
+            pattern = r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?/\'"、。，！？；：「」『』（）【】《》﹁﹂﹃﹄‘’“”～﹏丶]'
+            return re.sub(pattern, ' ', text)
+           
+        #清洗检索词中的符号
+        query=clean_string_regex(query)
+
+        #转换数字
+        def num_to_chinese(num):
+            if not (0 <= num <= 9999): # 限制在0-9999范围内
+                return num
+            num_map = {
+                '0': '零', '1': '一', '2': '二', '3': '三', '4': '四',
+                '5': '五', '6': '六', '7': '七', '8': '八', '9': '九'
+            }
+            units = ['', '十', '百', '千'] # 单位只到千
+            
+            if num == 0:
+                return '零'
+                
+            digits = list(str(num))
+            digits.reverse() # 反转以便从个位开始处理
+            
+            result_parts = []
+            zero_flag = False # 标记是否需要加零
+            
+            for i, digit in enumerate(digits):
+                current_unit = units[i]
+                if digit == '0':
+                    zero_flag = True # 标记中间有0
+                else:
+                    if zero_flag and result_parts:
+                        # 如果之前有0且结果不为空，则加一个零
+                        result_parts.append('零')
+                    result_parts.append(num_map[digit] + current_unit)
+                    zero_flag = False # 重置零标记
+                    
+            # 反转结果列表并拼接
+            result_parts.reverse()
+            res_str = ''.join(result_parts)
+            
+            # 特殊处理：10-19的数字，如10应为"十"而非"一十"
+            if 10 <= num <= 19:
+                res_str = res_str.replace('一十', '十')
+                
+            return res_str
+
+        def replace_numbers_with_chinese(text):
+            """
+            将字符串中的所有连续数字替换为中文数字
+            """
+            def replace_match(match):
+                num_str = match.group()
+                # 将字符串转换为整数，然后调用你的num_to_chinese函数
+                return num_to_chinese(int(num_str))
+            
+            # 使用re.sub进行替换
+            return re.sub(r'\d+', replace_match, text)
+
+        query = replace_numbers_with_chinese(query)
+
+        # query_tokens = list(jieba.cut_for_search(query))
+        # query_tokens = list(lawa.cut_for_search(query))
+        query_tokens = list(lawa.cut(query))
+
+        print("[DEBUG] Query Tokens:", query_tokens)
+
+        scores = self.bm25.get_scores(query_tokens)
+
+        
+
+        if len(scores) == 0:
+            if return_score:
+                return [], []
+            return []
+
+        # 取 topk
+        ranked = sorted(
+            list(enumerate(scores)),
+            key=lambda x: x[1],
+            reverse=True
+        )[:num]
+
+        # print("\n[DEBUG] Top-k Documents Info:")
+        # for rank, (doc_id, score) in enumerate(ranked):
+        #     print(f"\n[DEBUG] Rank {rank+1}: Doc {doc_id}, Score = {score}")
+        #     print("[DEBUG] Doc Tokens:", self.docs_tokenized[doc_id])
+
+        doc_ids = [idx for idx, _ in ranked]
+        top_scores = [score for _, score in ranked]
+
+        results = load_docs(self.corpus, doc_ids)
+
+        if return_score:
+            return results, top_scores
+        else:
+            return results
+
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+        results = []
+        scores = []
+        for query in query_list:
+            item_result, item_score = self._search(query, num, True)
+            results.append(item_result)
+            scores.append(item_score)
+        if return_score:
+            return results, scores
+        else:
+            return results
+
+
+def load_corpus(corpus_path: str):
+    corpus = datasets.load_dataset(
+        'json',
+        data_files=corpus_path,
+        split="train",
+        num_proc=4
+    )
+    return corpus
+
+
+class DenseRetriever(BaseRetriever):
+    def __init__(self, config):
+        super().__init__(config)
+        self.index = faiss.read_index(self.index_path)
+        if config.faiss_gpu:
+            '''
+            co = faiss.GpuMultipleClonerOptions()
+            co.useFloat16 = True
+            co.shard = True
+            self.index = faiss.index_cpu_to_all_gpus(self.index, co=co)
+            '''
+
+            # 创建 GPU 资源管理器并设置每个 GPU 的显存限制
+            res_list = []
+            #允许列表形式的内存限制
+            if len(config.gpu_memory_limit_per_gpu)==1:  
+                config.gpu_memory_limit_per_gpu = config.gpu_memory_limit_per_gpu * len(config.gpu_ids)  
+            for gpu_id,mem_lim in zip(config.gpu_ids,config.gpu_memory_limit_per_gpu):
+                res = faiss.StandardGpuResources()
+                res.setTempMemory(mem_lim * 1024 * 1024 * 1024)  # 单位：字节
+                res.noTempMemory()  # 禁用临时内存分配
+                res_list.append(res)
+
+            # 启用显存优化策略（分片、混合精度）
+            co = faiss.GpuMultipleClonerOptions()
+            co.useFloat16 = True      # 使用混合精度（降低显存占用）
+            co.shard = True            # 分片到多个 GPU
+            co.copyInvertedListsOnGpu = True  # 将倒排列表复制到 GPU
+            print(f'使用GPU{config.gpu_ids},内存限制为{config.gpu_memory_limit_per_gpu}')
+            # 将索引迁移到多个 GPU
+            # self.index = faiss.index_cpu_to_all_gpus(self.index, co=co, gpus=config.gpu_ids)
+            self.index = faiss.index_cpu_to_gpu_multiple_py(res_list, self.index, co=co, gpus=config.gpu_ids)
+            
+        self.corpus = load_corpus(self.corpus_path)
+        self.encoder = Encoder(
+            model_name = self.retrieval_method,
+            model_path = config.retrieval_model_path,
+            pooling_method = config.retrieval_pooling_method,
+            max_length = config.retrieval_query_max_length,
+            use_fp16 = config.retrieval_use_fp16
+        )
+        self.topk = config.retrieval_topk
+        self.batch_size = config.retrieval_batch_size
+
+    def _search(self, query: str, num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+        if num is None:
+            num = self.topk
+        query_emb = self.encoder.encode(query)
+        scores, idxs = self.index.search(query_emb, k=num)
+        idxs = idxs[0]
+        scores = scores[0]
+        results = load_docs(self.corpus, idxs)
+        if return_score:
+            return results, scores.tolist()
+        else:
+            return results
+
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False,context: Optional[List[str]] = None):
+        if isinstance(query_list, str):
+            query_list = [query_list]
+        if num is None:
+            num = self.topk
+        
+        results = []
+        scores = []
+        for start_idx in tqdm(range(0, len(query_list), self.batch_size), desc='Retrieval process: '):
+            query_batch = query_list[start_idx:start_idx + self.batch_size]
+            batch_emb = self.encoder.encode(query_batch)
+            batch_scores, batch_idxs = self.index.search(batch_emb, k=num)
+            batch_scores = batch_scores.tolist()
+            batch_idxs = batch_idxs.tolist()
+
+            # load_docs is not vectorized, but is a python list approach
+            flat_idxs = sum(batch_idxs, [])
+            batch_results = load_docs(self.corpus, flat_idxs)
+            # chunk them back
+            batch_results = [batch_results[i*num : (i+1)*num] for i in range(len(batch_idxs))]
+            
+            results.extend(batch_results)
+            scores.extend(batch_scores)
+            
+            del batch_emb, batch_scores, batch_idxs, query_batch, flat_idxs, batch_results
+            torch.cuda.empty_cache()
+            
         if return_score:
             return results, scores
         else:
@@ -791,273 +1027,25 @@ class HybridFilterRetriever(HybridRetriever):
             scores.append(s)
         return (results, scores) if return_score else results
 
-
-
-class FactText2vecRetriever:
-    """仅针对 fact 字段进行向量化和检索"""
-    def __init__(self, config, device="cuda:0"):
-        self.device = device if torch.cuda.is_available() else "cpu"
-        print(f"[INFO] FactText2vec model locked on: {self.device}")
-        
-        self.embedder = SentenceModel(config.retrieval_model_path, device=self.device)
-        self.corpus = load_corpus(config.corpus_path)
-        self.batch_size = config.retrieval_batch_size
-        
-        # 隔离后缀，防止覆盖旧检索系统的 embeddings
-        self.embedding_file = self._get_embedding_filename(config.corpus_path)
-        self.corpus_embeddings = self._load_or_compute_embeddings()
-
-    def _get_embedding_filename(self, jsonl_filename):
-        base_name = os.path.splitext(os.path.basename(jsonl_filename))[0]
-        dir_name = os.path.dirname(jsonl_filename)
-        return os.path.join(dir_name, f"{base_name}_fact_embeddings.pt")
-
-    def _load_or_compute_embeddings(self):
-        if os.path.exists(self.embedding_file):
-            print(f"[INFO] Loading existing fact embeddings from {self.embedding_file}")
-            return torch.load(self.embedding_file, map_location=self.device)
-        
-        print("[INFO] Computing new embeddings for 'fact' field...")
-        # 仅抽取 fact 字段，防空处理
-        corpus_texts = [doc.get('fact', '') or "" for doc in self.corpus]
-        corpus_embeddings = self.embedder.encode(
-            corpus_texts, 
-            show_progress_bar=True, 
-            normalize_embeddings=True,
-            batch_size=self.batch_size
-        )
-        torch.save(corpus_embeddings, self.embedding_file)
-        return corpus_embeddings
-
-    def search(self, query: str, num: int):
-        if not query.strip(): 
-            return [], []
-        query_embedding = self.embedder.encode(query, normalize_embeddings=True)
-        hits = semantic_search(query_embedding, self.corpus_embeddings, top_k=num)[0]
-        
-        results, scores = [], []
-        for hit in hits:
-            results.append(self.corpus[hit['corpus_id']])
-            scores.append(hit['score'])
-        return results, scores
-
-
-class ReasonBM25Retriever:
-    """仅针对 reason 字段进行分词和检索"""
-    def __init__(self, config):
-        if hasattr(config, "dictionary_path") and config.dictionary_path:
-            lawa.load_userdict(config.dictionary_path)
-            
-        self.corpus = load_corpus(config.corpus_path)
-        
-        # 仅抽取 reason 字段建库
-        self.docs_raw = [doc.get("reason", "") or "" for doc in self.corpus]
-        print("[INFO] Tokenizing 'reason' field for BM25...")
-        self.docs_tokenized = [list(lawa.cut(text)) for text in self.docs_raw]
-        self.bm25 = BM25Okapi(self.docs_tokenized, k1=1.5, b=0.5)
-
-    def search(self, query: str, num: int):
-        if not query.strip():
-            return [], []
-        
-        # 符号清洗
-        query = re.sub(r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?/\'"、。，！？；：「」『』（）【】《》﹁﹂﹃﹄‘’“”～﹏丶]', ' ', query)
-        query_tokens = list(lawa.cut(query))
-        
-        scores = self.bm25.get_scores(query_tokens)
-        if len(scores) == 0:
-            return [], []
-
-        ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:num]
-        doc_ids = [idx for idx, _ in ranked]
-        top_scores = [score for _, score in ranked]
-        results = load_docs(self.corpus, doc_ids)
-        
-        return results, top_scores
-
-# ==========================================
-# 类案混合检索器 (三路融合 + 权威性 + MMR)
-# ==========================================
-
-class SimilarCaseRetriever:
-    def __init__(self, config):
-        self.t2v_retriever = FactText2vecRetriever(config,f"cuda:{config.gpu_ids}")
-        self.bm25_retriever = ReasonBM25Retriever(config)
-        
-        self.topk = config.topk
-        self.search_depth = config.search_depth
-        
-        # 权重设置
-        self.w_charge = 0.5   # 罪名软加权最高
-        self.w_t2v = 0.3      # 事实语义次之
-        self.w_bm25 = 0.2     # 情节匹配再次
-        
-        # 权威性加成表
-        self.court_boost = {
-            1: 1.15, 
-            2: 1.10, 
-            3: 1.05, 
-            4: 1.00
-        }
-        
-        # MMR 多样性权重 (lambda): 越高越看重原相关性，越低越看重多样性
-        self.mmr_lambda = 0.7 
-
-    def _min_max_norm(self, scores):
-        if not scores: return []
-        min_s, max_s = min(scores), max(scores)
-        if max_s == min_s: return [0.0 for _ in scores]
-        return [(s - min_s) / (max_s - min_s) for s in scores]
-
-    def _mmr_rerank(self, candidates: List[Dict], scores: List[float], top_k: int) -> Tuple[List[Dict], List[float]]:
-        """基于 psi_score 动态归一化的 MMR 多样性重排"""
-        if not candidates: return [], []
-        
-        # 提取 psi_score (容错处理)
-        psi_scores = []
-        for doc in candidates:
-            try:
-                psi = float(doc.get("psi_score", 0.0))
-            except:
-                psi = 0.0
-            psi_scores.append(psi)
-            
-        d_max = max(psi_scores) - min(psi_scores)
-        if d_max == 0: d_max = 1e-9  # 防止除以0
-        
-        selected_indices = []
-        unselected_indices = list(range(len(candidates)))
-        
-        while len(selected_indices) < top_k and unselected_indices:
-            if not selected_indices:
-                # 第一轮直接选得分最高的
-                best_idx = unselected_indices[0]
-                best_idx_in_unselected = 0
-                for i, idx in enumerate(unselected_indices):
-                    if scores[idx] > scores[best_idx]:
-                        best_idx = idx
-                        best_idx_in_unselected = i
-                selected_indices.append(best_idx)
-                unselected_indices.pop(best_idx_in_unselected)
-            else:
-                # 后续使用 MMR 公式
-                best_mmr = -float('inf')
-                best_idx = -1
-                best_idx_in_unselected = -1
-                
-                for i, idx in enumerate(unselected_indices):
-                    # 计算该候选与已选中集合的最大相似度惩罚
-                    max_sim = 0.0
-                    for s_idx in selected_indices:
-                        sim = 1.0 - (abs(psi_scores[idx] - psi_scores[s_idx]) / d_max)
-                        if sim > max_sim:
-                            max_sim = sim
-                    
-                    # MMR 核心公式
-                    mmr_score = self.mmr_lambda * scores[idx] - (1 - self.mmr_lambda) * max_sim
-                    
-                    if mmr_score > best_mmr:
-                        best_mmr = mmr_score
-                        best_idx = idx
-                        best_idx_in_unselected = i
-                        
-                selected_indices.append(best_idx)
-                unselected_indices.pop(best_idx_in_unselected)
-                
-        final_docs = [candidates[i] for i in selected_indices]
-        final_scores = [scores[i] for i in selected_indices]
-        return final_docs, final_scores
-
-
-    def search(self, fact_query: str, charge_query: List[str], reason_query: str, num: int = None):
-        target_k = num if num else self.topk
-        candidate_k = target_k * self.search_depth  # 扩大候选池
-        
-        start_time = time.time()
-
-        # 1. 双路召回
-        bm25_docs, bm25_scores = self.bm25_retriever.search(reason_query, candidate_k)
-        t2v_docs, t2v_scores = self.t2v_retriever.search(fact_query, candidate_k)
-
-        # 2. 构建去重候选池
-        pool = {}  
-        def add_pool(docs, scores, key):
-            for doc, sc in zip(docs, scores):
-                doc_id = doc.get("id") or doc.get("pid") or id(doc)
-                if doc_id not in pool:
-                    pool[doc_id] = {"doc": doc, "bm25": 0.0, "t2v": 0.0}
-                pool[doc_id][key] = sc
-
-        add_pool(bm25_docs, bm25_scores, "bm25")
-        add_pool(t2v_docs, t2v_scores, "t2v")
-
-        # 3. 分数提取与归一化
-        bm25_all = [v["bm25"] for v in pool.values()]
-        t2v_all = [v["t2v"] for v in pool.values()]
-        bm25_norm = self._min_max_norm(bm25_all)
-        t2v_norm = self._min_max_norm(t2v_all)
-
-        # 4. 融合、加权与权威性增益
-        for (doc_id, info), bn, tn in zip(pool.items(), bm25_norm, t2v_norm):
-            doc = info["doc"]
-            
-            # ==========================================
-            # 【核心修改】：软匹配罪名 (Jaccard 重合度计算)
-            # ==========================================
-            doc_charge_list = doc.get("charge", [])
-            # 防错：如果原数据里的 charge 是字符串，转成列表
-            if not isinstance(doc_charge_list, list): 
-                doc_charge_list = [doc_charge_list] if doc_charge_list else []
-            
-            set_query = set(charge_query)
-            set_doc = set(doc_charge_list)
-            
-            # 计算交集与并集
-            if not set_query and not set_doc:
-                charge_score = 0.0  # 都没有罪名记录
-            elif not set_query or not set_doc:
-                charge_score = 0.0  # 其中一方为空
-            else:
-                intersection = set_query.intersection(set_doc)
-                union = set_query.union(set_doc)
-                charge_score = len(intersection) / len(union)  # 算出 0.0 到 1.0 的重合度比例
-                charge_score = charge_score ** 5
-            
-            # 基础融合分
-            hybrid_score = (self.w_charge * charge_score) + (self.w_t2v * tn) + (self.w_bm25 * bn)
-            
-            # --- 权威性加成 (Court Level Boosting) ---
-            c_level = doc.get("court_level", 4)
-            boost = self.court_boost.get(c_level, 1.0)
-            
-            info["final_score"] = hybrid_score * boost
-
-        # 按融合分数倒排，截取供 MMR 使用的池子
-        ranked_pool = sorted(pool.items(), key=lambda x: x[1]["final_score"], reverse=True)[:candidate_k]
-        
-        candidate_docs = [info["doc"] for _, info in ranked_pool]
-        candidate_scores = [info["final_score"] for _, info in ranked_pool]
-
-        # 5. MMR 多样性重排
-        final_docs, final_scores = self._mmr_rerank(candidate_docs, candidate_scores, target_k)
-
-        end_time = time.time()
-        print(f"[DEBUG] 类案检索完成，耗时: {end_time - start_time:.4f}s")
-        
-        return final_docs, final_scores
- 
+def max_memory_on_main(config):
+    if isinstance(config.gpu_memory_limit_per_gpu, list):
+        return config.gpu_memory_limit_per_gpu[0]
+    return config.gpu_memory_limit_per_gpu
 
 def get_retriever(config):
     
-    if config.retrieval_method == "hybrid":
+    if config.retrieval_method == "bm25":
+        return BM25Retriever(config)
+    elif config.retrieval_method == "hybrid":
         return HybridRetriever(config)
+    elif config.retrieval_method == "text2vec":
+        return Text2vecRetriever(config)
     elif config.retrieval_method == "hybrid_filter":
         return HybridFilterRetriever(config)
     elif config.retrieval_method == "BM25Weight":
         return BM25WeightRetriever(config)
     else:
-        print("[error]retriever name error.")
-
+        return DenseRetriever(config)
 
 #####################################
 # FastAPI server below
@@ -1094,13 +1082,11 @@ class Config:
         bm25_b: float = 0.5,
         top_n:int = 10,
         filter_model:str="",
-        **kwargs
     ):
         self.retrieval_method = retrieval_method
         self.retrieval_topk = retrieval_topk
         self.index_path = index_path
         self.corpus_path = corpus_path
-        self.case_corpus_path = kwargs.get("case_corpus_path", "")
         self.dataset_path = dataset_path
         self.data_split = data_split
         self.faiss_gpu = faiss_gpu
@@ -1122,26 +1108,14 @@ class Config:
         self.bm25_b = bm25_b
         self.top_n=top_n
         self.filter_model=filter_model
-
-        self.__dict__.update(kwargs)
         
 
 
-class UnifiedQueryItem(BaseModel):
-    search_type: str = Field(alias="检索类型")
-    
-    # --- 类案检索专属字段 ---
-    fact_query: str = Field(alias="检索案情", default="")
-    charge: List[str] = Field(alias="罪名", default_factory=list)
-    other_reason: str = Field(alias="其他情节", default="")
-    
-    # --- 法律检索专属字段 ---
-    keywords: str = Field(alias="关键词", default="")
-    search_purpose: str = Field(alias="检索目的", default="")
-
-class UnifiedQueryRequest(BaseModel):
-    query: UnifiedQueryItem
-    topk: Optional[int] = 5
+class QueryRequest(BaseModel):
+    queries: List[str]
+    topk: Optional[int] = None
+    return_scores: bool = False
+    context: Optional[List[str]] = None
 
 # 增加 LLM 请求体定义
 class LLMRequest(BaseModel):
@@ -1158,129 +1132,67 @@ def llm_generate_endpoint(request: LLMRequest):
     return {"response": response_text}
 
 @app.post("/retrieve")
-def unified_retrieve_endpoint(request: UnifiedQueryRequest):
-    req_type = request.query.search_type
-    req_topk = request.topk
-    
-    # ==========================================
-    # 分支一：类案检索
-    # ==========================================
-    if req_type == "类案检索":
-        fact_q = request.query.fact_query
-        charge_q = request.query.charge
-        reason_q = request.query.other_reason
-        
-        search_k = req_topk * 2 
-        docs, scores = case_retriever.search(fact_query=fact_q, charge_query=charge_q, reason_query=reason_q, num=search_k)
-        
-        final_resp = []
-        llm_summaries = []
-        valid_count = 0
-        
-        for i, (doc, score) in enumerate(zip(docs, scores)):
-            if valid_count >= req_topk:
-                break
-                
-            doc_fact = doc.get("fact", "")
-            doc_reason = doc.get("reason", "")
-            doc_result = doc.get("result", "")
-            
-            prompt = (
-                "### 任务指令\n"
-                "你是一名资深的法官助理。请仔细对比用户的【检索案情】与检索到的【候选案例】。\n"
-                "请结合候选案例的“案情”、“裁判推理”和“判决结果”，写一份200字左右的案例简报。\n\n"
-                "### 简报撰写要求：\n"
-                "1. 明确指出该案例与【检索案情】的相似之处。\n"
-                "2. 简明扼要地概括法院的裁判推理（尤其是对关键情节的认定逻辑）。\n"
-                "3. 清楚写明最终的判决结论。\n\n"
-                "### 输入数据\n"
-                f"- 【检索案情】：{fact_q}\n"
-                f"- 【候选案例 - 案情】：{doc_fact[:1800]}...\n"
-                f"- 【候选案例 - 裁判推理】：{doc_reason[:1800]}...\n"
-                f"- 【候选案例 - 判决结果】：{doc_result[:1400]}...\n\n"
-                "### 输出（请直接输出200字简报）："
-            )
-            
-            try:
-                # 【重大优化】：摒弃 HTTP 请求，直接内存调用全局大模型
-                analysis = shared_llm.generate(prompt, max_new_tokens=400).strip()
-                
-                if "【不相关】" in analysis or "不相关" in analysis[:10]:
-                    continue
-                    
-                doc_record = {
-                    "score": round(score, 4),
-                    "pid": doc.get("pid", ""),
-                    "charge": doc.get("charge", []),
-                    "court_level": doc.get("court_level", 4),
-                    "psi_score": doc.get("psi_score", 0),
-                    "fact": doc_fact,
-                    "reason": doc_reason,
-                    "result": doc_result,
-                    "llm_summary": analysis 
-                }
-                final_resp.append(doc_record)
-                llm_summaries.append(f"【参考类案 {valid_count + 1}】\n{analysis}")
-                valid_count += 1
-                
-            except Exception as e:
-                print(f"[ERROR] LLM processing failed for doc {i}: {e}")
-                continue
+def retrieve_endpoint(request: QueryRequest):
+    """
+    Endpoint that accepts queries and performs retrieval.
+    Input format:
+    {
+      "queries": ["What is Python?", "Tell me about neural networks."],
+      "topk": 3,
+      "return_scores": true
+    }
+    """
+    if not request.topk:
+        request.topk = config.retrieval_topk  # fallback to default
 
-        if not llm_summaries:
-            overall_summary = "检索完毕。未发现与您输入案情高度相似的典型案例。"
-        else:
-            overall_summary = "\n\n".join(llm_summaries)
-            
-        return {
-            "检索类型": "类案检索",
-            "llm_summary": overall_summary,
-            "results": final_resp
-        }
-
-    # ==========================================
-    # 分支二：法律检索 (法条)
-    # ==========================================
-    elif req_type == "法律检索":
-        keywords = request.query.keywords
-        context = request.query.search_purpose
-        
-        # 将单个关键词转为列表，适配原有 _batch_search 接口
-        # 将 context 作为过滤依据传入
-        results, scores = law_retriever.batch_search(
-            query_list=[keywords],
-            num=req_topk,
+    # Perform batch retrieval (handle return_scores flag safely)
+    if request.return_scores:
+        results, scores = retriever.batch_search(
+            query_list=request.queries,
+            num=request.topk,
             return_score=True,
-            context=[context] if context else [None]
+            context=request.context
         )
-        
-        resp = []
-        for i, single_result in enumerate(results):
-            processed_docs = []
-            for j, doc in enumerate(single_result):
-                standard_doc = doc.copy()
-                standard_doc['content'] = doc.get('content') or doc.get('contents') or doc.get('text') or ""
-                processed_docs.append({"document": standard_doc, "score": scores[i][j]})
-            resp.append(processed_docs)
-            
-        return {
-            "检索类型": "法律检索",
-            "result": resp[0]  # 因为 query_list 只有一个元素，所以取 [0]
-        }
-    
-    # ==========================================
-    # 分支三：容错处理
-    # ==========================================
     else:
-        return {"error": f"未知的检索类型：'{req_type}'，请使用'类案检索'或'法律检索'。"}
+        results = retriever.batch_search(
+            query_list=request.queries,
+            num=request.topk,
+            return_score=False,
+            context=request.context
+        )
+        scores = None
     
+    # Format response
+    resp = []
+    # for i, single_result in enumerate(results):
+    #     if request.return_scores:
+    #         # If scores are returned, combine them with results
+    #         combined = []
+    #         for doc, score in zip(single_result, scores[i]):
+    #             combined.append({"document": doc, "score": score})
+    #         resp.append(combined)
+    #     else:
+    #         resp.append(single_result)
+    for i, single_result in enumerate(results):
+        processed_docs = []
+        for j, doc in enumerate(single_result):
+            # 强制统一字段名为 content，兼容多种原始格式
+            standard_doc = doc.copy()
+            standard_doc['content'] = doc.get('content') or doc.get('contents') or doc.get('text') or ""
+            
+            if request.return_scores:
+                processed_docs.append({"document": standard_doc, "score": scores[i][j]})
+            else:
+                processed_docs.append(standard_doc)
+        resp.append(processed_docs)
+    return {"result": resp}
+
 
 if __name__ == "__main__":
     
-    parser = argparse.ArgumentParser(description="Unified Law and Case Retriever.")
+    parser = argparse.ArgumentParser(description="Launch the local faiss retriever.")
     parser.add_argument("--index_path", type=str, default="/home/peterjin/mnt/index/wiki-18/e5_Flat.index", help="Corpus indexing file.")
-    parser.add_argument("--corpus_path", type=str, required=True, help="法条语料路径")
-    parser.add_argument("--case_corpus_path", type=str, required=True, help="类案语料路径")
+    parser.add_argument("--corpus_path", type=str, default="/home/peterjin/mnt/data/retrieval-corpus/wiki-18.jsonl", help="Local corpus file.")
     parser.add_argument("--dictionary_path", type=str, default='', help="jieba dictionary for law")
     parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
     parser.add_argument("--search_depth", type=int, default=5, help="hydrid search depth")
@@ -1305,10 +1217,9 @@ if __name__ == "__main__":
     # 1) Build a config (could also parse from arguments).
     #    In real usage, you'd parse your CLI arguments or environment variables.
     config = Config(
-        retrieval_method = args.retriever_name,  
+        retrieval_method = args.retriever_name,  # or "dense"
         index_path=args.index_path,
         corpus_path=args.corpus_path,
-        case_corpus_path=args.case_corpus_path,
         retrieval_topk=args.topk,
         faiss_gpu=args.faiss_gpu,
 
@@ -1331,18 +1242,19 @@ if __name__ == "__main__":
 
         filter_model=args.filter_model,
     )
+    # # 将列表转换为逗号分隔的字符串
+    # gpu_ids = ','.join(str(gpu_id) for gpu_id in args.gpu_ids)
 
+    # # 设置环境变量
+    # os.environ['CUDA_VISIBLE_DEVICES'] = gpu_ids
+
+    # 【修改点 3】：初始化全局 shared_llm
     global shared_llm
     shared_llm = SharedLLM(config)
+    
 
-    global law_retriever
-    law_retriever = get_retriever(config)
+    # 2) Instantiate a global retriever so it is loaded once and reused.
+    retriever = get_retriever(config)
     
-    case_config = Config(**config.__dict__)
-    case_config.corpus_path = config.case_corpus_path
-    
-    global case_retriever
-    case_retriever = SimilarCaseRetriever(case_config)
-    
-    print("[INFO] Unified Retriever Service Started Successfully!")
+    # 3) Launch the server. By default, it listens on http://127.0.0.1:8006
     uvicorn.run(app, host="0.0.0.0", port=config.port)
