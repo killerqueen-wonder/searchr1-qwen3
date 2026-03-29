@@ -621,7 +621,6 @@ class HybridFilterRetriever(HybridRetriever):
                 - retrieval_topk (int): 最终输出给用户的文档数量。
                 - search_depth (int): 混合检索的深度系数，用于粗排阶段计算候选池倍数。
                 - bm25_weight (float): 混合检索中 BM25 分数的权重（Text2vec 权重固定为 10）。
-                - top_n (int): 粗排阶段选出的、送往 LLM 进行过滤的初始候选文档数。
                 - filter_model (str): 用于过滤任务的 LLM 模型路径或名称。
                 - gpu_memory_limit_per_gpu (list/int): 每张显卡的内存限制（单位: GB）。
                 - retrieval_model_path (str): Text2vec 嵌入模型的路径。
@@ -641,28 +640,8 @@ class HybridFilterRetriever(HybridRetriever):
         self.search_depth = config.search_depth
         self.w_bm25 = config.bm25_weight
         self.w_t2v = 10
-        self.top_n = config.top_n
+        self.candidate_k = self.topk * self.search_depth
         
-        # self.tokenizer = AutoTokenizer.from_pretrained(config.filter_model, trust_remote_code=True)
-        
-        # mem_limit = config.gpu_memory_limit_per_gpu[0] if isinstance(config.gpu_memory_limit_per_gpu, list) else config.gpu_memory_limit_per_gpu
-        
-        # # 逻辑 ID 映射：0 号卡留 3GB 给 Text2vec 和系统开销，1 号卡全速运行
-        # max_mem = {
-        #     0: f"{mem_limit - 3}GiB", 
-        #     1: f"{mem_limit - 1}GiB"
-        # }
-
-        # self.model = AutoModelForCausalLM.from_pretrained(
-        #     config.filter_model, 
-        #     device_map="auto", 
-        #     max_memory=max_mem, 
-        #     trust_remote_code=True,
-        #     torch_dtype=torch.float16,
-        #     low_cpu_mem_usage=True
-        # )
-        # self.device = self.model.device
-        # self.model.eval()
 
         self.prompt_template = (
             "### 任务指令\n"
@@ -680,7 +659,7 @@ class HybridFilterRetriever(HybridRetriever):
             "### 筛选结果（仅输出列表）："
         )
 
-    def _llm_filter(self, query: str, candidates: List[Dict], scores: List[float], 
+    def _llm_filter(self,num:int, query: str, candidates: List[Dict], scores: List[float], 
                     context: str = None) -> Tuple[List[Dict], List[float]]:
         if not candidates: return [], []
 
@@ -697,37 +676,9 @@ class HybridFilterRetriever(HybridRetriever):
         # 将列表转为带换行的字符串，方便模型阅读
         results_str = "\n".join(candidates_formatted)
         prompt = self.prompt_template.format(results=results_str, query=query, 
-                                             topk=self.topk,context=context if context else "无")
+                                             topk=num,context=context if context else "无")
         print(f'[debug]{prompt}')
 
-        # try:
-        #     messages = [{"role": "user", "content": prompt}]
-        #     input_ids = self.tokenizer.apply_chat_template(messages, tokenize=True, 
-        #                                                    add_generation_prompt=True, 
-        #                                                    enable_thinking = False,
-        #                                                    return_tensors="pt").to(self.device)
-
-        #     with torch.no_grad():
-        #         output_ids = self.model.generate(
-        #             input_ids,
-        #             max_new_tokens=64,
-        #             # temperature=0.01,
-        #             do_sample=False
-        #         )
-            
-        #     response = self.tokenizer.decode(output_ids[0][len(input_ids[0]):], skip_special_tokens=True)
-        #     text_num = self._extract_numbers(response)
-        #     print(f'[debug]response:{response}')
-        #     print(f'[debug]text_num:{text_num}')
-        #     if not text_num: 
-        #         # return candidates[:self.topk], scores[:self.topk]
-        #         return [{'content':'检索不到相关内容，请尝试修改检索词或搜索其他方向。'}], [0]
-
-        #     filtered_results = [candidates[i-1] for i in text_num if i-1 < len(candidates)]
-        #     filtered_scores = [scores[i-1] for i in text_num if i-1 < len(scores)]
-        #     return filtered_results[:self.topk], filtered_scores[:self.topk]
-        # except Exception as e:
-        #     return candidates[:self.topk], scores[:self.topk]
 
         global shared_llm
         if not shared_llm or not shared_llm.model:
@@ -757,16 +708,16 @@ class HybridFilterRetriever(HybridRetriever):
         return None
     
     def _search(self, query: str, num: int = None, return_score: bool = False, context: str = None):
-        # 1. 使用父类 HybridRetriever 进行初步检索 top_n个
-        initial_num = num if num else self.top_n
-
+        # 1. 使用父类 HybridRetriever 进行初步检索 topk * search_depth个
+        if not num:
+            num=self.topk
         
-        candidates, scores = super()._search(query, initial_num, return_score=True)
+        candidates, scores = super()._search(query, self.candidate_k, return_score=True)
         
         start_time = time.time()
         
         # 2. 使用 LLM 进行过滤 (Precision)
-        filtered_results, filtered_scores = self._llm_filter(query, candidates, scores, context)
+        filtered_results, filtered_scores = self._llm_filter(query,num, candidates, scores, context)
         
         end_time = time.time()
         print(f"[DEBUG] LLM Filter time: {end_time - start_time:.4f} s, Input: {len(candidates)} -> Output: {len(filtered_results)}")
@@ -1092,7 +1043,7 @@ class Config:
         bm25_weight_factor:int =3,
         bm25_k1: float = 1.5,
         bm25_b: float = 0.5,
-        top_n:int = 10,
+
         filter_model:str="",
         **kwargs
     ):
@@ -1120,7 +1071,7 @@ class Config:
         self.bm25_weight_factor=bm25_weight_factor
         self.bm25_k1 = bm25_k1
         self.bm25_b = bm25_b
-        self.top_n=top_n
+
         self.filter_model=filter_model
 
         self.__dict__.update(kwargs)
@@ -1140,6 +1091,7 @@ class UnifiedQueryItem(BaseModel):
     search_purpose: str = Field(alias="检索目的", default="")
 
 class UnifiedQueryRequest(BaseModel):
+    #topk 控制最终输出个数
     query: UnifiedQueryItem
     topk: Optional[int] = 5
 
@@ -1170,8 +1122,11 @@ def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         charge_q = request.query.charge
         reason_q = request.query.other_reason
         
-        search_k = req_topk * 2 
-        docs, scores = case_retriever.search(fact_query=fact_q, charge_query=charge_q, reason_query=reason_q, num=search_k)
+        search_k = req_topk  #类案只总结不筛选
+        docs, scores = case_retriever.search(fact_query=fact_q, 
+                                             charge_query=charge_q, 
+                                             reason_query=reason_q, 
+                                             num=search_k)
         
         final_resp = []
         llm_summaries = []
@@ -1202,12 +1157,10 @@ def unified_retrieve_endpoint(request: UnifiedQueryRequest):
             )
             
             try:
-                # 【重大优化】：摒弃 HTTP 请求，直接内存调用全局大模型
+                # 直接内存调用全局大模型
                 analysis = shared_llm.generate(prompt, max_new_tokens=400).strip()
                 
-                if "【不相关】" in analysis or "不相关" in analysis[:10]:
-                    continue
-                    
+
                 doc_record = {
                     "score": round(score, 4),
                     "pid": doc.get("pid", ""),
@@ -1288,7 +1241,7 @@ if __name__ == "__main__":
     parser.add_argument("--bm25_weight_factor", type=int, default=3)
     parser.add_argument("--bm25_k1", type=float, default=1.5, help="BM25 k1 parameter")
     parser.add_argument("--bm25_b", type=float, default=0.5, help="BM25 b parameter")
-    parser.add_argument("--top_n", type=int, default=10)
+
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="shibing624/text2vec-base-chinese-paraphrase", help="Path of the retriever model.")
     parser.add_argument("--filter_model", type=str, default="")
@@ -1327,7 +1280,7 @@ if __name__ == "__main__":
         bm25_weight_factor=args.bm25_weight_factor,
         bm25_k1=args.bm25_k1,
         bm25_b=args.bm25_b,
-        top_n=args.top_n,
+
 
         filter_model=args.filter_model,
     )
