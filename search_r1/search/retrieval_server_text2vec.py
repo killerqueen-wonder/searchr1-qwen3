@@ -884,7 +884,7 @@ class SimilarCaseRetriever:
         self.t2v_retriever = FactText2vecRetriever(config,f"cuda:{config.gpu_ids}")
         self.bm25_retriever = ReasonBM25Retriever(config)
         
-        self.topk = config.topk
+        self.topk = config.retrieval_topk
         self.search_depth = config.search_depth
         
         # 权重设置
