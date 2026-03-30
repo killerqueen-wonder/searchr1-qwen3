@@ -95,9 +95,11 @@ class SharedLLM:
             # 显存预留策略
             mem_limit = config.gpu_memory_limit_per_gpu[0] if isinstance(config.gpu_memory_limit_per_gpu, list) else config.gpu_memory_limit_per_gpu
             max_mem = {
-                0: f"{mem_limit - 3}GiB", 
-                1: f"{mem_limit - 1}GiB"
-            }
+                        0: f"{mem_limit - 3}GiB", 
+                        1: f"{mem_limit - 3}GiB",
+                        2: f"{mem_limit - 3}GiB",
+                        3: f"{mem_limit - 3}GiB"
+                    }
             self.model = AutoModelForCausalLM.from_pretrained(
                 config.filter_model, 
                 device_map="auto", 
