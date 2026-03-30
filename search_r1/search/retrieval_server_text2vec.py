@@ -3,6 +3,7 @@ import os
 import warnings
 from typing import List, Dict, Optional, Any,Tuple
 import argparse
+import threading
 
 import faiss
 import torch
@@ -712,7 +713,8 @@ class HybridFilterRetriever(HybridRetriever):
         if not num:
             num=self.topk
         
-        candidates, scores = super()._search(query, self.candidate_k, return_score=True)
+        
+        candidates, scores = super()._search(query, num*self.search_depth, return_score=True)
         
         start_time = time.time()
         
@@ -1101,131 +1103,135 @@ class LLMRequest(BaseModel):
     max_new_tokens: int = 2512
 
 app = FastAPI()
+inference_lock = threading.Lock()
 
-# 增加开放推理接口
-@app.post("/llm_generate")
-def llm_generate_endpoint(request: LLMRequest):
-    global shared_llm
-    response_text = shared_llm.generate(request.prompt, request.max_new_tokens)
-    return {"response": response_text}
+# 开放推理接口
+# @app.post("/llm_generate")
+# def llm_generate_endpoint(request: LLMRequest):
+#     global shared_llm
+#     response_text = shared_llm.generate(request.prompt, request.max_new_tokens)
+#     return {"response": response_text}
 
 @app.post("/retrieve")
 def unified_retrieve_endpoint(request: UnifiedQueryRequest):
-    req_type = request.query.search_type
-    req_topk = request.topk
-    
-    # ==========================================
-    # 分支一：类案检索
-    # ==========================================
-    if req_type == "类案检索":
-        fact_q = request.query.fact_query
-        charge_q = request.query.charge
-        reason_q = request.query.other_reason
+    with inference_lock:
+        print(f"[INFO] 收到新请求，正在独占式处理中...")
+        start_time_total = time.time()
+        req_type = request.query.search_type
+        req_topk = request.topk
         
-        search_k = req_topk  #类案只总结不筛选
-        docs, scores = case_retriever.search(fact_query=fact_q, 
-                                             charge_query=charge_q, 
-                                             reason_query=reason_q, 
-                                             num=search_k)
-        
-        final_resp = []
-        llm_summaries = []
-        valid_count = 0
-        
-        for i, (doc, score) in enumerate(zip(docs, scores)):
-            if valid_count >= req_topk:
-                break
-                
-            doc_fact = doc.get("fact", "")
-            doc_reason = doc.get("reason", "")
-            doc_result = doc.get("result", "")
+        # ==========================================
+        # 分支一：类案检索
+        # ==========================================
+        if req_type == "类案检索":
+            fact_q = request.query.fact_query
+            charge_q = request.query.charge
+            reason_q = request.query.other_reason
             
-            prompt = (
-                "### 任务指令\n"
-                "你是一名资深的法官助理。请仔细对比用户的【检索案情】与检索到的【候选案例】。\n"
-                "请结合候选案例的“案情”、“裁判推理”和“判决结果”，写一份200字左右的案例简报。\n\n"
-                "### 简报撰写要求：\n"
-                "1. 明确指出该案例与【检索案情】的相似之处。\n"
-                "2. 简明扼要地概括法院的裁判推理（尤其是对关键情节的认定逻辑）。\n"
-                "3. 清楚写明最终的判决结论。\n\n"
-                "### 输入数据\n"
-                f"- 【检索案情】：{fact_q}\n"
-                f"- 【候选案例 - 案情】：{doc_fact[:1800]}...\n"
-                f"- 【候选案例 - 裁判推理】：{doc_reason[:1800]}...\n"
-                f"- 【候选案例 - 判决结果】：{doc_result[:1400]}...\n\n"
-                "### 输出（请直接输出200字简报）："
+            search_k = req_topk  #类案只总结不筛选
+            docs, scores = case_retriever.search(fact_query=fact_q, 
+                                                charge_query=charge_q, 
+                                                reason_query=reason_q, 
+                                                num=search_k)
+            
+            final_resp = []
+            llm_summaries = []
+            valid_count = 0
+            
+            for i, (doc, score) in enumerate(zip(docs, scores)):
+                if valid_count >= req_topk:
+                    break
+                    
+                doc_fact = doc.get("fact", "")
+                doc_reason = doc.get("reason", "")
+                doc_result = doc.get("result", "")
+                
+                prompt = (
+                    "### 任务指令\n"
+                    "你是一名资深的法官助理。请仔细对比用户的【检索案情】与检索到的【候选案例】。\n"
+                    "请结合候选案例的“案情”、“裁判推理”和“判决结果”，写一份200字左右的案例简报。\n\n"
+                    "### 简报撰写要求：\n"
+                    "1. 明确指出该案例与【检索案情】的相似之处。\n"
+                    "2. 简明扼要地概括法院的裁判推理（尤其是对关键情节的认定逻辑）。\n"
+                    "3. 清楚写明最终的判决结论。\n\n"
+                    "### 输入数据\n"
+                    f"- 【检索案情】：{fact_q}\n"
+                    f"- 【候选案例 - 案情】：{doc_fact[:1800]}...\n"
+                    f"- 【候选案例 - 裁判推理】：{doc_reason[:1800]}...\n"
+                    f"- 【候选案例 - 判决结果】：{doc_result[:1400]}...\n\n"
+                    "### 输出（请直接输出200字简报）："
+                )
+                
+                try:
+                    # 直接内存调用全局大模型
+                    analysis = shared_llm.generate(prompt, max_new_tokens=400).strip()
+                    
+
+                    doc_record = {
+                        "score": round(score, 4),
+                        "pid": doc.get("pid", ""),
+                        "charge": doc.get("charge", []),
+                        "court_level": doc.get("court_level", 4),
+                        "psi_score": doc.get("psi_score", 0),
+                        "fact": doc_fact,
+                        "reason": doc_reason,
+                        "result": doc_result,
+                        "llm_summary": analysis 
+                    }
+                    final_resp.append(doc_record)
+                    llm_summaries.append(f"【参考类案 {valid_count + 1}】\n{analysis}")
+                    valid_count += 1
+                    
+                except Exception as e:
+                    print(f"[ERROR] LLM processing failed for doc {i}: {e}")
+                    continue
+
+            if not llm_summaries:
+                overall_summary = "检索完毕。未发现与您输入案情高度相似的典型案例。"
+            else:
+                overall_summary = "\n\n".join(llm_summaries)
+                
+            return {
+                "检索类型": "类案检索",
+                "llm_summary": overall_summary,
+                "results": final_resp
+            }
+
+        # ==========================================
+        # 分支二：法律检索 (法条)
+        # ==========================================
+        elif req_type == "法律检索":
+            keywords = request.query.keywords
+            context = request.query.search_purpose
+            
+            # 将单个关键词转为列表，适配原有 _batch_search 接口
+            # 将 context 作为过滤依据传入
+            results, scores = law_retriever.batch_search(
+                query_list=[keywords],
+                num=req_topk,
+                return_score=True,
+                context=[context] if context else [None]
             )
             
-            try:
-                # 直接内存调用全局大模型
-                analysis = shared_llm.generate(prompt, max_new_tokens=400).strip()
+            resp = []
+            for i, single_result in enumerate(results):
+                processed_docs = []
+                for j, doc in enumerate(single_result):
+                    standard_doc = doc.copy()
+                    standard_doc['content'] = doc.get('content') or doc.get('contents') or doc.get('text') or ""
+                    processed_docs.append({"document": standard_doc, "score": scores[i][j]})
+                resp.append(processed_docs)
                 
-
-                doc_record = {
-                    "score": round(score, 4),
-                    "pid": doc.get("pid", ""),
-                    "charge": doc.get("charge", []),
-                    "court_level": doc.get("court_level", 4),
-                    "psi_score": doc.get("psi_score", 0),
-                    "fact": doc_fact,
-                    "reason": doc_reason,
-                    "result": doc_result,
-                    "llm_summary": analysis 
-                }
-                final_resp.append(doc_record)
-                llm_summaries.append(f"【参考类案 {valid_count + 1}】\n{analysis}")
-                valid_count += 1
-                
-            except Exception as e:
-                print(f"[ERROR] LLM processing failed for doc {i}: {e}")
-                continue
-
-        if not llm_summaries:
-            overall_summary = "检索完毕。未发现与您输入案情高度相似的典型案例。"
+            return {
+                "检索类型": "法律检索",
+                "result": resp[0]  # 因为 query_list 只有一个元素，所以取 [0]
+            }
+        
+        # ==========================================
+        # 分支三：容错处理
+        # ==========================================
         else:
-            overall_summary = "\n\n".join(llm_summaries)
-            
-        return {
-            "检索类型": "类案检索",
-            "llm_summary": overall_summary,
-            "results": final_resp
-        }
-
-    # ==========================================
-    # 分支二：法律检索 (法条)
-    # ==========================================
-    elif req_type == "法律检索":
-        keywords = request.query.keywords
-        context = request.query.search_purpose
-        
-        # 将单个关键词转为列表，适配原有 _batch_search 接口
-        # 将 context 作为过滤依据传入
-        results, scores = law_retriever.batch_search(
-            query_list=[keywords],
-            num=req_topk,
-            return_score=True,
-            context=[context] if context else [None]
-        )
-        
-        resp = []
-        for i, single_result in enumerate(results):
-            processed_docs = []
-            for j, doc in enumerate(single_result):
-                standard_doc = doc.copy()
-                standard_doc['content'] = doc.get('content') or doc.get('contents') or doc.get('text') or ""
-                processed_docs.append({"document": standard_doc, "score": scores[i][j]})
-            resp.append(processed_docs)
-            
-        return {
-            "检索类型": "法律检索",
-            "result": resp[0]  # 因为 query_list 只有一个元素，所以取 [0]
-        }
-    
-    # ==========================================
-    # 分支三：容错处理
-    # ==========================================
-    else:
-        return {"error": f"未知的检索类型：'{req_type}'，请使用'类案检索'或'法律检索'。"}
+            return {"error": f"未知的检索类型：'{req_type}'，请使用'类案检索'或'法律检索'。"}
     
 
 if __name__ == "__main__":
@@ -1298,4 +1304,4 @@ if __name__ == "__main__":
     case_retriever = SimilarCaseRetriever(case_config)
     
     print("[INFO] Unified Retriever Service Started Successfully!")
-    uvicorn.run(app, host="0.0.0.0", port=config.port)
+    uvicorn.run(app, host="0.0.0.0", port=config.port,timeout_keep_alive=300)
