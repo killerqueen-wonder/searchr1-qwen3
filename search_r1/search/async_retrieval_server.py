@@ -1327,8 +1327,12 @@ if __name__ == "__main__":
     global law_retriever
     law_retriever = get_async_retriever(global_config)
     
+    # 为类案检索器克隆一份配置，并将目标文件强制指向 case_corpus_path
+    case_config = Config(**global_config.__dict__)
+    case_config.corpus_path = global_config.case_corpus_path
+    
     global case_retriever
-    case_retriever = SimilarCaseRetriever(global_config)
+    case_retriever = SimilarCaseRetriever(case_config)
     
     print("[INFO] Async Unified Retriever Service Started Successfully!")
     uvicorn.run("async_retrieval_server:app", host="0.0.0.0", port=global_config.port, workers=4)
