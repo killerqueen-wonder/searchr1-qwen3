@@ -30,6 +30,8 @@ import jieba
 import lawa
 
 import re
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
 
 '''Start an Async RAG system powered by vLLM'''
 
@@ -1004,7 +1006,8 @@ class AsyncHybridFilterRetriever(HybridRetriever):
     async def async_search(self, query: str, num: int = None, return_score: bool = False, context: str = None):
         if not num: num = self.topk
         # 1. 将密集的打分计算丢到后台线程，避免阻塞 FastAPI 事件循环
-        candidates, scores = await asyncio.to_thread(super()._search, query, num * self.search_depth, True)
+        async with gpu_semaphore:
+            candidates, scores = await asyncio.to_thread(super()._search, query, num * self.search_depth, True)
         
         # 2. 异步精排
         filtered_results, filtered_scores = await self._async_llm_filter(num, query, candidates, scores, context)
@@ -1171,7 +1174,7 @@ global_config = Config(
 law_retriever = None
 case_retriever = None
 async_vllm_client = None
-
+gpu_semaphore = None
 app = FastAPI()
 
 # ==========================================
@@ -1184,6 +1187,8 @@ async def startup_event():
     pid = os.getpid()
     print(f"[INFO] Worker {pid} 正在启动并独立加载模型到显存...")
     
+    gpu_semaphore = asyncio.Semaphore(4)
+
     # 1. 启动 vLLM 客户端
     async_vllm_client = AsyncVLLMClient(global_config)
     
@@ -1224,14 +1229,16 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         
         search_k = req_topk  # 类案只总结不筛选
         
+        global gpu_semaphore
         # 将 CPU 密集的检索丢到后台线程，不阻塞主事件循环
-        docs, scores = await asyncio.to_thread(
-            case_retriever.search,
-            fact_query=fact_q, 
-            charge_query=charge_q, 
-            reason_query=reason_q, 
-            num=search_k
-        )
+        async with gpu_semaphore:    
+            docs, scores = await asyncio.to_thread(
+                case_retriever.search,
+                fact_query=fact_q, 
+                charge_query=charge_q, 
+                reason_query=reason_q, 
+                num=search_k
+            )
         
         # 定义一个异步获取单个摘要的闭包
         async def fetch_summary(doc):
@@ -1311,20 +1318,22 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         
         # 适配异步 Filter 检索器或普通检索器
         if isinstance(law_retriever, AsyncHybridFilterRetriever):
-            results, scores = await law_retriever.async_batch_search(
-                query_list=[keywords],
-                num=req_topk,
-                return_score=True,
-                context_list=[context] if context else [None]
-            )
+            async with gpu_semaphore: 
+                results, scores = await law_retriever.async_batch_search(
+                    query_list=[keywords],
+                    num=req_topk,
+                    return_score=True,
+                    context_list=[context] if context else [None]
+                )
         else:
-            results, scores = await asyncio.to_thread(
-                law_retriever.batch_search,
-                query_list=[keywords],
-                num=req_topk,
-                return_score=True,
-                context=[context] if context else [None]
-            )
+            async with gpu_semaphore: 
+                results, scores = await asyncio.to_thread(
+                    law_retriever.batch_search,
+                    query_list=[keywords],
+                    num=req_topk,
+                    return_score=True,
+                    context=[context] if context else [None]
+                )
         
         resp = []
         for i, single_result in enumerate(results):
