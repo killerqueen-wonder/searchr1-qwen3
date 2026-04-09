@@ -1006,7 +1006,7 @@ class AsyncHybridFilterRetriever(HybridRetriever):
     async def async_search(self, query: str, num: int = None, return_score: bool = False, context: str = None):
         if not num: num = self.topk
         # 1. 将密集的打分计算丢到后台线程，避免阻塞 FastAPI 事件循环
-        async with gpu_semaphore:
+        async with get_gpu_semaphore():
             candidates, scores = await asyncio.to_thread(super()._search, query, num * self.search_depth, True)
         
         # 2. 异步精排
@@ -1175,6 +1175,15 @@ law_retriever = None
 case_retriever = None
 async_vllm_client = None
 gpu_semaphore = None
+
+def get_gpu_semaphore():
+    """懒加载获取 GPU 信号量，确保在当前事件循环中初始化"""
+    global gpu_semaphore
+    if gpu_semaphore is None:
+        # 这里设置为你的并发限制
+        gpu_semaphore = asyncio.Semaphore(4)
+    return gpu_semaphore
+
 app = FastAPI()
 
 # ==========================================
@@ -1187,7 +1196,6 @@ async def startup_event():
     pid = os.getpid()
     print(f"[INFO] Worker {pid} 正在启动并独立加载模型到显存...")
     
-    gpu_semaphore = asyncio.Semaphore(4)
 
     # 1. 启动 vLLM 客户端
     async_vllm_client = AsyncVLLMClient(global_config)
@@ -1229,9 +1237,9 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         
         search_k = req_topk  # 类案只总结不筛选
         
-        global gpu_semaphore
+
         # 将 CPU 密集的检索丢到后台线程，不阻塞主事件循环
-        async with gpu_semaphore:    
+        async with get_gpu_semaphore():    
             docs, scores = await asyncio.to_thread(
                 case_retriever.search,
                 fact_query=fact_q, 
@@ -1318,7 +1326,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         
         # 适配异步 Filter 检索器或普通检索器
         if isinstance(law_retriever, AsyncHybridFilterRetriever):
-            async with gpu_semaphore: 
+            async with get_gpu_semaphore(): 
                 results, scores = await law_retriever.async_batch_search(
                     query_list=[keywords],
                     num=req_topk,
@@ -1326,7 +1334,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
                     context_list=[context] if context else [None]
                 )
         else:
-            async with gpu_semaphore: 
+            async with get_gpu_semaphore(): 
                 results, scores = await asyncio.to_thread(
                     law_retriever.batch_search,
                     query_list=[keywords],
