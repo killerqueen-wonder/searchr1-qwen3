@@ -1114,7 +1114,7 @@ class UnifiedQueryRequest(BaseModel):
     query: UnifiedQueryItem
     topk: Optional[int] = 5
 
-app = FastAPI()
+
 
 # 【修复关键】：把解析参数和初始化的代码移到全局作用域
 parser = argparse.ArgumentParser(description="Unified Law and Case Retriever.")
@@ -1167,26 +1167,41 @@ global_config = Config(
     vllm_url="http://127.0.0.1:8007/v1/completions" 
 )
 
-# 全局初始化检索器，这样每个 Worker 启动时都会自己加载好 BM25 和 Faiss
-law_retriever = get_async_retriever(global_config)
+# 声明全局变量，但【不在这里实例化模型】！
+law_retriever = None
+case_retriever = None
+async_vllm_client = None
 
-case_config = Config(**global_config.__dict__)
-case_config.corpus_path = global_config.case_corpus_path
-case_retriever = SimilarCaseRetriever(case_config)
+app = FastAPI()
 
 # ==========================================
 # FastAPI 生命周期与路由
 # ==========================================
 @app.on_event("startup")
 async def startup_event():
-    global async_vllm_client
-    # 现在子进程也能找到 global_config 了！
+    global law_retriever, case_retriever, async_vllm_client
+    import os
+    pid = os.getpid()
+    print(f"[INFO] Worker {pid} 正在启动并独立加载模型到显存...")
+    
+    # 1. 启动 vLLM 客户端
     async_vllm_client = AsyncVLLMClient(global_config)
+    
+    # 2. 独立加载法律检索器
+    law_retriever = get_async_retriever(global_config)
+    
+    # 3. 独立加载类案检索器
+    case_config = Config(**global_config.__dict__)
+    case_config.corpus_path = global_config.case_corpus_path
+    case_retriever = SimilarCaseRetriever(case_config)
+    
+    print(f"[INFO] Worker {pid} 模型加载完毕，可以开始接客了！")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     global async_vllm_client
-    await async_vllm_client.close()
+    if async_vllm_client:
+        await async_vllm_client.close()
 
 # ==========================================
 # 核心改造 3：全异步接口路由
