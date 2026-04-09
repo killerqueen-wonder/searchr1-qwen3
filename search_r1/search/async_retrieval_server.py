@@ -72,14 +72,33 @@ class AsyncVLLMClient:
             "temperature": 0.0,
             "stop": ["<|endoftext|>", "<|im_end|>", "<|im_start|>"]
         }
-        try:
-            response = await self.client.post(self.vllm_url, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["text"].strip()
-        except Exception as e:
-            print(f"[ERROR] vLLM async generation failed: {e}")
-            return ""
+
+        max_retries = 3  # 最大重试次数
+        base_wait_time = 1.5  # 基础等待时间（秒）
+
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.post(self.vllm_url, json=payload)
+                
+                # 如果遇到 503 忙碌，主动拦截并等待重试
+                if response.status_code == 503:
+                    print(f"[WARNING] vLLM队列已满 (503), 正在重试 ({attempt+1}/{max_retries})...")
+                    await asyncio.sleep(base_wait_time * (attempt + 1)) # 每次重试等待时间递增
+                    continue
+                    
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["text"].strip()
+                
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    print(f"[ERROR] vLLM 最终生成失败 (已重试 {max_retries} 次): {e}")
+                    return ""
+                
+                # 遇到其他网络波动也稍微等一下重试
+                await asyncio.sleep(base_wait_time)
+                
+        return ""
 
     async def close(self):
         await self.client.aclose()
