@@ -1274,7 +1274,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # (保留你原本所有的 argument 解析代码)
+    
     parser.add_argument("--vllm_url", type=str, default="http://127.0.0.1:8007/v1/completions", help="vLLM API 地址")
     parser.add_argument("--filter_model", type=str, default="Qwen3-8B", help="vLLM 启动的模型名称")
     parser.add_argument("--index_path", type=str, default="/home/peterjin/mnt/index/wiki-18/e5_Flat.index", help="Corpus indexing file.")
@@ -1290,7 +1290,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="shibing624/text2vec-base-chinese-paraphrase", help="Path of the retriever model.")
-    parser.add_argument("--filter_model", type=str, default="")
+
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
 
     parser.add_argument("--port", type=int, default=8006, help="the API port")
