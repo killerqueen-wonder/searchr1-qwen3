@@ -1116,12 +1116,71 @@ class UnifiedQueryRequest(BaseModel):
 
 app = FastAPI()
 
-# 优雅的启动/关闭机制，管理 HTTP 连接池
+# 【修复关键】：把解析参数和初始化的代码移到全局作用域
+parser = argparse.ArgumentParser(description="Unified Law and Case Retriever.")
+parser.add_argument("--index_path", type=str, default="/home/peterjin/mnt/index/wiki-18/e5_Flat.index", help="Corpus indexing file.")
+parser.add_argument("--corpus_path", type=str, required=True, help="法条语料路径")
+parser.add_argument("--case_corpus_path", type=str, required=True, help="类案语料路径")
+parser.add_argument("--dictionary_path", type=str, default='', help="jieba dictionary for law")
+parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
+parser.add_argument("--search_depth", type=int, default=5, help="hydrid search depth")
+parser.add_argument("--bm25_weight", type=int, default=10)
+parser.add_argument("--bm25_weight_factor", type=int, default=3)
+parser.add_argument("--bm25_k1", type=float, default=1.5, help="BM25 k1 parameter")
+parser.add_argument("--bm25_b", type=float, default=0.5, help="BM25 b parameter")
+
+parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
+parser.add_argument("--retriever_model", type=str, default="shibing624/text2vec-base-chinese-paraphrase", help="Path of the retriever model.")
+parser.add_argument("--filter_model", type=str, default="Qwen3-8B")
+parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
+
+parser.add_argument("--port", type=int, default=8006, help="the API port")
+parser.add_argument("--gpu_ids", type=int,  default=2, help="GPU device IDs to use.")
+parser.add_argument("--gpu_memory_limit_per_gpu", type=int, nargs='+', default=[18], help="GPU memory limit per GPU in GB.")
+
+# 使用 parse_known_args 防止与 Uvicorn 的内部参数冲突
+args, unknown = parser.parse_known_args()
+
+# 全局初始化 Config
+global_config = Config(
+    retrieval_method=args.retriever_name,               
+    retrieval_model_path=args.retriever_model,          
+    index_path=args.index_path,
+    corpus_path=args.corpus_path,
+    case_corpus_path=args.case_corpus_path,
+    retrieval_topk=args.topk,
+    faiss_gpu=args.faiss_gpu,
+    port=args.port,  
+    gpu_ids=args.gpu_ids,  
+    gpu_memory_limit_per_gpu=args.gpu_memory_limit_per_gpu,
+    retrieval_pooling_method="mean",
+    retrieval_query_max_length=256,
+    retrieval_use_fp16=True,
+    retrieval_batch_size=512,
+    dictionary_path=args.dictionary_path,
+    search_depth=args.search_depth,
+    bm25_weight=args.bm25_weight,
+    bm25_weight_factor=args.bm25_weight_factor,
+    bm25_k1=args.bm25_k1,
+    bm25_b=args.bm25_b,
+    filter_model=args.filter_model,
+    vllm_url="http://127.0.0.1:8007/v1/completions" 
+)
+
+# 全局初始化检索器，这样每个 Worker 启动时都会自己加载好 BM25 和 Faiss
+law_retriever = get_async_retriever(global_config)
+
+case_config = Config(**global_config.__dict__)
+case_config.corpus_path = global_config.case_corpus_path
+case_retriever = SimilarCaseRetriever(case_config)
+
+# ==========================================
+# FastAPI 生命周期与路由
+# ==========================================
 @app.on_event("startup")
 async def startup_event():
     global async_vllm_client
-    # 在这里初始化 Config 并传入
-    # (此处的 config 应该与你 `__main__` 中的 config 保持一致，你可以在外部声明为全局变量)
+    # 现在子进程也能找到 global_config 了！
     async_vllm_client = AsyncVLLMClient(global_config)
 
 @app.on_event("shutdown")
@@ -1273,66 +1332,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         return {"error": f"未知的检索类型：'{req_type}'，请使用'类案检索'或'法律检索'。"}
     
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Unified Law and Case Retriever.")
-    parser.add_argument("--index_path", type=str, default="/home/peterjin/mnt/index/wiki-18/e5_Flat.index", help="Corpus indexing file.")
-    parser.add_argument("--corpus_path", type=str, required=True, help="法条语料路径")
-    parser.add_argument("--case_corpus_path", type=str, required=True, help="类案语料路径")
-    parser.add_argument("--dictionary_path", type=str, default='', help="jieba dictionary for law")
-    parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
-    parser.add_argument("--search_depth", type=int, default=5, help="hydrid search depth")
-    parser.add_argument("--bm25_weight", type=int, default=10)
-    parser.add_argument("--bm25_weight_factor", type=int, default=3)
-    parser.add_argument("--bm25_k1", type=float, default=1.5, help="BM25 k1 parameter")
-    parser.add_argument("--bm25_b", type=float, default=0.5, help="BM25 b parameter")
-
-    parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
-    parser.add_argument("--retriever_model", type=str, default="shibing624/text2vec-base-chinese-paraphrase", help="Path of the retriever model.")
-    parser.add_argument("--filter_model", type=str, default="Qwen3-8B")
-    parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
-
-    parser.add_argument("--port", type=int, default=8006, help="the API port")
-    parser.add_argument("--gpu_ids", type=int,  default=2, help="GPU device IDs to use.")
-    parser.add_argument("--gpu_memory_limit_per_gpu", type=int, nargs='+', default=[18], help="GPU memory limit per GPU in GB.")
-
-    args, unknown = parser.parse_known_args()
-    
-    # 手动进行精准的参数映射，防止 default 覆盖
-    global global_config
-    global_config = Config(
-        retrieval_method=args.retriever_name,               # 修复1：映射 retriever_name
-        retrieval_model_path=args.retriever_model,          # 修复2：映射 retriever_model
-        index_path=args.index_path,
-        corpus_path=args.corpus_path,
-        case_corpus_path=args.case_corpus_path,
-        retrieval_topk=args.topk,
-        faiss_gpu=args.faiss_gpu,
-        port=args.port,  
-        gpu_ids=args.gpu_ids,  
-        gpu_memory_limit_per_gpu=args.gpu_memory_limit_per_gpu,
-        retrieval_pooling_method="mean",
-        retrieval_query_max_length=256,
-        retrieval_use_fp16=True,
-        retrieval_batch_size=512,
-        dictionary_path=args.dictionary_path,
-        search_depth=args.search_depth,
-        bm25_weight=args.bm25_weight,
-        bm25_weight_factor=args.bm25_weight_factor,
-        bm25_k1=args.bm25_k1,
-        bm25_b=args.bm25_b,
-        filter_model=args.filter_model,
-        # vLLM 的接口地址，确保你在另一台机器/端口启动了它
-        vllm_url="http://127.0.0.1:8007/v1/completions" 
-    )
-
-    global law_retriever
-    law_retriever = get_async_retriever(global_config)
-    
-    # 为类案检索器克隆一份配置，并将目标文件强制指向 case_corpus_path
-    case_config = Config(**global_config.__dict__)
-    case_config.corpus_path = global_config.case_corpus_path
-    
-    global case_retriever
-    case_retriever = SimilarCaseRetriever(case_config)
-    
     print("[INFO] Async Unified Retriever Service Started Successfully!")
+
     uvicorn.run("async_retrieval_server:app", host="0.0.0.0", port=global_config.port, workers=4)
+    
