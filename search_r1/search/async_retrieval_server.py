@@ -1273,10 +1273,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         return {"error": f"未知的检索类型：'{req_type}'，请使用'类案检索'或'法律检索'。"}
     
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    
-    parser.add_argument("--vllm_url", type=str, default="http://127.0.0.1:8007/v1/completions", help="vLLM API 地址")
-    parser.add_argument("--filter_model", type=str, default="Qwen3-8B", help="vLLM 启动的模型名称")
+    parser = argparse.ArgumentParser(description="Unified Law and Case Retriever.")
     parser.add_argument("--index_path", type=str, default="/home/peterjin/mnt/index/wiki-18/e5_Flat.index", help="Corpus indexing file.")
     parser.add_argument("--corpus_path", type=str, required=True, help="法条语料路径")
     parser.add_argument("--case_corpus_path", type=str, required=True, help="类案语料路径")
@@ -1290,45 +1287,42 @@ if __name__ == "__main__":
 
     parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="shibing624/text2vec-base-chinese-paraphrase", help="Path of the retriever model.")
-
+    parser.add_argument("--filter_model", type=str, default="Qwen3-8B")
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
 
     parser.add_argument("--port", type=int, default=8006, help="the API port")
-    # parser.add_argument("--gpu_ids", type=int, nargs='+', default=[2, 3], help="GPU device IDs to use.")
     parser.add_argument("--gpu_ids", type=int,  default=2, help="GPU device IDs to use.")
     parser.add_argument("--gpu_memory_limit_per_gpu", type=int, nargs='+', default=[18], help="GPU memory limit per GPU in GB.")
 
     args, unknown = parser.parse_known_args()
     
+    # 手动进行精准的参数映射，防止 default 覆盖
     global global_config
-    global_config = Config(**vars(args))
-    # Config(
-    #     retrieval_method = args.retriever_name,  
-    #     index_path=args.index_path,
-    #     corpus_path=args.corpus_path,
-    #     case_corpus_path=args.case_corpus_path,
-    #     retrieval_topk=args.topk,
-    #     faiss_gpu=args.faiss_gpu,
-
-    #     port=args.port,  
-    #     gpu_ids=args.gpu_ids,  # 传递 GPU ID
-    #     gpu_memory_limit_per_gpu=args.gpu_memory_limit_per_gpu,  # 传递显存限制
-
-    #     retrieval_model_path=args.retriever_model,
-    #     retrieval_pooling_method="mean",
-    #     retrieval_query_max_length=256,
-    #     retrieval_use_fp16=True,
-    #     retrieval_batch_size=512,
-    #     dictionary_path=args.dictionary_path,
-    #     search_depth=args.search_depth,
-    #     bm25_weight=args.bm25_weight,
-    #     bm25_weight_factor=args.bm25_weight_factor,
-    #     bm25_k1=args.bm25_k1,
-    #     bm25_b=args.bm25_b,
-
-
-    #     filter_model=args.filter_model,
-    # )
+    global_config = Config(
+        retrieval_method=args.retriever_name,               # 修复1：映射 retriever_name
+        retrieval_model_path=args.retriever_model,          # 修复2：映射 retriever_model
+        index_path=args.index_path,
+        corpus_path=args.corpus_path,
+        case_corpus_path=args.case_corpus_path,
+        retrieval_topk=args.topk,
+        faiss_gpu=args.faiss_gpu,
+        port=args.port,  
+        gpu_ids=args.gpu_ids,  
+        gpu_memory_limit_per_gpu=args.gpu_memory_limit_per_gpu,
+        retrieval_pooling_method="mean",
+        retrieval_query_max_length=256,
+        retrieval_use_fp16=True,
+        retrieval_batch_size=512,
+        dictionary_path=args.dictionary_path,
+        search_depth=args.search_depth,
+        bm25_weight=args.bm25_weight,
+        bm25_weight_factor=args.bm25_weight_factor,
+        bm25_k1=args.bm25_k1,
+        bm25_b=args.bm25_b,
+        filter_model=args.filter_model,
+        # vLLM 的接口地址，确保你在另一台机器/端口启动了它
+        vllm_url="http://127.0.0.1:8007/v1/completions" 
+    )
 
     global law_retriever
     law_retriever = get_async_retriever(global_config)
@@ -1336,6 +1330,5 @@ if __name__ == "__main__":
     global case_retriever
     case_retriever = SimilarCaseRetriever(global_config)
     
-    print("[INFO] Async Unified Retriever Service Started!")
-    # 使用 Uvicorn 启动，并可以通过开启多 worker 进一步提升并发处理能力
+    print("[INFO] Async Unified Retriever Service Started Successfully!")
     uvicorn.run("async_retrieval_server:app", host="0.0.0.0", port=global_config.port, workers=4)
