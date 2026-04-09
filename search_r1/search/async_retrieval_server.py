@@ -1349,5 +1349,5 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
 if __name__ == "__main__":
     print("[INFO] Async Unified Retriever Service Started Successfully!")
 
-    uvicorn.run("async_retrieval_server:app", host="0.0.0.0", port=global_config.port, workers=4)
+    uvicorn.run("async_retrieval_server:app", host="0.0.0.0", port=global_config.port, workers=1)
     
