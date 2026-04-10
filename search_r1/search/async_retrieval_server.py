@@ -96,6 +96,11 @@ class AsyncVLLMClient:
                     await asyncio.sleep(base_wait_time * (attempt + 1))
                     continue
                     
+                # ✅ 【关键修改】：应对 400 (超长) - 立即终止，绝对不重试！
+                if response.status_code == 400:
+                    print(f"[FATAL ERROR] 收到 400 Bad Request！通常是 Prompt 太长，直接放弃当前提问。报错详情: {response.text}")
+                    return "" # 直接返回空，释放连接
+                
                 # ✅ 如果发生 404 这种错误，直接打印出服务器返回的详细报错原因
                 if response.status_code == 404:
                     print(f"[FATAL ERROR] 收到 404！vLLM 报错详情: {response.text}")
