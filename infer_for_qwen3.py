@@ -256,42 +256,62 @@ class LLM_retriever:
             print("[WARNING] Empty query passed to search function.")
             return ""
 
-        payload = {"queries": [query], "topk": self.top_k, "return_scores": True}
+        # 【修改点 1：包装成 RAG 接口要求的 UnifiedQueryRequest 格式】
+        payload = {
+            "query": {
+                "检索类型": "法律检索",  # 根据你 prompt 的设定，这里默认走法律检索
+                "关键词": query.strip(), 
+                "检索案情": "",
+                "罪名": [],
+                "其他情节": "",
+                "检索目的": "本地大模型推理"
+            },
+            "topk": self.top_k
+        }
+
         try:
+            # 修改了 timeout 以防 RAG 需要缓冲时间
             response = requests.post(
                 self.retrieve_path,
                 json=payload,
                 proxies={"http": None, "https": None},
-                timeout=10
+                timeout=30 
             )
             response.raise_for_status()
             json_data = response.json()
-            results = json_data.get("result", [])
+            
+            # 【修改点 2：完全对齐 RL/SFT 环境中的返回格式】
+            if "error" in json_data:
+                return f"检索返回错误：{json_data['error']}"
+
+            req_type = json_data.get("检索类型", "法律检索")
+
+            if req_type == "法律检索":
+                results = json_data.get("result", [])
+                format_reference = []
+                
+                for idx, doc_item in enumerate(results):
+                    content = doc_item.get('document', {}).get('content', '')
+                    score = doc_item.get('score', 0.0)
+                    format_reference.append(f"法条参考 {idx + 1} (相关度: {score:.4f}):\n{content}\n")
+                
+                if not format_reference:
+                    return "【法律检索结果】未找到相关的法律条文，请尝试更换关键词。"
+                return "【法律检索结果】\n" + "\n".join(format_reference)
+
+            elif req_type == "类案检索":
+                summary = json_data.get("llm_summary", "未检索到匹配的类案分析结果。")
+                return f"【类案检索分析报告】\n{summary}"
+
         except requests.exceptions.Timeout:
             print("[ERROR] Search request timed out.")
-            return ""
+            return "检索超时，请稍后重试。"
         except requests.exceptions.RequestException as e:
             print(f"[ERROR] Request failed: {e}")
-            return ""
+            return "检索系统网络错误。"
         except ValueError as e:
             print(f"[ERROR] Failed to decode JSON: {e}")
-            return ""
-
-        if not results:
-            print("[INFO] No results returned from search.")
-            return ""
-
-        def _passages2string(retrieval_result):
-            format_reference = ''
-            for idx, doc_item in enumerate(retrieval_result):
-                            
-                content = doc_item['document']['content']
-                title = content.split("\n")[0]
-                text = "\n".join(content.split("\n")[1:])
-                format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
-            return format_reference
-
-        return _passages2string(results[0])
+            return "检索系统返回了不可解析的数据。"
 
     def gen(self, query ,
             #  history = [], model_prompt=""

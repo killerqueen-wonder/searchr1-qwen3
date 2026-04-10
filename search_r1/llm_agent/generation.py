@@ -9,6 +9,9 @@ from verl import DataProto
 from verl.utils.tracking import Tracking
 import shutil
 import requests
+import json
+import requests
+from concurrent.futures import ThreadPoolExecutor
 
 @dataclass
 class GenerationConfig:
@@ -511,52 +514,124 @@ class LLMGenerationManager:
         # return actions, contents
         return actions, contents, contexts
 
-    def batch_search(self, queries: List[str] = None, contexts: List[str] = None) -> str:
-        """
-        Batchified search for queries.
-        Args:
-            queries: queries to call the search engine
-        Returns:
-            search results which is concatenated into a string
-        """
-        results = self._batch_search(queries, contexts)['result']
+    # def batch_search(self, queries: List[str] = None, contexts: List[str] = None) -> str:
+    #     """
+    #     Batchified search for queries.
+    #     Args:
+    #         queries: queries to call the search engine
+    #     Returns:
+    #         search results which is concatenated into a string
+    #     """
+    #     results = self._batch_search(queries, contexts)['result']
         
-        return [self._passages2string(result) for result in results]
+    #     return [self._passages2string(result) for result in results]
 
-    def _batch_search(self, queries: List[str], contexts: List[str]):
+    # def _batch_search(self, queries: List[str], contexts: List[str]):
         
-        payload = {
-            "queries": queries,
-            "topk": self.config.topk,
-            "return_scores": True,
-            "context":contexts
-        }
+    #     payload = {
+    #         "queries": queries,
+    #         "topk": self.config.topk,
+    #         "return_scores": True,
+    #         "context":contexts
+    #     }
         
-        return requests.post(self.config.search_url, json=payload,proxies={"http": None, "https": None},).json()
+    #     return requests.post(self.config.search_url, json=payload,proxies={"http": None, "https": None},).json()
 
-    def _passages2string(self, retrieval_result):
-        format_reference = ''
-        for idx, doc_item in enumerate(retrieval_result):
+    # def _passages2string(self, retrieval_result):
+    #     format_reference = ''
+    #     for idx, doc_item in enumerate(retrieval_result):
             
-            # content = doc_item['document']['content']
-            # title = content.split("\n")[0]
-            # text = "\n".join(content.split("\n")[1:])
-            # format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
-            try:
-                # 增加安全性检查：确保层级 key 存在
-                doc = doc_item.get('document', {})
-                # 这里是报错的地方，我们改用 .get() 并提供默认值，或者在这里打印
-                content = doc.get('content', None)
+    #         # content = doc_item['document']['content']
+    #         # title = content.split("\n")[0]
+    #         # text = "\n".join(content.split("\n")[1:])
+    #         # format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+    #         try:
+    #             # 增加安全性检查：确保层级 key 存在
+    #             doc = doc_item.get('document', {})
+    #             # 这里是报错的地方，我们改用 .get() 并提供默认值，或者在这里打印
+    #             content = doc.get('content', None)
                 
-                if content is None:
-                    print(f"[DEBUG] 接口返回结构异常，当前 doc 键值对为: {doc}")
-                    content = "无可用内容" # 默认填充
+    #             if content is None:
+    #                 print(f"[DEBUG] 接口返回结构异常，当前 doc 键值对为: {doc}")
+    #                 content = "无可用内容" # 默认填充
                 
-                title = content.split("\n")[0] if "\n" in content else "No Title"
-                text = "\n".join(content.split("\n")[1:]) if "\n" in content else content
-                format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
-            except Exception as e:
-                print(f"[ERROR] 解析文档失败: {e}, doc_item 内容为: {doc_item}")
-                format_reference += f"Doc {idx+1}: [解析失败]\n"
+    #             title = content.split("\n")[0] if "\n" in content else "No Title"
+    #             text = "\n".join(content.split("\n")[1:]) if "\n" in content else content
+    #             format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+    #         except Exception as e:
+    #             print(f"[ERROR] 解析文档失败: {e}, doc_item 内容为: {doc_item}")
+    #             format_reference += f"Doc {idx+1}: [解析失败]\n"
 
-        return format_reference
+    #     return format_reference
+
+    def local_rag_search(self, search_json_str: str) -> str:
+        """
+        核心 RAG 解析与请求方法：
+        解析大模型生成的 <search> JSON，发送到 RAG 服务，并按照合成数据脚本逻辑格式化返回。
+        """
+        try:
+            # 1. 尝试解析模型生成的 JSON
+            search_query = json.loads(search_json_str)
+            
+            # 2. 组装发给 FastAPI 的 UnifiedQueryRequest 载荷
+            payload = {
+                "query": search_query,
+                "topk": self.config.topk
+            }
+            
+            # 3. 发送请求 (设置 120s 长超时，因为高并发时 RAG 存在排队)
+            response = requests.post(
+                self.config.search_url,
+                json=payload,
+                proxies={"http": None, "https": None},
+                timeout=120.0
+            )
+            response.raise_for_status()
+            json_data = response.json()
+            
+            # 4. 容错处理
+            if "error" in json_data:
+                return f"检索返回错误：{json_data['error']}"
+
+            # 5. 按照合成数据格式拆解响应
+            req_type = json_data.get("检索类型", "")
+
+            if req_type == "类案检索":
+                summary = json_data.get("llm_summary", "未检索到匹配的类案分析结果。")
+                return f"【类案检索分析报告】\n{summary}"
+
+            elif req_type == "法律检索":
+                results = json_data.get("result", [])
+                format_reference = []
+                
+                for idx, doc_item in enumerate(results):
+                    # 获取内容和分数
+                    content = doc_item.get('document', {}).get('content', '')
+                    score = doc_item.get('score', 0.0)
+                    # 编号从 1 开始，对应 prompt 中的 [法条参考 X]
+                    format_reference.append(f"法条参考 {idx + 1} (相关度: {score:.4f}):\n{content}\n")
+                
+                if not format_reference:
+                    return "【法律检索结果】未找到相关的法律条文，请尝试更换关键词。"
+                return "【法律检索结果】\n" + "\n".join(format_reference)
+            else:
+                return f"未知的检索类型返回，原始数据: {str(json_data)[:200]}"
+                
+        except json.JSONDecodeError as e:
+            return "工具调用失败：<search>标签内的JSON格式不合法，请检查并输出合法的JSON格式再试一次。"
+        except Exception as e:
+            return f"检索请求出错: {str(e)}"
+
+    def batch_search(self, queries: List[str] = None, contexts: List[str] = None) -> List[str]:
+        """
+        利用线程池并发执行 Batch 级别的检索请求，完美对接环境交互循环。
+        """
+        if not queries:
+            return []
+            
+        # 并发量为当前的搜索请求数
+        with ThreadPoolExecutor(max_workers=len(queries)) as executor:
+            # map 会保持输入 list 和输出 list 顺序一致，这对强化学习轨迹的对齐至关重要
+            results = list(executor.map(self.local_rag_search, queries))
+            
+        return results
