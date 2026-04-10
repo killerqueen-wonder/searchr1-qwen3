@@ -65,7 +65,8 @@ class AsyncVLLMClient:
         self.client = httpx.AsyncClient(timeout=120.0,
                                         limits=limits,
                                         trust_env=False, 
-                                        proxies={"http://": None, "https://": None})
+                                        # proxy={"http://": None, "https://": None}
+                                        )
         print(f"[INFO] Async vLLM Client pointing to {self.vllm_url} (Model: {self.model_name})")
 
     async def generate_async(self, prompt: str, max_new_tokens: int = 64) -> str:
