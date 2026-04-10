@@ -75,7 +75,7 @@ class AsyncVLLMClient:
         }
 
         max_retries = 5  # 最大重试次数
-        base_wait_time = 1.5  # 基础等待时间（秒）
+        base_wait_time = 5  # 基础等待时间（秒）
 
         for attempt in range(max_retries):
             try:
