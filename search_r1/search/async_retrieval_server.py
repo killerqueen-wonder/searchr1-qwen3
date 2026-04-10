@@ -70,26 +70,35 @@ class AsyncVLLMClient:
         print(f"[INFO] Async vLLM Client pointing to {self.vllm_url} (Model: {self.model_name})")
 
     async def generate_async(self, prompt: str, max_new_tokens: int = 64) -> str:
+        # ✅ 强制将名字写死，防止被外部参数污染
+        safe_model_name = "Qwen3-8B" 
+        
         payload = {
-            "model": self.model_name,
+            "model": safe_model_name,
             "prompt": prompt,
             "max_tokens": max_new_tokens,
             "temperature": 0.0,
             "stop": ["<|endoftext|>", "<|im_end|>", "<|im_start|>"]
         }
 
-        max_retries = 5  # 最大重试次数
-        base_wait_time = 5  # 基础等待时间（秒）
+        # ✅ 新增：在终端打印发送给 vLLM 的精准数据，方便核对
+        # print(f"[DEBUG vLLM Payload] URL: {self.vllm_url} | Model: {safe_model_name}")
+
+        max_retries = 5  
+        base_wait_time = 1.5 
 
         for attempt in range(max_retries):
             try:
                 response = await self.client.post(self.vllm_url, json=payload)
                 
-                # 如果遇到 503 忙碌，主动拦截并等待重试
                 if response.status_code == 503:
                     print(f"[WARNING] vLLM队列已满 (503), 正在重试 ({attempt+1}/{max_retries})...")
-                    await asyncio.sleep(base_wait_time * (attempt + 1)) # 每次重试等待时间递增
+                    await asyncio.sleep(base_wait_time * (attempt + 1))
                     continue
+                    
+                # ✅ 如果发生 404 这种错误，直接打印出服务器返回的详细报错原因
+                if response.status_code == 404:
+                    print(f"[FATAL ERROR] 收到 404！vLLM 报错详情: {response.text}")
                     
                 response.raise_for_status()
                 data = response.json()
@@ -99,8 +108,6 @@ class AsyncVLLMClient:
                 if attempt == max_retries - 1:
                     print(f"[ERROR] vLLM 最终生成失败 (已重试 {max_retries} 次): {e}")
                     return ""
-                
-                # 遇到其他网络波动也稍微等一下重试
                 await asyncio.sleep(base_wait_time)
                 
         return ""
