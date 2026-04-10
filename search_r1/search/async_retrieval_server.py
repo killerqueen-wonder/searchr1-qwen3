@@ -61,7 +61,8 @@ class AsyncVLLMClient:
     def __init__(self, config):
         self.vllm_url = getattr(config, "vllm_url", "http://127.0.0.1:8007/v1/completions")
         self.model_name = getattr(config, "filter_model", "Qwen3-8B")
-        self.client = httpx.AsyncClient(timeout=60.0)
+        limits = httpx.Limits(max_keepalive_connections=50, max_connections=200)
+        self.client = httpx.AsyncClient(timeout=120.0,limits=limits)
         print(f"[INFO] Async vLLM Client pointing to {self.vllm_url} (Model: {self.model_name})")
 
     async def generate_async(self, prompt: str, max_new_tokens: int = 64) -> str:
@@ -73,7 +74,7 @@ class AsyncVLLMClient:
             "stop": ["<|endoftext|>", "<|im_end|>", "<|im_start|>"]
         }
 
-        max_retries = 3  # 最大重试次数
+        max_retries = 5  # 最大重试次数
         base_wait_time = 1.5  # 基础等待时间（秒）
 
         for attempt in range(max_retries):
@@ -1345,13 +1346,13 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         
         # 适配异步 Filter 检索器或普通检索器
         if isinstance(law_retriever, AsyncHybridFilterRetriever):
-            async with get_gpu_semaphore(): 
-                results, scores = await law_retriever.async_batch_search(
-                    query_list=[keywords],
-                    num=req_topk,
-                    return_score=True,
-                    context_list=[context] if context else [None]
-                )
+            #去掉外层信号量，因为内部的 async_search 已经加了保护
+            results, scores = await law_retriever.async_batch_search(
+                query_list=[keywords],
+                num=req_topk,
+                return_score=True,
+                context_list=[context] if context else [None]
+            )
         else:
             async with get_gpu_semaphore(): 
                 results, scores = await asyncio.to_thread(
