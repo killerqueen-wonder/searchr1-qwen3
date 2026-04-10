@@ -62,7 +62,10 @@ class AsyncVLLMClient:
         self.vllm_url = getattr(config, "vllm_url", "http://127.0.0.1:8007/v1/completions")
         self.model_name = getattr(config, "filter_model", "Qwen3-8B")
         limits = httpx.Limits(max_keepalive_connections=50, max_connections=200)
-        self.client = httpx.AsyncClient(timeout=120.0,limits=limits)
+        self.client = httpx.AsyncClient(timeout=120.0,
+                                        limits=limits,
+                                        trust_env=False, 
+                                        proxies={"http://": None, "https://": None})
         print(f"[INFO] Async vLLM Client pointing to {self.vllm_url} (Model: {self.model_name})")
 
     async def generate_async(self, prompt: str, max_new_tokens: int = 64) -> str:
