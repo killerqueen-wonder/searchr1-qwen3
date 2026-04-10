@@ -634,7 +634,7 @@ class HybridFilterRetriever(HybridRetriever):
             "- 【检索词】：{query}\n"
             "- 【语境信息】：{context}\n"
             "- 【备选文本】：\n{results}\n\n"
-            "### 筛选结果（仅输出列表）："
+            "### 筛选结果（仅输出列表）：/no_think"
         )
 
     def _llm_filter(self,num:int, query: str, candidates: List[Dict], scores: List[float], 
@@ -996,7 +996,7 @@ class AsyncHybridFilterRetriever(HybridRetriever):
             "- 【检索词】：{query}\n"
             "- 【语境信息】：{context}\n"
             "- 【备选文本】：\n{results}\n\n"
-            "### 筛选结果（仅输出列表）："
+            "### 筛选结果（仅输出列表）：/no_think"
         )
 
     async def _async_llm_filter(self, num: int, query: str, candidates: List[Dict], scores: List[float], 
@@ -1298,7 +1298,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
                 f"- 【候选案例 - 案情】：{doc_fact[:1800]}...\n"
                 f"- 【候选案例 - 裁判推理】：{doc_reason[:1800]}...\n"
                 f"- 【候选案例 - 判决结果】：{doc_result[:1400]}...\n\n"
-                "### 输出（请直接输出200字简报）："
+                "### 输出（请直接输出200字简报）： /no_think"
             )
             analysis = await async_vllm_client.generate_async(prompt, max_new_tokens=400)
             return analysis.strip()
