@@ -245,46 +245,56 @@ class LLM_retriever:
         self.curr_eos = [151645, 151643]
         self.search_template = '\n\n{output_text}<information>{search_results}</information>\n\n'
 
+
     def _extract_query(self, text):
+        """提取 <search> 标签内的内容，并清洗可能附带的 Markdown 代码块"""
         pattern = re.compile(r"<search>(.*?)</search>", re.DOTALL)
         matches = pattern.findall(text)
-        return matches[-1] if matches else None
+        if matches:
+            query_str = matches[-1].strip()
+            # 容错：防止大模型在标签内输出了 ```json ... ``` 这种 markdown 格式
+            query_str = re.sub(r'^```json', '', query_str)
+            query_str = re.sub(r'```$', '', query_str).strip()
+            return query_str
+        return None
 
-    def _search(self, query):
-        """调用本地检索服务"""
-        if not query or not query.strip():
+    def _search(self, query_str):
+        """将提取出的 JSON 字符串解析并发送到 RAG 服务端"""
+        if not query_str or not query_str.strip():
             print("[WARNING] Empty query passed to search function.")
-            return ""
+            return "检索失败：未提供有效的检索词。"
 
-        # 【修改点 1：包装成 RAG 接口要求的 UnifiedQueryRequest 格式】
+        # 1. 尝试将模型生成的字符串解析为 JSON 字典
+        try:
+            search_query_dict = json.loads(query_str)
+        except json.JSONDecodeError as e:
+            print(f"\n[WARNING] 模型生成的检索词并非合法 JSON: {e}")
+            print(f"原始内容: {query_str}")
+            # 严格对齐 GRPO 训练环境的反馈，让模型在下一轮尝试自我纠正
+            return "工具调用失败：<search>标签内的JSON格式不合法，请检查并严格按照JSON格式输出再试一次。"
+
+        # 2. 包装成 RAG 接口要求的 UnifiedQueryRequest 格式
         payload = {
-            "query": {
-                "检索类型": "法律检索",  # 根据你 prompt 的设定，这里默认走法律检索
-                "关键词": query.strip(), 
-                "检索案情": "",
-                "罪名": [],
-                "其他情节": "",
-                "检索目的": "本地大模型推理"
-            },
+            "query": search_query_dict,
             "topk": self.top_k
         }
 
+        # 3. 发送 HTTP 请求
         try:
-            # 修改了 timeout 以防 RAG 需要缓冲时间
             response = requests.post(
                 self.retrieve_path,
                 json=payload,
                 proxies={"http": None, "https": None},
-                timeout=100 
+                timeout=120  # 保持长超时以防高并发排队
             )
             response.raise_for_status()
             json_data = response.json()
             
-            # 【修改点 2：完全对齐 RL/SFT 环境中的返回格式】
+            # 4. 解析并组装返回结果（完全对齐生成训练数据的格式）
             if "error" in json_data:
                 return f"检索返回错误：{json_data['error']}"
 
-            req_type = json_data.get("检索类型", "法律检索")
+            req_type = json_data.get("检索类型", "")
 
             if req_type == "法律检索":
                 results = json_data.get("result", [])
@@ -302,16 +312,16 @@ class LLM_retriever:
             elif req_type == "类案检索":
                 summary = json_data.get("llm_summary", "未检索到匹配的类案分析结果。")
                 return f"【类案检索分析报告】\n{summary}"
+            
+            else:
+                return f"未知的检索类型返回，原始数据: {str(json_data)[:200]}"
 
         except requests.exceptions.Timeout:
             print("[ERROR] Search request timed out.")
             return "检索超时，请稍后重试。"
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"[ERROR] Request failed: {e}")
-            return "检索系统网络错误。"
-        except ValueError as e:
-            print(f"[ERROR] Failed to decode JSON: {e}")
-            return "检索系统返回了不可解析的数据。"
+            return f"检索系统网络或内部错误: {str(e)}"
 
     def gen(self, query ,
             #  history = [], model_prompt=""
