@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # 1. 设置使用的显卡 (使用第4张 A800)
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=0
 
 # 2. 模型路径
-MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-4B-Instruct-2507" # 请修改为你的实际路径
+# MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-4B-Instruct-2507" # 请修改为你的实际路径
+MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B" # 请修改为你的实际路径
 # MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B" # 请修改为你的实际路径
 
 # 3. 启动 vLLM API 服务

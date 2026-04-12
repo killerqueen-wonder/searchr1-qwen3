@@ -110,11 +110,18 @@ def default_compute_score(
 
         res = local_LLM_judgement.compute_score(solution_str, ground_truth,extra_info)
     elif data_source in [
+        'multi',
+    ]:#暂时按主观题
+        from . import local_LLM_judgement
+
+        res = local_LLM_judgement.compute_score(solution_str, ground_truth,extra_info)
+    elif data_source in [
         'legal_exam',
     ]:
         from . import local_LLM_judgement_choice
 
         res = local_LLM_judgement_choice.compute_score(solution_str, ground_truth,extra_info)
+    
 
     else:
         raise NotImplementedError(f"Reward function is not implemented for {data_source=}")
