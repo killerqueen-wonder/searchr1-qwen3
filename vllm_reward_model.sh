@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # 1. 设置使用的显卡 (使用第4张 A800)
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 
 # 2. 模型路径
 # MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-4B-Instruct-2507" # 请修改为你的实际路径
-MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B" # 请修改为你的实际路径
+MODEL_PATH="/data/panghuaiwen/legal_R1/model/Qwen/Qwen3-8B" # 请修改为你的实际路径
 # MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B" # 请修改为你的实际路径
 
 # 3. 启动 vLLM API 服务
@@ -24,7 +24,7 @@ python -m vllm.entrypoints.openai.api_server \
     --host 0.0.0.0 \
     --port 9000 \
     --enable-prefix-caching \
-    --max-num-seqs 2 \
+    --max-num-seqs 128 \
     --max-model-len 20000 \
-    --gpu-memory-utilization 0.15 \
+    --gpu-memory-utilization 0.3 \
     --trust-remote-code
