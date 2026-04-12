@@ -570,6 +570,7 @@ class LLMGenerationManager:
         解析大模型生成的 <search> JSON，发送到 RAG 服务，并按照合成数据脚本逻辑格式化返回。
         """
         try:
+            search_json_str = search_json_str.replace('，', ',')
             # 1. 尝试解析模型生成的 JSON
             search_query = json.loads(search_json_str)
             
