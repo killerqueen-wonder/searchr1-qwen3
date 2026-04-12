@@ -1,9 +1,9 @@
 #适用4A800
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-export DATA_DIR='/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/legal_exam'
+export DATA_DIR='/data/panghuaiwen/legal_R1/dataset/RL_parquet'
 
-export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_SFT5.5_0127/checkpoint-2-504/tfmr"
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-6.0-0205
+export BASE_MODEL="/data/panghuaiwen/legal_R1/model/SFT_ckp/qwen3_SFT6.0_0407/checkpoint-2-708/tfmr"
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.0-0413
 
 WAND_PROJECT='Search-R1'
 
@@ -63,7 +63,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.total_training_steps=151 \
     trainer.resume_mode=disable \
     trainer.default_hdfs_dir=null \
-    trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
+    trainer.default_local_dir=/data/panghuaiwen/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
     +max_turns=10 \
     ray_kwargs.ray_init.num_cpus=16 \
     +retriever.url="http://127.0.0.1:8005/retrieve" \
