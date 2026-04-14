@@ -3,7 +3,7 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 export DATA_DIR='/data/panghuaiwen/legal_R1/dataset/RL_parquet'
 
 export BASE_MODEL="/data/panghuaiwen/legal_R1/model/SFT_ckp/qwen3_SFT6.0_0407/checkpoint-2-708/tfmr"
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.0-0413
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.0-0414
 
 WAND_PROJECT='Search-R1'
 
