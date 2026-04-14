@@ -1,4 +1,4 @@
-#适用4A800
+#适用4H200
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 export DATA_DIR='/data/panghuaiwen/legal_R1/dataset/RL_parquet'
 
@@ -29,23 +29,23 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=true \
     actor_rollout_ref.actor.ppo_mini_batch_size=16 \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.actor.use_kl_loss=true \
     actor_rollout_ref.actor.kl_loss_coef=0.001 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.entropy_coeff=0 \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
-    actor_rollout_ref.actor.fsdp_config.param_offload=true \
-    actor_rollout_ref.actor.fsdp_config.optimizer_offload=true \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.actor.fsdp_config.param_offload=false \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=false \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.35 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.45 \
     actor_rollout_ref.rollout.n=4 \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=2 \
-    actor_rollout_ref.ref.fsdp_config.param_offload=true \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 \
+    actor_rollout_ref.ref.fsdp_config.param_offload=false \
     actor_rollout_ref.rollout.temperature=0.2 \
-    actor_rollout_ref.rollout.max_num_batched_tokens=23000 \
+    actor_rollout_ref.rollout.max_num_batched_tokens=63000 \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
     +trainer.use_critic=false \
@@ -54,7 +54,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.logger='["wandb"]' \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
-    trainer.val_before_train=false \
+    trainer.val_before_train=true \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.save_freq=30 \
