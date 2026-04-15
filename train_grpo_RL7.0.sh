@@ -57,10 +57,10 @@ python3 -m verl.trainer.main_ppo \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
-    trainer.save_freq=30 \
-    trainer.test_freq=30 \
-    trainer.total_epochs=10 \
-    trainer.total_training_steps=151 \
+    trainer.save_freq=40 \
+    trainer.test_freq=40 \
+    trainer.total_epochs=2 \
+    trainer.total_training_steps=1601 \
     trainer.resume_mode=disable \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=/data/panghuaiwen/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
