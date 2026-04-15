@@ -3,7 +3,7 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 export DATA_DIR='/data/panghuaiwen/legal_R1/dataset/RL_parquet'
 
 export BASE_MODEL="/data/panghuaiwen/legal_R1/model/SFT_ckp/qwen3_SFT6.0_0407/checkpoint-2-708/tfmr"
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.0-0414
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.0-0415
 
 WAND_PROJECT='Search-R1'
 
@@ -18,12 +18,12 @@ python3 -m verl.trainer.main_ppo \
     data.val_files=$DATA_DIR/test.parquet \
     data.train_batch_size=16 \
     data.val_batch_size=16 \
-    data.max_prompt_length=19000 \
+    data.max_prompt_length=28000 \
     data.max_response_length=1200 \
-    +data.max_start_length=1000 \
-    +data.max_obs_length=700 \
+    +data.max_start_length=4000 \
+    +data.max_obs_length=2000 \
     +data.shuffle_train_dataloader=true \
-    data.filter_overlong_prompts=false \
+    data.filter_overlong_prompts=true \
     data.truncation='error' \
     actor_rollout_ref.model.path=$BASE_MODEL \
     actor_rollout_ref.actor.optim.lr=1e-6 \
@@ -40,7 +40,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.45 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.55 \
     actor_rollout_ref.rollout.n=4 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.ref.fsdp_config.param_offload=false \
@@ -67,5 +67,5 @@ python3 -m verl.trainer.main_ppo \
     +max_turns=10 \
     ray_kwargs.ray_init.num_cpus=16 \
     +retriever.url="http://127.0.0.1:8005/retrieve" \
-    +retriever.topk=10 \
+    +retriever.topk=8 \
     2>&1 | tee $EXPERIMENT_NAME.log
