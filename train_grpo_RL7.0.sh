@@ -16,8 +16,8 @@ python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
-    data.train_batch_size=16 \
-    data.val_batch_size=16 \
+    data.train_batch_size=8 \
+    data.val_batch_size=8 \
     data.max_prompt_length=28000 \
     data.max_response_length=1200 \
     +data.max_start_length=4000 \
@@ -54,7 +54,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.logger='["wandb"]' \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
-    trainer.val_before_train=true \
+    trainer.val_before_train=false \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.save_freq=30 \
