@@ -167,10 +167,10 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     final_score = quality_score
     
     # --- 日志采样 ---
-    if random.randint(1, 32) == 1:
+    if random.randint(1, 10) == 1:
         print(f"\n[Subjective RL] Score: {final_score:.2f}")
-        print(f"Q: {question[:50]}...")
-        print(f"GT: {reference[:50]}...")
-        print(f"Model Answer: {answer_content[:50]}...")
+        print(f"Q: {question}...")
+        print(f"GT: {reference}...")
+        print(f"Model Answer: {answer_content}...")
 
     return final_score
