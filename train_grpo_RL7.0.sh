@@ -57,8 +57,8 @@ python3 -m verl.trainer.main_ppo \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
-    trainer.save_freq=80 \
-    trainer.test_freq=80 \
+    trainer.save_freq=100 \
+    trainer.test_freq=100 \
     trainer.total_epochs=2 \
     trainer.total_training_steps=1601 \
     trainer.resume_mode=disable \
