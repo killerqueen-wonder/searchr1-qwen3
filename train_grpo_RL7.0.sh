@@ -1,5 +1,5 @@
-#适用4H200
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+#适用8H200
+# export CUDA_VISIBLE_DEVICES=0,1,2,3
 export DATA_DIR='/data/panghuaiwen/legal_R1/dataset/RL_parquet'
 
 export BASE_MODEL="/data/panghuaiwen/legal_R1/model/SFT_ckp/qwen3_SFT6.0_0407/checkpoint-2-708/tfmr"
@@ -16,8 +16,8 @@ python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
-    data.train_batch_size=8 \
-    data.val_batch_size=8 \
+    data.train_batch_size=16 \
+    data.val_batch_size=16 \
     data.max_prompt_length=28000 \
     data.max_response_length=1200 \
     +data.max_start_length=4000 \
