@@ -11,12 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# Copyright 2024 Bytedance Ltd. and/or its affiliates
-# ... [保留原有的 License 声明]
 
 from collections import defaultdict
 from typing import Any
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import torch
 
@@ -28,15 +25,28 @@ from verl.workers.reward_manager.abstract import AbstractRewardManager
 
 @register("naive")
 class NaiveRewardManager(AbstractRewardManager):
-    """The reward manager with concurrent processing support."""
+    """The reward manager."""
 
     def __init__(self, tokenizer, num_examine, compute_score=None, reward_fn_key="data_source") -> None:
-        self.tokenizer = tokenizer  
-        self.num_examine = num_examine  
+        """
+        Initialize the NaiveRewardManager instance.
+
+        Args:
+            tokenizer: The tokenizer used to decode token IDs into text.
+            num_examine: The number of batches of decoded responses to print to the console for debugging purpose.
+            compute_score: A function to compute the reward score. If None, `default_compute_score` will be used.
+            reward_fn_key: The key used to access the data source in the non-tensor batch data. Defaults to
+                "data_source".
+        """
+        self.tokenizer = tokenizer  # Store the tokenizer for decoding token IDs
+        self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or default_compute_score
-        self.reward_fn_key = reward_fn_key  
+        self.reward_fn_key = reward_fn_key  # Store the key for accessing the data source
 
     def __call__(self, data: DataProto, return_dict: bool = False) -> torch.Tensor | dict[str, Any]:
+        """We will expand this function gradually based on the available datasets"""
+
+        # If there is rm score, we directly return rm score. Otherwise, we compute via rm_score_fn
         if "rm_scores" in data.batch.keys():
             if return_dict:
                 reward_extra_keys = data.meta_info.get("reward_extra_keys", [])
@@ -49,14 +59,12 @@ class NaiveRewardManager(AbstractRewardManager):
         reward_extra_info = defaultdict(list)
 
         already_print_data_sources = {}
-        batch_size = len(data)
-        
-        # --- Step 1: 预处理所有数据并准备任务字典 ---
-        tasks = []
-        for i in range(batch_size):
-            data_item = data[i]
+
+        for i in range(len(data)):
+            data_item = data[i]  # DataProtoItem
 
             prompt_ids = data_item.batch["prompts"]
+
             prompt_length = prompt_ids.shape[-1]
 
             valid_prompt_length = data_item.batch["attention_mask"][:prompt_length].sum()
@@ -77,49 +85,13 @@ class NaiveRewardManager(AbstractRewardManager):
             rollout_reward_scores = data_item.non_tensor_batch.get("reward_scores", {})
             extra_info["num_turns"] = num_turns
             extra_info["rollout_reward_scores"] = rollout_reward_scores
-            
-            # 将需要的信息打包存入 tasks 列表
-            tasks.append({
-                "index": i,
-                "prompt_str": prompt_str,
-                "response_str": response_str,
-                "ground_truth": ground_truth,
-                "data_source": data_source,
-                "extra_info": extra_info,
-                "valid_response_length": valid_response_length
-            })
 
-        # --- Step 2: 定义单任务执行函数 ---
-        def _process_single_task(task):
             score = self.compute_score(
-                data_source=task["data_source"],
-                solution_str=task["response_str"],
-                ground_truth=task["ground_truth"],
-                extra_info=task["extra_info"],
+                data_source=data_source,
+                solution_str=response_str,
+                ground_truth=ground_truth,
+                extra_info=extra_info,
             )
-            return task["index"], score
-
-        # --- Step 3: 多线程并发请求 ---
-        scores_result = [None] * batch_size
-        # max_workers 可以根据你的并发容忍度调整，32 到 64 对于 LLM API 请求通常比较合适
-        with ThreadPoolExecutor(max_workers=32) as executor:
-            # 提交所有任务到线程池
-            futures = [executor.submit(_process_single_task, task) for task in tasks]
-            
-            # 等待并收集结果
-            for future in as_completed(futures):
-                idx, score = future.result()  # 如果请求抛出异常，这里会报错并终止
-                scores_result[idx] = score
-
-        # --- Step 4: 合并结果、填充 Tensor 与日志打印 ---
-        for task in tasks:
-            i = task["index"]
-            score = scores_result[i]
-            valid_response_length = task["valid_response_length"]
-            data_source = task["data_source"]
-            prompt_str = task["prompt_str"]
-            response_str = task["response_str"]
-            ground_truth = task["ground_truth"]
 
             if isinstance(score, dict):
                 reward = score["score"]
@@ -131,7 +103,6 @@ class NaiveRewardManager(AbstractRewardManager):
 
             reward_tensor[i, valid_response_length - 1] = reward
 
-            # 日志打印逻辑保持不变
             if data_source not in already_print_data_sources:
                 already_print_data_sources[data_source] = 0
 
