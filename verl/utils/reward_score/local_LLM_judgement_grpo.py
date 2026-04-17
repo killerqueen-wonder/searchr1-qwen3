@@ -1,7 +1,6 @@
 import re
 import random
-import asyncio
-from openai import AsyncOpenAI
+from openai import OpenAI
 
 # =============================================================================
 # 1. 核心 Prompt 定义 (GRPO 定制版)
@@ -33,21 +32,30 @@ JUDGE_PROMPT_TEMPLATE = """你是一位公正的法律专家评委。请评估AI
 请仅输出一个评分数字，格式严格为：[[分数]]，例如 [[85]] 或 [[100]]。不要输出任何其他解释。 /no_think"""
 
 # =============================================================================
-# 2. 异步大模型裁判
+# 2. 单例客户端管理 (同步模式)
 # =============================================================================
-class AsyncVLLMRewardManager:
+_GLOBAL_CLIENT = None
+
+def get_client(api_url="http://localhost:9000/v1"):
+    global _GLOBAL_CLIENT
+    if _GLOBAL_CLIENT is None:
+        # 使用同步调用，避免 RL 框架中的 event loop 冲突
+        _GLOBAL_CLIENT = OpenAI(api_key="EMPTY", base_url=api_url)
+    return _GLOBAL_CLIENT
+
+class VLLMRewardManager:
     def __init__(self, api_url="http://localhost:9000/v1"):
-        self.client = AsyncOpenAI(api_key="EMPTY", base_url=api_url)
+        self.client = get_client(api_url)
         self.model_name = "qwen3-8b-reward" 
 
-    async def get_subjective_score_async(self, question: str, ground_truth: str, model_output: str) -> float:
+    def get_subjective_score(self, question: str, ground_truth: str, model_output: str) -> float:
         prompt = JUDGE_PROMPT_TEMPLATE.format(
             question=question,
             ground_truth=ground_truth,
             model_output=model_output
         )
         try:
-            response = await self.client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0, 
@@ -78,6 +86,9 @@ def correct_format(text):
         
     if "<search>" in text and "</search>" not in text:
         return False
+    
+    if "<syllogism>" in text and "</syllogism>" not in text:
+        return False
 
     return True
 
@@ -86,10 +97,13 @@ def extract_answer_content(text):
     return match.group(1).strip() if match else ""
 
 # =============================================================================
-# 4. 核心评分逻辑 (GRPO 防零方差设计)
+# 4. 核心评分逻辑 (统一为 compute_score 接口)
 # =============================================================================
-async def compute_score_async(solution_str, ground_truth, extra_info, manager: AsyncVLLMRewardManager):
-    
+def compute_score(solution_str, ground_truth, extra_info=None):
+    """
+    统一的接口格式：接收单个 solution_str 并返回 float 分数。
+    保留了 GRPO 的零方差熔断器设计。
+    """
     ground_truth = ground_truth.get("target", []) if isinstance(ground_truth, dict) else ground_truth
     if isinstance(ground_truth, list):
         reference = "\n".join([str(x) for x in ground_truth if x])
@@ -108,49 +122,27 @@ async def compute_score_async(solution_str, ground_truth, extra_info, manager: A
     if len(answer_content) < 5:
         return 0.05  
 
-    # --- Step 3: 异步 LLM Judge ---
-    quality_score = await manager.get_subjective_score_async(
+    # --- Step 3: 同步 LLM Judge ---
+    manager = VLLMRewardManager()
+    quality_score = manager.get_subjective_score(
         question=question,
         ground_truth=reference,
         model_output=solution_str
     )
     
     # --- Step 4: GRPO 零方差熔断器 (Tie-breaker) ---
-    # 巧妙的技巧：加上一段极其微小的基于回答长度的扰动。
-    # 即使 Judge 给这 4 个回答都打了 0.85 分，加上扰动后就会变成 0.85012, 0.85015...
+    # 加上一段极其微小的基于回答长度的扰动。
+    # 即使 Judge 给这几个回答都打了 0.85 分，加上扰动后就会变成 0.85012, 0.85015...
     # 从而保证标准差不为 0，模型能够区分出“在同样得分下，稍微详尽一点的更好”，保持梯度流动。
     length_bonus = min(0.01, len(answer_content) * 0.00001)
     final_score = quality_score + length_bonus
     
-    # 日志抽样打印
     # --- 日志采样 ---
     if random.randint(1, 64) == 1:
         print(f"\n[Subjective RL] Score: {final_score:.2f}")
-        print(f"Q: {question}...")
-        print(f"GT: {reference}...")
-        print(f"Model Answer: {answer_content}...")
+        print(f"Q: {question[:100]}...")
+        print(f"GT: {reference[:500]}...")
+        # 截断长文本避免刷屏
+        print(f"Model Answer: {answer_content[:1500]}...")
 
     return final_score
-
-# =============================================================================
-# 5. 批处理入口点
-# =============================================================================
-def compute_batch_scores(solutions_list, ground_truths_list, extra_infos_list):
-    """
-    外层包装函数：并发请求，加速 64 个样本的裁判打分！
-    """
-    manager = AsyncVLLMRewardManager()
-    
-    async def run_all():
-        tasks = []
-        for sol, gt, info in zip(solutions_list, ground_truths_list, extra_infos_list):
-            tasks.append(compute_score_async(sol, gt, info, manager))
-        return await asyncio.gather(*tasks)
-    
-    loop = asyncio.get_event_loop()
-    if loop.is_running():
-        import nest_asyncio
-        nest_asyncio.apply()
-    
-    scores = asyncio.run(run_all())
-    return scores
