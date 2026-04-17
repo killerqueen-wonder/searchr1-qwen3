@@ -102,7 +102,7 @@ class NaiveRewardManager(AbstractRewardManager):
         # --- Step 3: 多线程并发请求 ---
         scores_result = [None] * batch_size
         # max_workers 可以根据你的并发容忍度调整，32 到 64 对于 LLM API 请求通常比较合适
-        with ThreadPoolExecutor(max_workers=32) as executor:
+        with ThreadPoolExecutor(max_workers=64) as executor:
             # 提交所有任务到线程池
             futures = [executor.submit(_process_single_task, task) for task in tasks]
             
