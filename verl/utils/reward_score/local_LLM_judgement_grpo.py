@@ -143,6 +143,6 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         print(f"Q: {question[:100]}...")
         print(f"GT: {reference[:500]}...")
         # 截断长文本避免刷屏
-        print(f"Model Answer: {answer_content[:1500]}...")
+        print(f"Model Answer: {answer_content}")
 
     return final_score
