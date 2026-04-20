@@ -2,8 +2,8 @@
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 export DATA_DIR='/data/panghuaiwen/legal_R1/dataset/RL_parquet'
 
-export BASE_MODEL="/data/panghuaiwen/legal_R1/model/SFT_ckp/qwen3_SFT6.2_0419/checkpoint-2-708/tfmr"
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.2-0419
+export BASE_MODEL="/data/panghuaiwen/legal_R1/model/SFT_ckp/qwen3_SFT6.2_0419/checkpoint-2-750/tfmr"
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.2-0420
 
 WAND_PROJECT='Search-R1'
 
@@ -44,7 +44,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.n=4 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.ref.fsdp_config.param_offload=true \
-    actor_rollout_ref.rollout.temperature=0.2 \
+    actor_rollout_ref.rollout.temperature=0.4 \
     actor_rollout_ref.rollout.max_num_batched_tokens=33000 \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
@@ -60,7 +60,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.save_freq=100 \
     trainer.test_freq=100 \
     trainer.total_epochs=2 \
-    trainer.total_training_steps=1601 \
+    trainer.total_training_steps=1801 \
     trainer.resume_mode=disable \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=/data/panghuaiwen/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
