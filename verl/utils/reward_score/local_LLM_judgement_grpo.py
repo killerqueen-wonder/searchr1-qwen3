@@ -134,8 +134,8 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     # 加上一段极其微小的基于回答长度的扰动。
     # 即使 Judge 给这几个回答都打了 0.85 分，加上扰动后就会变成 0.85012, 0.85015...
     # 从而保证标准差不为 0，模型能够区分出“在同样得分下，稍微详尽一点的更好”，保持梯度流动。
-    length_bonus = min(0.01, len(answer_content) * 0.00001)
-    final_score = quality_score + length_bonus
+    length_bonus = min(0.01, len(answer_content) * 0.000001)
+    final_score = quality_score - length_bonus
     
     # --- 日志采样 ---
     if random.randint(1, 64) == 1:
