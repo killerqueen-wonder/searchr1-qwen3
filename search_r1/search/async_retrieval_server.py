@@ -107,7 +107,8 @@ class AsyncVLLMClient:
                     
                 response.raise_for_status()
                 data = response.json()
-                print(f"[debug] 检索结果： {data["choices"][0]["text"].strip()}")
+                print("[debug] 检索结果： ")
+                print(data["choices"][0]["text"].strip())
                 return data["choices"][0]["text"].strip()
                 
             except Exception as e:
