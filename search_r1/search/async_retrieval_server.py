@@ -82,7 +82,7 @@ class AsyncVLLMClient:
         }
 
         # ✅ 新增：在终端打印发送给 vLLM 的精准数据，方便核对
-        # print(f"[DEBUG vLLM Payload] URL: {self.vllm_url} | Model: {safe_model_name}")
+        print(f"[DEBUG vLLM Payload] URL: {self.vllm_url} | Model: {safe_model_name}")
 
         max_retries = 5  
         base_wait_time = 1.5 
@@ -1173,6 +1173,7 @@ parser.add_argument("--bm25_b", type=float, default=0.5, help="BM25 b parameter"
 parser.add_argument("--retriever_name", type=str, default="text2vec", help="Name of the retriever model.")
 parser.add_argument("--retriever_model", type=str, default="shibing624/text2vec-base-chinese-paraphrase", help="Path of the retriever model.")
 parser.add_argument("--filter_model", type=str, default="Qwen3-8B")
+parser.add_argument("--vllm_url", type=str, default="http://127.0.0.1:8006/v1/completions", help="Filter LLM API URL")
 parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
 
 parser.add_argument("--port", type=int, default=8006, help="the API port")
@@ -1205,7 +1206,7 @@ global_config = Config(
     bm25_k1=args.bm25_k1,
     bm25_b=args.bm25_b,
     filter_model=args.filter_model,
-    vllm_url="http://127.0.0.1:8007/v1/completions" 
+    vllm_url=args.vllm_url
 )
 
 # 声明全局变量，但【不在这里实例化模型】！
