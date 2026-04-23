@@ -96,6 +96,14 @@ def extract_answer_content(text):
     match = re.search(r"<answer>(.*?)(</answer>|$)", text, re.DOTALL)
     return match.group(1).strip() if match else ""
 
+def count_search_actions(text: str) -> int:
+    """
+    统计文本中 <search> 标签出现的次数，以此衡量模型的检索频率。
+    """
+    if not text or not isinstance(text, str):
+        return 0
+    return len(re.findall(r"<search>", text))
+
 # =============================================================================
 # 4. 核心评分逻辑 (统一为 compute_score 接口)
 # =============================================================================
@@ -129,19 +137,34 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         ground_truth=reference,
         model_output=solution_str
     )
+
+    # --- Step 4: 梯度检索奖励 (Tiered Search Alignment Reward) ---
+    gt_search_count = count_search_actions(reference)
+    model_search_count = count_search_actions(solution_str)
+    diff = abs(gt_search_count - model_search_count)
+    
+    search_bonus = 0.0
+    if diff <= 2:
+        # 梯度 1: 极佳对齐 (差值 <= 2)
+        search_bonus = 0.10  
+    elif diff <= 3:
+        # 梯度 2: 较好对齐 (差值 == 3)
+        search_bonus = 0.05
+    # 差值 > 3 则无 bonus
     
     # --- Step 4: GRPO 零方差熔断器 (Tie-breaker) ---
     # 加上一段极其微小的基于回答长度的扰动。
     # 即使 Judge 给这几个回答都打了 0.85 分，加上扰动后就会变成 0.85012, 0.85015...
     # 从而保证标准差不为 0，模型能够区分出“在同样得分下，稍微详尽一点的更好”，保持梯度流动。
-    length_bonus = min(0.01, len(answer_content) * 0.000001)
-    final_score = quality_score - length_bonus
+    length_bonus = min(0.01, len(answer_content) * 0.00001)
+    # 综合得分：基础分 + 阶梯奖金 - 长度惩罚
+    final_score = quality_score + search_bonus - length_bonus
     
     # --- 日志采样 ---
     if random.randint(1, 64) == 1:
         print(f"\n[Subjective RL] Score: {final_score:.2f}")
-        print(f"Q: {question[:100]}...")
-        print(f"GT: {reference[:500]}...")
+        print(f"Q: {question[-100:]}...")
+        print(f"GT: {reference[-500:]}...")
         # 截断长文本避免刷屏
         print(f"Model Answer: {answer_content}")
 
