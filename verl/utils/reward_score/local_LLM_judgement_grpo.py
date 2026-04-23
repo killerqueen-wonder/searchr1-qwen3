@@ -119,7 +119,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
 
     # --- Step 2: 启发式门控 ---
     answer_content = extract_answer_content(solution_str)
-    if len(answer_content) < 5:
+    if len(answer_content) < 3:
         return 0.05  
 
     # --- Step 3: 同步 LLM Judge ---
