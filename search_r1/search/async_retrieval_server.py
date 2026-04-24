@@ -1274,7 +1274,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         charge_q = request.query.charge
         reason_q = request.query.other_reason
         
-        search_k = min(1,int(req_topk/2))  # 类案只总结不筛选，取topk的一半。
+        search_k = min(1,int(req_topk/3))  # 类案只总结不筛选，取topk的一半。
         
 
         # 将 CPU 密集的检索丢到后台线程，不阻塞主事件循环
