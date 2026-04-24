@@ -77,7 +77,7 @@ class AsyncVLLMClient:
             "model": safe_model_name,
             "prompt": prompt,
             "max_tokens": max_new_tokens,
-            "temperature": 0.0,
+            "temperature": 0.1,
             "stop": ["<|endoftext|>", "<|im_end|>", "<|im_start|>"]
         }
 
@@ -1274,7 +1274,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
         charge_q = request.query.charge
         reason_q = request.query.other_reason
         
-        search_k = min(1,req_topk/2)  # 类案只总结不筛选，取topk的一半。
+        search_k = min(1,int(req_topk/2))  # 类案只总结不筛选，取topk的一半。
         
 
         # 将 CPU 密集的检索丢到后台线程，不阻塞主事件循环
@@ -1296,9 +1296,9 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
             prompt = (
                 "### 任务指令\n"
                 "你是一名资深的法官助理。请仔细对比用户的【检索案情】与检索到的【候选案例】。\n"
-                "请结合候选案例的“案情”、“裁判推理”和“判决结果”，写一份150字左右的案例简报。\n\n"
+                "请总结候选案例的“案情”、“裁判推理”和“判决结果”，写一份150字左右的案例简报。\n\n"
                 "### 简报撰写要求：\n"
-                "1. 明确指出该案例与【检索案情】的相似之处。\n"
+                "1. 总结案例的案情，着重体现出该案例与【检索案情】的相似之处。\n"
                 "2. 简明扼要地概括法院的裁判推理（尤其是对关键情节的认定逻辑）。\n"
                 "3. 清楚写明最终的判决结论。\n\n"
                 "### 输入数据\n"
@@ -1308,7 +1308,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
                 f"- 【候选案例 - 判决结果】：{doc_result[:1400]}...\n\n"
                 "### 输出（请直接输出150字简报）： /no_think"
             )
-            analysis = await async_vllm_client.generate_async(prompt, max_new_tokens=400)
+            analysis = await async_vllm_client.generate_async(prompt, max_new_tokens=300)
             return analysis.strip()
 
         # 并发请求所有候选项的摘要
