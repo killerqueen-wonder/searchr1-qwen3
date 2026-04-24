@@ -1296,7 +1296,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
             prompt = (
                 "### 任务指令\n"
                 "你是一名资深的法官助理。请仔细对比用户的【检索案情】与检索到的【候选案例】。\n"
-                "请总结候选案例的“案情”、“裁判推理”和“判决结果”，写一份150字左右的案例简报。\n\n"
+                "请总结候选案例的“案情”、“裁判推理”和“判决结果”，写一份150字的案例简报。\n\n"
                 "### 简报撰写要求：\n"
                 "1. 总结案例的案情，着重体现出该案例与【检索案情】的相似之处。\n"
                 "2. 简明扼要地概括法院的裁判推理（尤其是对关键情节的认定逻辑）。\n"
@@ -1306,9 +1306,9 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
                 f"- 【候选案例 - 案情】：{doc_fact[:1800]}...\n"
                 f"- 【候选案例 - 裁判推理】：{doc_reason[:1800]}...\n"
                 f"- 【候选案例 - 判决结果】：{doc_result[:1400]}...\n\n"
-                "### 输出（请直接输出150字简报）： /no_think"
+                "### 输出（请直接输出150字简报）：  /no_think"
             )
-            analysis = await async_vllm_client.generate_async(prompt, max_new_tokens=300)
+            analysis = await async_vllm_client.generate_async(prompt, max_new_tokens=250)
             return analysis.strip()
 
         # 并发请求所有候选项的摘要
