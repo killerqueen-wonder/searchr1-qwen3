@@ -21,7 +21,7 @@ def process_single_item(data_item, idx, agent, summary_port):
     full_prompt = f"{instruction}\n{question}"
     
     history, agent_metrics = agent.gen(query=question, instruction=instruction)
-    summary, sum_p_tok, sum_c_tok = get_universal_vllm_summary(full_prompt, history, summary_port, agent.model_name)
+    summary, sum_p_tok, sum_c_tok = get_universal_vllm_summary(full_prompt, history, summary_port, model_name="Qwen3-8B")
     
     total_time_sec = time.time() - start_time
     total_tokens = agent_metrics["main_total_prompt_tokens"] + agent_metrics["main_total_comp_tokens"] + sum_p_tok + sum_c_tok

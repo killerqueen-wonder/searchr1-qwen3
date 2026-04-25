@@ -23,7 +23,7 @@ def process_single_item(item, agent, summary_port):
     query = item.get("question", item.get("input", ""))
     
     history, agent_metrics = agent.gen(query=query)
-    summary, sum_p_tok, sum_c_tok = get_universal_vllm_summary(query, history, summary_port, agent.model_name)
+    summary, sum_p_tok, sum_c_tok = get_universal_vllm_summary(query, history, summary_port, model_name="Qwen3-8B")
     
     total_time_sec = time.time() - start_time
     total_tokens = agent_metrics["main_total_prompt_tokens"] + agent_metrics["main_total_comp_tokens"] + sum_p_tok + sum_c_tok
@@ -80,8 +80,9 @@ def main(args):
         futures = [executor.submit(process_single_item, item, agent, args.summary_port) for item in dataset]
         for future in tqdm(as_completed(futures), total=len(futures), desc=f"Inferencing {args.f_path.split('/')[-1]}"):
             results.append(future.result())
-    base_name = os.path.basename(args.f_path) # "1_1.json"
-    outfile_name = os.path.join(args.output_dir, f"{args.model_name}_{base_name}l")
+    base_name = os.path.basename(args.f_path) 
+    name_without_ext = os.path.splitext(base_name)[0]
+    outfile_name = os.path.join(args.output_dir, f"{args.model_name}_{name_without_ext}.jsonl")
     
     with open(outfile_name, 'w', encoding='utf8') as f:
         for res_dict in results:

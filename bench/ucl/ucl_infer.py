@@ -71,7 +71,7 @@ def process_single_item(item, agent, summary_port):
         query=full_prompt, 
         history=history, 
         port=summary_port, 
-        model_name=agent.model_name
+        model_name="Qwen3-8B"
     )
     
     total_time_sec = time.time() - start_time

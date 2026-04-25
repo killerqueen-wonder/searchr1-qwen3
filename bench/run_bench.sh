@@ -5,7 +5,7 @@ set -e
 # 允许外部单行命令传参覆盖
 BASE_DIR="${BASE_DIR:-/data/panghuaiwen/legal_R1}"
 MODEL_PATH="${MODEL_PATH:-${BASE_DIR}/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.1-0417/global_step_800/actor_merge}"
-MODEL_NAME="${MODEL_NAME:-RL_7.1_0423}"
+MODEL_NAME="${MODEL_NAME:-RL_7.1_0425}"
 JUDGE_MODEL_NAME="Qwen3-8B-Judge" # 为裁判模型指定独立名称
 WORKERS="${WORKERS:-32}"
 
@@ -47,6 +47,12 @@ wait_for_port() {
             info "端口 $port 已就绪"
             return 0
         fi
+
+        if ! tmux has-session -t "$session_name" 2>/dev/null; then
+            error "Tmux会话 $session_name 已异常退出！启动失败。"
+            return 1
+        fi
+
         local now=$(date +%s)
         if [ $((now - start)) -ge $timeout ]; then
             error "端口 $port 未在 ${timeout}s 内就绪。"
@@ -125,7 +131,7 @@ kill_session "vllm_summary"
 tmux new -d -s vllm_summary "export CUDA_VISIBLE_DEVICES=1; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 16000"
 
 kill_session "vllm_judge"
-# 注意：这里我们给 Judge 模型挂载了专属的 JUDGE_MODEL_NAME
+
 tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 16000"
 
 info "等待所有服务拉起..."
@@ -272,7 +278,7 @@ info "   - LexEval:  ${LEXEVAL_RESULT_PATH}"
 info "========================================================="
 
 # 杀掉后台评测模型释放显存 (保留基础 RAG 供日常调试可不杀)
-tmux kill-session -t vllm_main || true
-tmux kill-session -t vllm_summary || true
-tmux kill-session -t vllm_judge || true
-info "清理完毕，模型推理显存已释放。"
+# tmux kill-session -t vllm_main || true
+# tmux kill-session -t vllm_summary || true
+# tmux kill-session -t vllm_judge || true
+# info "清理完毕，模型推理显存已释放。"

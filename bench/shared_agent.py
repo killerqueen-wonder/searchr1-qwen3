@@ -62,10 +62,36 @@ class VLLM_Retriever_Agent:
     def _search(self, query_str):
         if not self.retrieve_path:
             return "未启用检索功能。"
+        
+        # ================= JSON 鲁棒性清洗开始 =================
+        clean_str = query_str.strip()
+        
+        # 1. 剥离可能存在的 Markdown 代码块 (例如 ```json 和 ```)
+        if clean_str.startswith("```json"):
+            clean_str = clean_str[7:]
+        elif clean_str.startswith("```"):
+            clean_str = clean_str[3:]
+        if clean_str.endswith("```"):
+            clean_str = clean_str[:-3]
+            
+        clean_str = clean_str.strip()
+        
+        # 2. 中文标点符号容错替换
+        clean_str = clean_str.replace("，", ",")        # 中文逗号转英文逗号
+        clean_str = clean_str.replace("“", '"')       # 中文左双引号转英文
+        clean_str = clean_str.replace("”", '"')       # 中文右双引号转英文
+        
+        # 3. 结构修补：首尾缺失大括号自动补全
+        if not clean_str.startswith("{"):
+            clean_str = "{" + clean_str
+        if not clean_str.endswith("}"):
+            clean_str = clean_str + "}"
+        # ================= JSON 鲁棒性清洗结束 =================
+
         try:
-            search_query_dict = json.loads(query_str)
+            search_query_dict = json.loads(clean_str)
         except json.JSONDecodeError as e:
-            return "工具调用失败：<search>标签内的JSON格式不合法，请检查并严格按照JSON格式输出再试一次。"
+            return f"工具调用失败：<search>标签内的JSON格式解析错误 ({str(e)})。请检查键值对是否正确，并严格按照JSON格式输出再试一次。"
 
         payload = {"query": search_query_dict, "topk": self.topk}
         try:
