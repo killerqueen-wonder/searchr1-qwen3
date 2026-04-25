@@ -43,7 +43,8 @@ wait_for_port() {
     info "等待端口 $port 就绪（超时 ${timeout}s）..."
     
     while true; do
-        if (echo > /dev/tcp/127.0.0.1/$port) >/dev/null 2>&1; then
+
+        if curl -s http://127.0.0.1:$port > /dev/null 2>&1; then
             info "端口 $port 已就绪"
             return 0
         fi
