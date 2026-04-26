@@ -60,12 +60,13 @@ def main(args):
         output_file = os.path.join(args.output_dir, base_name)
         if os.path.exists(output_file):
             continue
-        evaluate_file(file_path, output_file, args.judge_port, args.workers)
+        evaluate_file(file_path, output_file, args.judge_port, args.judge_model_name,args.workers)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_dir', type=str, required=True)
     parser.add_argument('--output_dir', type=str, required=True)
+    parser.add_argument('--judge_model_name', type=str, required=True)
     parser.add_argument('--judge_port', type=int, default=8009)
     parser.add_argument('--workers', type=int, default=32)
     main(parser.parse_args())
