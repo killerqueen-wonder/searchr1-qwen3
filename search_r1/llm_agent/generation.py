@@ -570,10 +570,33 @@ class LLMGenerationManager:
         解析大模型生成的 <search> JSON，发送到 RAG 服务，并按照合成数据脚本逻辑格式化返回。
         """
         try:
-            search_json_str = search_json_str.replace('，', ',')
-            # 1. 尝试解析模型生成的 JSON
+            
+            
+            clean_str = search_json_str.strip()
+            # 1. 剥离可能存在的 Markdown 代码块 (例如 ```json 和 ```)
+            if clean_str.startswith("```json"):
+                clean_str = clean_str[7:]
+            elif clean_str.startswith("```"):
+                clean_str = clean_str[3:]
+            if clean_str.endswith("```"):
+                clean_str = clean_str[:-3]
+                
+            clean_str = clean_str.strip()
+            
+            # 2. 中文标点符号容错替换
+            clean_str = clean_str.replace("，", ",")        # 中文逗号转英文逗号
+            clean_str = clean_str.replace("“", '"')       # 中文左双引号转英文
+            clean_str = clean_str.replace("”", '"')       # 中文右双引号转英文
+            
+            # 3. 结构修补：首尾缺失大括号自动补全
+            if not clean_str.startswith("{"):
+                clean_str = "{" + clean_str
+            if not clean_str.endswith("}"):
+                clean_str = clean_str + "}"
+            # ================= JSON 鲁棒性清洗结束 =================
             search_query = json.loads(search_json_str)
             
+
             # 2. 组装发给 FastAPI 的 UnifiedQueryRequest 载荷
             payload = {
                 "query": search_query,
