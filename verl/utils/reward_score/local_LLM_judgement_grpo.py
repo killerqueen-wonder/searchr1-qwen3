@@ -90,6 +90,11 @@ def extract_answer_content(text: str) -> str:
         return matches[-1].strip()
     return ""
 
+def extract_answer_content(text):
+    match = re.search(r"<answer>(.*?)(</answer>|$)", text, re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+
 def count_search_actions(text: str) -> int:
     """统计文本中 <search> 标签出现的次数"""
     if not text or not isinstance(text, str):
@@ -207,9 +212,7 @@ def correct_format(text):
 
     return True
 
-# def extract_answer_content(text):
-#     match = re.search(r"<answer>(.*?)(</answer>|$)", text, re.DOTALL)
-#     return match.group(1).strip() if match else ""
+
 
 def count_search_actions(text: str) -> int:
     """
@@ -291,10 +294,16 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     2. 检索次数对齐奖金 (search_bonus)
     3. 长度奖金 (length_bonus, 上限 0.1)
     """
+    ground_truth = ground_truth.get("target", []) if isinstance(ground_truth, dict) else ground_truth
+    if isinstance(ground_truth, list):
+        reference = "\n".join([str(x) for x in ground_truth if x])
+    else:
+        reference = str(ground_truth)
     # 获取参考 CoT（包含 thought, search, information 等）
-    reference_cot = ground_truth
+    reference_cot = reference
     # 提取参考答案：使用 extract_answer_content 获取最后一次 <answer>
     reference_answer = extract_answer_content(reference_cot)
+    
     
     question = extra_info.get('question', "题目缺失") if extra_info else "题目缺失"
 
