@@ -103,7 +103,7 @@ if __name__ == '__main__':
         output_file = os.path.join(args.output_dir, file_name)
         
         if os.path.exists(output_file):
-            print(f">>> [跳过] {file_name} 已存在。")
+            print(f">>> [跳过] 发现已有结果文件: {output_file}")
             continue
             
         process_file_concurrently(data_file, output_file, agent, summary_port=args.summary_port, max_workers=args.workers, limit=args.limit)

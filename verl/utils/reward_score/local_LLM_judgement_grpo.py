@@ -1,6 +1,7 @@
 import re
 import random
 from openai import OpenAI
+import time
 
 # =============================================================================
 # 1. 核心 Prompt 定义 (GRPO 定制版)
@@ -31,6 +32,101 @@ JUDGE_PROMPT_TEMPLATE = """你是一位公正的法律专家评委。请评估AI
 
 请仅输出一个评分数字，格式严格为：[[分数]]，例如 [[85]] 或 [[100]]。不要输出任何其他解释。 /no_think"""
 
+
+# =============================================================================
+# 1. 核心 Prompt 定义 (GRPO 多维度合并定制版)
+# =============================================================================
+UNIFIED_JUDGE_PROMPT_TEMPLATE = """你是一位严谨的AI推理行为与法律逻辑审计员。
+请对比【参考数据】和【被测模型输出】，按照以下三个维度对被测模型进行综合打分，每项满分均为 100 分。
+
+[问题]
+{question}
+
+[参考轨迹 (Ground Truth CoT，包含 thought, search, information 等标签)]
+{reference_cot}
+
+[参考答案 (Ground Truth Answer)]
+{reference_answer}
+
+[被测模型完整输出]
+{model_output}
+
+[被测模型实际搜到的内容提取]
+{retrieved_info}
+
+**评分维度与阶梯标准：**
+
+1. **核心事实准确度 (accuracy)**:
+   - [85-100分]: 最终结论完全准确，涵盖了参考答案中的关键事实。
+   - [60-84分]: 结论基本正确，但遗漏了部分非核心细节或存在微小瑕疵。
+   - [30-59分]: 结论部分错误，或逻辑混乱。
+   - [0-29分]: 严重错误，结论与参考矛盾，或存在幻觉编造。
+
+2. **轨迹与时机对齐 (alignment)**:
+   - [85-100分]: 在与参考轨迹相同的逻辑断点处发起了检索（<search>），检索策略与参考高度一致。
+   - [60-84分]: 检索时机略有偏差，或策略略宽泛，但整体逻辑合理。
+   - [30-59分]: 错过了必要的检索节点，或进行了多余的低效检索。
+   - [0-29分]: 参考进行了检索但模型完全未检索，或在极度不合理的地方滥用工具。
+
+3. **信息增量价值 (info_gain)**:
+   - [85-100分]: 搜回的信息（包含在 <information> 中）极其精准，直接支撑了最终参考答案的核心内容。
+   - [60-84分]: 搜回的信息部分相关，能提供背景支持，但缺失最关键的一击。
+   - [30-59分]: 搜到的多为边缘信息，对解题帮助有限。
+   - [0-29分]: 搜回的内容完全无关，或模型根本没有进行有效检索（无返回内容）。
+
+请仅输出一个 JSON 字典，不要包含任何其他分析过程文字，确保包含 "accuracy", "alignment", "info_gain" 三个键。
+例如：{{"accuracy": 85, "alignment": 90, "info_gain": 80}}  /no_think"""
+
+import json
+
+def extract_answer_content(text: str) -> str:
+    """
+    提取文本中【最后一次】出现 <answer> 和 </answer> 之间的内容。
+    """
+    # 找到所有匹配项
+    matches = re.findall(r"<answer>(.*?)(?:</answer>|$)", text, re.DOTALL)
+    if matches:
+        # 返回最后一个匹配项并去空格
+        return matches[-1].strip()
+    return ""
+
+def count_search_actions(text: str) -> int:
+    """统计文本中 <search> 标签出现的次数"""
+    if not text or not isinstance(text, str):
+        return 0
+    return len(re.findall(r"<search>", text))
+
+def extract_information_blocks(text: str) -> str:
+    """提取文本中所有的 <information> 内容供评委参考"""
+    matches = re.findall(r"<information>(.*?)</information>", text, re.DOTALL)
+    return "\n---\n".join(matches) if matches else "无检索内容"
+
+def calculate_query_quality_score(solution_str: str) -> float:
+    """
+    仅针对“法律检索”提取相似度分数。
+    忽略“类案检索”，归一化基于 0-20.0 的量程。
+    """
+    pattern = r"<information>.*?\[Score:\s*([\d\.]+),\s*Type:\s*法律检索\].*?</information>"
+    matches = re.findall(pattern, solution_str, re.DOTALL)
+    if not matches:
+        return 0.0
+    scores_100 = [max(0.0, min(100.0, (float(s) / 20.0) * 100.0)) for s in matches]
+    return sum(scores_100) / len(scores_100)
+
+def parse_judge_json(raw_str: str) -> dict:
+    """鲁棒性 JSON 解析（保留中英文符号容错，不剥离 Markdown）"""
+    clean_str = raw_str.strip()
+    clean_str = clean_str.replace("，", ",").replace("“", '"').replace("”", '"').replace("：", ":")
+    if not clean_str.startswith("{"): clean_str = "{" + clean_str
+    if not clean_str.endswith("}"): clean_str = clean_str + "}"
+    try:
+        data = json.loads(clean_str)
+        if all(k in data for k in ["accuracy", "alignment", "info_gain"]):
+            return data
+    except:
+        return None
+    return None
+    
 # =============================================================================
 # 2. 单例客户端管理 (同步模式)
 # =============================================================================
@@ -43,36 +139,55 @@ def get_client(api_url="http://localhost:9000/v1"):
         _GLOBAL_CLIENT = OpenAI(api_key="EMPTY", base_url=api_url)
     return _GLOBAL_CLIENT
 
+
+
 class VLLMRewardManager:
     def __init__(self, api_url="http://localhost:9000/v1"):
         self.client = get_client(api_url)
         self.model_name = "qwen3-8b-reward" 
 
-    def get_subjective_score(self, question: str, ground_truth: str, model_output: str) -> float:
-        prompt = JUDGE_PROMPT_TEMPLATE.format(
+    def get_unified_subjective_scores(self, question: str, reference_cot: str, reference_answer: str, model_output: str, retrieved_info: str) -> dict:
+        """
+        调用 LLM 获取三维打分 JSON，最多重试 3 次，超时或错误则返回 0 分字典。
+        """
+        prompt = UNIFIED_JUDGE_PROMPT_TEMPLATE.format(
             question=question,
-            ground_truth=ground_truth,
-            model_output=model_output
+            reference_cot=reference_cot,
+            reference_answer=reference_answer,
+            model_output=model_output,
+            retrieved_info=retrieved_info
         )
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0, 
-                max_tokens=10,   
-            )
-            content = response.choices[0].message.content.strip()
-            
-            match = re.search(r"\[\[(\d+\.?\d*)\]\]", content)
-            if match:
-                score = float(match.group(1))
-                # 将 0-100 映射回 0.0 - 1.0 的尺度
-                return max(0.0, min(1.0, score / 100.0))
-            else:
-                return 0.1  # 格式解析失败的轻微惩罚
-        except Exception as e:
-            print(f"[Error] Judge API Call Failed: {e}")
-            return 0.0
+        
+        default_scores = {"accuracy": 0.0, "alignment": 0.0, "info_gain": 0.0}
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.1,  # 给一点微小温度防止一直采样到同样的死循环语法错误
+                    max_tokens=64,
+                    timeout=30.0      # 设置超时机制
+                )
+                content = response.choices[0].message.content.strip()
+                parsed_data = parse_judge_json(content)
+                
+                if parsed_data is not None:
+                    return {
+                        "accuracy": float(parsed_data["accuracy"]),
+                        "alignment": float(parsed_data["alignment"]),
+                        "info_gain": float(parsed_data["info_gain"])
+                    }
+                    
+            except Exception as e:
+                # 包含超时 (Timeout)、API 连接错误、解析异常等
+                print(f"[Warning] Judge API 错误或解析失败 (尝试 {attempt+1}/{max_retries}): {e}")
+                time.sleep(1) # 短暂等待后重试
+                continue
+                
+        print("[Error] Judge API 3次尝试均失败，给予 0 分惩罚。")
+        return default_scores
 
 # =============================================================================
 # 3. 辅助工具：更合理的格式检查
@@ -92,9 +207,9 @@ def correct_format(text):
 
     return True
 
-def extract_answer_content(text):
-    match = re.search(r"<answer>(.*?)(</answer>|$)", text, re.DOTALL)
-    return match.group(1).strip() if match else ""
+# def extract_answer_content(text):
+#     match = re.search(r"<answer>(.*?)(</answer>|$)", text, re.DOTALL)
+#     return match.group(1).strip() if match else ""
 
 def count_search_actions(text: str) -> int:
     """
@@ -107,65 +222,140 @@ def count_search_actions(text: str) -> int:
 # =============================================================================
 # 4. 核心评分逻辑 (统一为 compute_score 接口)
 # =============================================================================
+# def compute_score(solution_str, ground_truth, extra_info=None):
+#     """
+#     统一的接口格式：接收单个 solution_str 并返回 float 分数。
+#     保留了 GRPO 的零方差熔断器设计。
+#     """
+#     ground_truth = ground_truth.get("target", []) if isinstance(ground_truth, dict) else ground_truth
+#     if isinstance(ground_truth, list):
+#         reference = "\n".join([str(x) for x in ground_truth if x])
+#     else:
+#         reference = str(ground_truth)
+        
+#     question = extra_info.get('question', "题目缺失") if extra_info else "题目缺失"
+
+#     # --- Step 1: 格式门控 ---
+#     # GRPO 组内相对优势：0.0 意味着它一定会在组内成为垫底，获得极大的负 Advantage
+#     if not correct_format(solution_str):
+#         return 0.0  
+
+#     # --- Step 2: 启发式门控 ---
+#     answer_content = extract_answer_content(solution_str)
+#     if len(answer_content) < 3:
+#         return 0.05  
+
+#     # --- Step 3: 同步 LLM Judge ---
+#     manager = VLLMRewardManager()
+#     quality_score = manager.get_subjective_score(
+#         question=question,
+#         ground_truth=reference,
+#         model_output=solution_str
+#     )
+
+#     # --- Step 4: 梯度检索奖励 (Tiered Search Alignment Reward) ---
+#     gt_search_count = count_search_actions(reference)
+#     model_search_count = count_search_actions(solution_str)
+#     diff = abs(gt_search_count - model_search_count)
+    
+#     search_bonus = 0.0
+#     if diff <= 2:
+#         # 梯度 1: 极佳对齐 (差值 <= 2)
+#         search_bonus = 0.10  
+#     elif diff <= 3:
+#         # 梯度 2: 较好对齐 (差值 == 3)
+#         search_bonus = 0.05
+#     # 差值 > 3 则无 bonus
+    
+#     # --- Step 4: GRPO 零方差熔断器 (Tie-breaker) ---
+#     # 加上一段极其微小的基于回答长度的扰动。
+#     # 即使 Judge 给这几个回答都打了 0.85 分，加上扰动后就会变成 0.85012, 0.85015...
+#     # 从而保证标准差不为 0，模型能够区分出“在同样得分下，稍微详尽一点的更好”，保持梯度流动。
+#     length_bonus = min(0.1, len(answer_content) * 0.00001)
+#     # 综合得分：基础分 + 阶梯奖金 - 长度惩罚
+#     final_score = quality_score + search_bonus - length_bonus
+    
+#     # --- 日志采样 ---
+#     if random.randint(1, 64) == 1:
+#         print(f"\n[Subjective RL] Score: {final_score:.2f}")
+#         print(f"Q: {question[-100:]}...")
+#         print(f"GT: {reference[-500:]}...")
+#         print(f"Model Answer: {answer_content}")
+
+#     return final_score
+
 def compute_score(solution_str, ground_truth, extra_info=None):
     """
-    统一的接口格式：接收单个 solution_str 并返回 float 分数。
-    保留了 GRPO 的零方差熔断器设计。
+    最终 Reward 函数实现：
+    1. 主观四维加权 (Acc 0.45, Align 0.20, Info 0.20, Query 0.15)
+    2. 检索次数对齐奖金 (search_bonus)
+    3. 长度奖金 (length_bonus, 上限 0.1)
     """
-    ground_truth = ground_truth.get("target", []) if isinstance(ground_truth, dict) else ground_truth
-    if isinstance(ground_truth, list):
-        reference = "\n".join([str(x) for x in ground_truth if x])
-    else:
-        reference = str(ground_truth)
-        
+    # 获取参考 CoT（包含 thought, search, information 等）
+    reference_cot = ground_truth
+    # 提取参考答案：使用 extract_answer_content 获取最后一次 <answer>
+    reference_answer = extract_answer_content(reference_cot)
+    
     question = extra_info.get('question', "题目缺失") if extra_info else "题目缺失"
 
-    # --- Step 1: 格式门控 ---
-    # GRPO 组内相对优势：0.0 意味着它一定会在组内成为垫底，获得极大的负 Advantage
+    # --- Step 1: 格式与内容基础门控 ---
     if not correct_format(solution_str):
         return 0.0  
-
-    # --- Step 2: 启发式门控 ---
+    
     answer_content = extract_answer_content(solution_str)
     if len(answer_content) < 3:
         return 0.05  
 
-    # --- Step 3: 同步 LLM Judge ---
+    # --- Step 2: 检索词质量 (法律检索相似度) ---
+    query_quality_100 = calculate_query_quality_score(solution_str)
+
+    # --- Step 3: LLM Judge 多维度打分 (带重试与解析) ---
+    retrieved_info = extract_information_blocks(solution_str)
     manager = VLLMRewardManager()
-    quality_score = manager.get_subjective_score(
+    subjective_scores = manager.get_unified_subjective_scores(
         question=question,
-        ground_truth=reference,
-        model_output=solution_str
+        reference_cot=reference_cot,
+        reference_answer=reference_answer,
+        model_output=solution_str,
+        retrieved_info=retrieved_info
     )
 
-    # --- Step 4: 梯度检索奖励 (Tiered Search Alignment Reward) ---
-    gt_search_count = count_search_actions(reference)
+    acc_100 = subjective_scores["accuracy"]
+    align_100 = subjective_scores["alignment"]
+    info_100 = subjective_scores["info_gain"]
+
+    # --- Step 4: 启发式奖金计算 (search_bonus & length_bonus) ---
+    # 检索次数对齐奖金
+    gt_search_count = count_search_actions(reference_cot)
     model_search_count = count_search_actions(solution_str)
     diff = abs(gt_search_count - model_search_count)
     
     search_bonus = 0.0
     if diff <= 2:
-        # 梯度 1: 极佳对齐 (差值 <= 2)
         search_bonus = 0.10  
     elif diff <= 3:
-        # 梯度 2: 较好对齐 (差值 == 3)
         search_bonus = 0.05
-    # 差值 > 3 则无 bonus
-    
-    # --- Step 4: GRPO 零方差熔断器 (Tie-breaker) ---
-    # 加上一段极其微小的基于回答长度的扰动。
-    # 即使 Judge 给这几个回答都打了 0.85 分，加上扰动后就会变成 0.85012, 0.85015...
-    # 从而保证标准差不为 0，模型能够区分出“在同样得分下，稍微详尽一点的更好”，保持梯度流动。
-    length_bonus = min(0.01, len(answer_content) * 0.00001)
-    # 综合得分：基础分 + 阶梯奖金 - 长度惩罚
-    final_score = quality_score + search_bonus - length_bonus
-    
+        
+    # 长度奖金项 (新公式：上限 0.1)
+    length_punish = min(0.1, len(answer_content) * 0.000003)
+
+    # --- Step 5: 最终分数聚合 ---
+    # 比例：Acc(0.45) + Align(0.20) + Info(0.20) + Query(0.15)
+    subjective_total = (acc_100 * 0.45 / 100.0) + \
+                       (align_100 * 0.20 / 100.0) + \
+                       (info_100 * 0.20 / 100.0) + \
+                       (query_quality_100 * 0.15 / 100.0)
+
+    final_score = subjective_total + search_bonus - length_punish
+
     # --- 日志采样 ---
     if random.randint(1, 64) == 1:
-        print(f"\n[Subjective RL] Score: {final_score:.2f}")
-        print(f"Q: {question[-100:]}...")
-        print(f"GT: {reference[-500:]}...")
-        # 截断长文本避免刷屏
+        print(f"\n[GRPO RL Reward] Final: {final_score:.4f}")
+        print(f"Components -> Acc:{acc_100}, Align:{align_100}, Info:{info_100}, Query:{query_quality_100:.1f}")
+        print(f"Bonuses    -> SearchBonus:{search_bonus}, LengthBonus:{length_punish:.4f}")
+        print(f"Q: ...{question[-100:]}")
+        print(f"GT: ...{ground_truth[-500:]}")
         print(f"Model Answer: {answer_content}")
+        
 
     return final_score
