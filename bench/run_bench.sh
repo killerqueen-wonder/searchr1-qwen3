@@ -20,6 +20,8 @@ JUDGE_VLLM_PORT=8009
 # 等待超时设置（秒）
 PORT_TIMEOUT=1600  
 
+
+
 # ================= 2. 环境初始化 =================
 # conda 初始化脚本路径
 if [ -f "/data/panghuaiwen/miniconda3/etc/profile.d/conda.sh" ]; then
@@ -33,6 +35,15 @@ fi
 
 info() { echo -e "\033[32m[INFO]\033[0m $1"; }
 error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
+
+
+#合并
+source $CONDA_SH
+conda activate searchr1_new
+cd /data/panghuaiwen/legal_R1/searchr1-qwen3
+git pull origin main
+python "/data/panghuaiwen/legal_R1/searchr1-qwen3/run_merger.py" merge --backend fsdp --local_dir "/data/panghuaiwen/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor" --target_dir "/data/panghuaiwen/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor_merge"
+info "合并完成..."
 
 # ----------------- 基础设施函数 -----------------
 wait_for_port() {
