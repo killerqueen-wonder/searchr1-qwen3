@@ -29,6 +29,7 @@ def process_single_item(data_item, idx, agent, summary_port):
 
     return {
         "origin_idx": idx,
+        "question": question,
         "prediction": summary,
         "refr": data_item.get("answer", ""),
         "thinking": history,
