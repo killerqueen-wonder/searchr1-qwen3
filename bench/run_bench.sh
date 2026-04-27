@@ -129,11 +129,11 @@ kill_session "vllm_main"
 tmux new -d -s vllm_main "export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${MODEL_PATH} --served-model-name ${MODEL_NAME} --port ${MAIN_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 20000"
 
 kill_session "vllm_summary"
-tmux new -d -s vllm_summary "export CUDA_VISIBLE_DEVICES=1; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 16000"
+tmux new -d -s vllm_summary "export CUDA_VISIBLE_DEVICES=1; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 20000"
 
 kill_session "vllm_judge"
 
-tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 16000"
+tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 22000"
 
 info "等待所有服务拉起..."
 sleep 20
