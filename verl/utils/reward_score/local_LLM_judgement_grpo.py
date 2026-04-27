@@ -118,18 +118,43 @@ def calculate_query_quality_score(solution_str: str) -> float:
     scores_100 = [max(0.0, min(100.0, (float(s) / 20.0) * 100.0)) for s in matches]
     return sum(scores_100) / len(scores_100)
 
+import re
+import json
+
 def parse_judge_json(raw_str: str) -> dict:
-    """鲁棒性 JSON 解析（保留中英文符号容错，不剥离 Markdown）"""
-    clean_str = raw_str.strip()
+    """鲁棒性 JSON 解析（去除 <think> 块，提取核心字典，保留符号容错）"""
+    # 1. 移除 <think>...</think> 块（使用 re.DOTALL 匹配多行内容）
+    clean_str = re.sub(r"<think>.*?</think>", "", raw_str, flags=re.DOTALL)
+    
+    # 清理可能残留的孤立标签和首尾空白
+    clean_str = clean_str.replace("<think>", "").replace("</think>", "").strip()
+    
+    # 2. 中英文标点符号容错替换
     clean_str = clean_str.replace("，", ",").replace("“", '"').replace("”", '"').replace("：", ":")
-    if not clean_str.startswith("{"): clean_str = "{" + clean_str
-    if not clean_str.endswith("}"): clean_str = clean_str + "}"
+    
+    # 3. 锁定真正的 JSON 字典边界 (寻找第一个 { 和最后一个 })
+    start_idx = clean_str.find('{')
+    end_idx = clean_str.rfind('}')
+    
+    if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+        # 精准截取字典部分
+        clean_str = clean_str[start_idx:end_idx+1]
+    else:
+        # 结构修补：首尾缺失大括号自动补全 (兜底)
+        if not clean_str.startswith("{"): clean_str = "{" + clean_str
+        if not clean_str.endswith("}"): clean_str = clean_str + "}"
+        
+    # 4. 加载验证
     try:
         data = json.loads(clean_str)
+        # 确保必备键均存在
         if all(k in data for k in ["accuracy", "alignment", "info_gain"]):
             return data
-    except:
+    except Exception as e:
+        # 如果需要，这里可以解除注释打印具体的解析错误
+        print(f"[JSON Decode Error] {e} -> String: {clean_str}")
         return None
+        
     return None
     
 # =============================================================================
