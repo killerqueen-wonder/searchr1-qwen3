@@ -184,6 +184,11 @@ class VLLMRewardManager:
                         "alignment": float(parsed_data["alignment"]),
                         "info_gain": float(parsed_data["info_gain"])
                     }
+                else:
+                    # 修复点：显式捕获解析失败，并打印原文以便 Debug
+                    print(f"[Warning] Judge JSON解析失败 (尝试 {attempt+1}/{max_retries}). 模型原文输出: {content}")
+                    time.sleep(1)
+                    continue
                     
             except Exception as e:
                 # 包含超时 (Timeout)、API 连接错误、解析异常等
