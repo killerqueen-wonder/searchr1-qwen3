@@ -38,14 +38,43 @@ error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
 
 
 #合并
-source $CONDA_SH
-conda activate searchr1_new
-cd /data/panghuaiwen/legal_R1/searchr1-qwen3
-git pull origin main
-python "/data/panghuaiwen/legal_R1/searchr1-qwen3/run_merger.py" merge --backend fsdp --local_dir "/data/panghuaiwen/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor" --target_dir "/data/panghuaiwen/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor_merge"
-info "合并完成..."
+# source $CONDA_SH
+# conda activate searchr1_new
+# cd /data/panghuaiwen/legal_R1/searchr1-qwen3
+# git pull origin main
+# python "/data/panghuaiwen/legal_R1/searchr1-qwen3/run_merger.py" merge --backend fsdp --local_dir "/data/panghuaiwen/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor" --target_dir "/data/panghuaiwen/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor_merge"
+# info "合并完成..."
 
 # ----------------- 基础设施函数 -----------------
+# wait_for_port() {
+#     local port=$1
+#     local timeout=$2
+#     local session_name=$3
+#     local start=$(date +%s)
+#     info "等待端口 $port 就绪（超时 ${timeout}s）..."
+    
+#     while true; do
+
+#         if curl -s http://127.0.0.1:$port > /dev/null 2>&1; then
+#             info "端口 $port 已就绪"
+#             return 0
+#         fi
+
+#         if ! tmux has-session -t "$session_name" 2>/dev/null; then
+#             error "Tmux会话 $session_name 已异常退出！启动失败。"
+#             return 1
+#         fi
+
+#         local now=$(date +%s)
+#         if [ $((now - start)) -ge $timeout ]; then
+#             error "端口 $port 未在 ${timeout}s 内就绪。"
+#             error "请执行命令查看具体报错日志：tmux attach -t $session_name"
+#             return 1
+#         fi
+#         sleep 3
+#     done
+# }
+
 wait_for_port() {
     local port=$1
     local timeout=$2
@@ -54,10 +83,19 @@ wait_for_port() {
     info "等待端口 $port 就绪（超时 ${timeout}s）..."
     
     while true; do
-
-        if curl -s http://127.0.0.1:$port > /dev/null 2>&1; then
-            info "端口 $port 已就绪"
-            return 0
+        # 针对 vLLM 服务和普通服务做区分处理
+        if [ "$port" = "8005" ]; then
+            # RAG 服务可能没有 /health 接口，使用 --noproxy 绕过代理干扰，只要有 HTTP 响应（包括 404）即认为就绪
+            if curl -s --noproxy '*' "http://127.0.0.1:$port" > /dev/null 2>&1; then
+                info "端口 $port 已就绪 (RAG)"
+                return 0
+            fi
+        else
+            # vLLM 服务使用标准的 /health 接口，增加 -f 参数强制要求返回 200 OK 状态码
+            if curl -s -f --noproxy '*' "http://127.0.0.1:$port/health" > /dev/null 2>&1; then
+                info "端口 $port 已就绪 (vLLM)"
+                return 0
+            fi
         fi
 
         if ! tmux has-session -t "$session_name" 2>/dev/null; then
@@ -132,7 +170,7 @@ tmux_send_commands "vllm" \
     "export CUDA_VISIBLE_DEVICES=1" \
     "conda activate vllm_server" \
     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-    "python -m vllm.entrypoints.openai.api_server --model /data/panghuaiwen/legal_R1/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port $VLLM_PORT --gpu-memory-utilization 0.35 --max-model-len 25000"
+    "python -m vllm.entrypoints.openai.api_server --model /data/panghuaiwen/legal_R1/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port $VLLM_PORT --gpu-memory-utilization 0.4 --max-model-len 25000"
 info "已触发启动 RAG 依赖的 vLLM (Port: $VLLM_PORT)"
 
 # --- 3.2 启动主路推理、总结与评测 vLLM ---
@@ -140,7 +178,7 @@ kill_session "vllm_main"
 tmux new -d -s vllm_main "export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${MODEL_PATH} --served-model-name ${MODEL_NAME} --port ${MAIN_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 20000"
 
 kill_session "vllm_summary"
-tmux new -d -s vllm_summary "export CUDA_VISIBLE_DEVICES=1; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 20000"
+tmux new -d -s vllm_summary "export CUDA_VISIBLE_DEVICES=1; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.35 --max-model-len 20000"
 
 kill_session "vllm_judge"
 
