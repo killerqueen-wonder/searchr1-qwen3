@@ -123,13 +123,13 @@ tmux_send_commands "retriever_filter8005" \
     "export HF_HUB_OFFLINE=1" \
     "cd /data/panghuaiwen/legal_R1/searchr1-qwen3" \
     "git pull origin main" \
-    "bash retrieval_launch_law_text2vec.sh --port $RETRIEVER_PORT --corpus_path '/data/panghuaiwen/legal_R1/dataset/law/法律法规3.0.jsonl' --case_corpus_path '/data/panghuaiwen/legal_R1/dataset/case/lecard_court_psi.jsonl' --retriever_name hybrid_filter --dictionary_path '/data/panghuaiwen/legal_R1/dataset/dictionary/THUOCL_law.txt' --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 3 --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' --filter_model /data/panghuaiwen/legal_R1/model/Qwen/Qwen3-8B --vllm_url http://127.0.0.1:8006/v1/completions --gpu_ids 2 --gpu_memory_limit_per_gpu 10"
+    "bash retrieval_launch_law_text2vec.sh --port $RETRIEVER_PORT --corpus_path '/data/panghuaiwen/legal_R1/dataset/law/法律法规3.0.jsonl' --case_corpus_path '/data/panghuaiwen/legal_R1/dataset/case/lecard_court_psi.jsonl' --retriever_name hybrid_filter --dictionary_path '/data/panghuaiwen/legal_R1/dataset/dictionary/THUOCL_law.txt' --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 3 --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' --filter_model /data/panghuaiwen/legal_R1/model/Qwen/Qwen3-8B --vllm_url http://127.0.0.1:8006/v1/completions --gpu_ids 1 --gpu_memory_limit_per_gpu 10"
 info "已触发启动 RAG 检索器 (Port: $RETRIEVER_PORT)"
 
 kill_session "vllm"
 tmux new-session -d -s vllm -n vllm
 tmux_send_commands "vllm" \
-    "export CUDA_VISIBLE_DEVICES=2" \
+    "export CUDA_VISIBLE_DEVICES=1" \
     "conda activate vllm_server" \
     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
     "python -m vllm.entrypoints.openai.api_server --model /data/panghuaiwen/legal_R1/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port $VLLM_PORT --gpu-memory-utilization 0.35 --max-model-len 25000"
@@ -144,7 +144,7 @@ tmux new -d -s vllm_summary "export CUDA_VISIBLE_DEVICES=1; source $CONDA_SH && 
 
 kill_session "vllm_judge"
 
-tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 22000"
+tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 22000"
 
 info "等待所有服务拉起..."
 sleep 20
