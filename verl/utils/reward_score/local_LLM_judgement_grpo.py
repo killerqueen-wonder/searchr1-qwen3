@@ -380,10 +380,10 @@ def compute_score(solution_str, ground_truth, extra_info=None):
 
     # --- Step 5: 最终分数聚合 ---
     # 比例：Acc(0.45) + Align(0.20) + Info(0.20) + Query(0.15)
-    subjective_total = (acc_100 * 0.45 / 100.0) + \
-                       (align_100 * 0.20 / 100.0) + \
-                       (info_100 * 0.20 / 100.0) + \
-                       (query_quality_100 * 0.15 / 100.0)
+    subjective_total = (acc_100 * 0.8 / 100.0) + \
+                       (align_100 * 0.08 / 100.0) + \
+                       (info_100 * 0.10 / 100.0) + \
+                       (query_quality_100 * 0.02 / 100.0)
 
     final_score = subjective_total + search_bonus - length_punish
 
