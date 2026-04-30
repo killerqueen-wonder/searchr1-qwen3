@@ -24,7 +24,7 @@ def process_single_item(item, idx, agent, summary_port):
     
     try:
         history, agent_metrics = agent.gen(query=query)
-        summary, sum_p_tok, sum_c_tok = get_universal_vllm_summary(query, history, summary_port, model_name=agent.model_name)
+        summary, sum_p_tok, sum_c_tok = get_universal_vllm_summary(query, history, summary_port, model_name="Qwen3-8B")
     except Exception as e:
         logging.error(f"[Item {idx}] Agent Generation Failed: {e}")
         history, summary = "Error", "Error"
