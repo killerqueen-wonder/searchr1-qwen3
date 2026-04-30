@@ -5,7 +5,7 @@ set -e
 # 允许外部单行命令传参覆盖
 BASE_DIR="${BASE_DIR:-/data/panghuaiwen/legal_R1}"
 MODEL_PATH="/data/panghuaiwen/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor_merge"
-MODEL_NAME="${MODEL_NAME:-RL_7.2_0427}"
+MODEL_NAME="${MODEL_NAME:-RL_7.2_0430}"
 JUDGE_MODEL_NAME="Qwen3-8B-Judge" # 为裁判模型指定独立名称
 WORKERS="${WORKERS:-32}"
 
