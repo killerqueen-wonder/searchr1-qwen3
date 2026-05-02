@@ -370,9 +370,9 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     diff = abs(gt_search_count - model_search_count)
     
     search_bonus = 0.0
-    if diff <= 2:
+    if diff <= 1:
         search_bonus = 0.10  
-    elif diff <= 3:
+    elif diff <= 2:
         search_bonus = 0.05
         
     # 长度奖金项 (新公式：上限 0.1)
