@@ -376,7 +376,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         search_bonus = 0.05
         
     # 长度奖金项 (新公式：上限 0.1)
-    length_punish = min(0.1, len(answer_content) * 0.000003)
+    length_punish = min(0.1, len(solution_str) * 0.000001)
 
     # --- Step 5: 最终分数聚合 ---
     # 比例：Acc(0.45) + Align(0.20) + Info(0.20) + Query(0.15)
@@ -393,8 +393,9 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         print(f"Components -> Acc:{acc_100}, Align:{align_100}, Info:{info_100}, Query:{query_quality_100:.1f}")
         print(f"Bonuses    -> SearchBonus:{search_bonus}, LengthBonus:{length_punish:.4f}")
         print(f"Q: ...{question[-100:]}")
-        print(f"GT: ...{ground_truth[-500:]}")
-        print(f"Model Answer: {answer_content}")
+        print(f"GT: ...{ground_truth[-200:]}")
+        print(f"Model think: {solution_str[2000:]}...")
+        print(f"Model Answer: {answer_content}...")
         
 
     return final_score
