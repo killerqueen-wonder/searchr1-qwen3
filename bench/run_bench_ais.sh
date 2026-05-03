@@ -126,7 +126,7 @@ tmux_send_commands "retriever_filter8005" \
     "export TRANSFORMERS_OFFLINE=1" \
     "export HF_HUB_OFFLINE=1" \
     "cd ${BASE_DIR}/searchr1-qwen3" \
-    "bash retrieval_launch_law_text2vec.sh --port $RETRIEVER_PORT --corpus_path '${BASE_DIR}/dataset/dataset/law/法律法规3.0.jsonl' --case_corpus_path '${BASE_DIR}/dataset/case/lecard_court_psi.jsonl' --retriever_name hybrid_filter --dictionary_path '${BASE_DIR}/dataset/dictionary/THUOCL_law.txt' --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 3 --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' --filter_model ${RERANK_MODEL_PATH} --vllm_url http://127.0.0.1:${VLLM_PORT}/v1/completions --gpu_ids 3 --gpu_memory_limit_per_gpu 8"
+    "bash retrieval_launch_law_text2vec.sh --port $RETRIEVER_PORT --corpus_path '${BASE_DIR}/dataset/dataset/law/法律法规3.0.jsonl' --case_corpus_path '${BASE_DIR}/dataset/dataset/case/lecard_court_psi.jsonl' --retriever_name hybrid_filter --dictionary_path '${BASE_DIR}/dataset/dataset/dictionary/THUOCL_law.txt' --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 3 --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' --filter_model ${RERANK_MODEL_PATH} --vllm_url http://127.0.0.1:${VLLM_PORT}/v1/completions --gpu_ids 3 --gpu_memory_limit_per_gpu 8"
 info "已触发启动 RAG 检索器 (Port: $RETRIEVER_PORT, GPU: 3)"
 
 sleep 15
