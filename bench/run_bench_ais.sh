@@ -7,8 +7,9 @@ export BASE_DIR="${BASE_DIR:-/data/panghuaiwen/legal_R1}"
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}" # 新增：Conda 安装目录
 
 # 模型路径也使用 BASE_DIR 拼接
-MODEL_PATH="${BASE_DIR}/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor_merge"
-MODEL_NAME="${MODEL_NAME:-RL_7.2_0427}"
+# MODEL_PATH="${BASE_DIR}/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor_merge"
+MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B"
+MODEL_NAME="${MODEL_NAME:-qwen3-8b}"
 JUDGE_MODEL_NAME="Qwen3-8B-Judge" 
 WORKERS="${WORKERS:-32}"
 
