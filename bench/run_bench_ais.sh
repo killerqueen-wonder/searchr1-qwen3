@@ -3,14 +3,26 @@ set -e
 
 # ================= 1. 配置全局变量 =================
 # 允许外部环境变量覆盖，实现多平台通用
-export BASE_DIR="${BASE_DIR:-/data/panghuaiwen/legal_R1}"
+export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal_R1}"
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}" # 新增：Conda 安装目录
 
-# 模型路径也使用 BASE_DIR 拼接
-# MODEL_PATH="${BASE_DIR}/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor_merge"
-MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B"
-MODEL_NAME="${MODEL_NAME:-qwen3-8b}"
-JUDGE_MODEL_NAME="Qwen3-8B-Judge" 
+# ----------------- 模型路径与名称配置 -----------------
+# 1. 主路推理模型 (对应 MAIN_VLLM_PORT)
+export MODEL_PATH="${MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
+export MODEL_NAME="${MODEL_NAME:-qwen3-8b-0503}"
+
+# 2. 裁判模型配置 (对应 JUDGE_VLLM_PORT)
+export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
+export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
+
+# 3. Rerank 模型配置 (对应 VLLM_PORT)
+export RERANK_MODEL_PATH="${RERANK_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
+export RERANK_MODEL_NAME="${RERANK_MODEL_NAME:-Qwen3-8B}"
+
+# 4. 总结模型配置 (对应 SUMMARY_VLLM_PORT)
+export SUMMARY_MODEL_PATH="${SUMMARY_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
+export SUMMARY_MODEL_NAME="${SUMMARY_MODEL_NAME:-Qwen3-8B}"
+
 WORKERS="${WORKERS:-32}"
 
 # 接口与并发配置
@@ -24,35 +36,13 @@ JUDGE_VLLM_PORT=8009
 # 等待超时设置（秒）
 PORT_TIMEOUT=1600  
 
-
-
-# # ================= 2. 环境初始化 =================
-# # conda 初始化脚本路径
-# if [ -f "/data/panghuaiwen/miniconda3/etc/profile.d/conda.sh" ]; then
-#     CONDA_SH="/data/panghuaiwen/miniconda3/etc/profile.d/conda.sh"
-# elif [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
-#     CONDA_SH="/opt/conda/etc/profile.d/conda.sh"
-# else
-#     echo "错误：未找到 conda.sh，请修改脚本中的 CONDA_SH 路径"
-#     exit 1
-# fi
+# ================= 2. 环境初始化 =================
 export CONDA_SH="/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh"
 
 info() { echo -e "\033[32m[INFO]\033[0m $1"; }
 error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
 
-
-#合并
-# source $CONDA_SH
-# conda activate searchr1_new
-# cd /data/panghuaiwen/legal_R1/searchr1-qwen3
-# git pull origin main
-# python "/data/panghuaiwen/legal_R1/searchr1-qwen3/run_merger.py" merge --backend fsdp --local_dir "/data/panghuaiwen/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor" --target_dir "/data/panghuaiwen/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.2-0420/global_step_700/actor_merge"
-# info "合并完成..."
-
 # ----------------- 基础设施函数 -----------------
-
-
 wait_for_port() {
     local port=$1
     local timeout=$2
@@ -61,15 +51,12 @@ wait_for_port() {
     info "等待端口 $port 就绪（超时 ${timeout}s）..."
     
     while true; do
-        # 针对 vLLM 服务和普通服务做区分处理
         if [ "$port" = "8005" ]; then
-            # RAG 服务可能没有 /health 接口，使用 --noproxy 绕过代理干扰，只要有 HTTP 响应（包括 404）即认为就绪
             if curl -s --noproxy '*' "http://127.0.0.1:$port" > /dev/null 2>&1; then
                 info "端口 $port 已就绪 (RAG)"
                 return 0
             fi
         else
-            # vLLM 服务使用标准的 /health 接口，增加 -f 参数强制要求返回 200 OK 状态码
             if curl -s -f --noproxy '*' "http://127.0.0.1:$port/health" > /dev/null 2>&1; then
                 info "端口 $port 已就绪 (vLLM)"
                 return 0
@@ -121,8 +108,6 @@ if ! command -v nvidia-smi &> /dev/null || ! nvidia-smi &> /dev/null; then
     exit 1
 fi
 
-
-
 # ================= 3. 启动后台服务 =================
 info "========================================================="
 info " 🚀 全量 Bench 自动化评测启动 (适配 4xRTX 5090 模式)"
@@ -132,7 +117,8 @@ info "========================================================="
 # --- 3.1 启动 RAG 检索器及依赖 vLLM (挤在 GPU 3) ---
 kill_session "retriever_filter8005"
 tmux new-session -d -s retriever_filter8005 -n retriever
-# 这里的绝对路径已全部替换为 ${BASE_DIR}
+
+# 注意：这里将 retrieval_launch_law_text2vec.sh 的 filter_model 也改为了全局变量
 tmux_send_commands "retriever_filter8005" \
     "conda activate retriever_filter" \
     "export TRANSFORMERS_CACHE=${BASE_DIR}/model" \
@@ -140,37 +126,37 @@ tmux_send_commands "retriever_filter8005" \
     "export TRANSFORMERS_OFFLINE=1" \
     "export HF_HUB_OFFLINE=1" \
     "cd ${BASE_DIR}/searchr1-qwen3" \
-    "bash retrieval_launch_law_text2vec.sh --port $RETRIEVER_PORT --corpus_path '${BASE_DIR}/dataset/law/法律法规3.0.jsonl' --case_corpus_path '${BASE_DIR}/dataset/case/lecard_court_psi.jsonl' --retriever_name hybrid_filter --dictionary_path '${BASE_DIR}/dataset/dictionary/THUOCL_law.txt' --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 3 --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' --filter_model ${BASE_DIR}/model/Qwen/Qwen3-8B --vllm_url http://127.0.0.1:8006/v1/completions --gpu_ids 3 --gpu_memory_limit_per_gpu 8"
+    "bash retrieval_launch_law_text2vec.sh --port $RETRIEVER_PORT --corpus_path '${BASE_DIR}/dataset/law/法律法规3.0.jsonl' --case_corpus_path '${BASE_DIR}/dataset/case/lecard_court_psi.jsonl' --retriever_name hybrid_filter --dictionary_path '${BASE_DIR}/dataset/dictionary/THUOCL_law.txt' --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 3 --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' --filter_model ${RERANK_MODEL_PATH} --vllm_url http://127.0.0.1:${VLLM_PORT}/v1/completions --gpu_ids 3 --gpu_memory_limit_per_gpu 8"
 info "已触发启动 RAG 检索器 (Port: $RETRIEVER_PORT, GPU: 3)"
 
 sleep 15
 
 kill_session "vllm"
-# 分配到 GPU 3，显存利用率降为 0.6 (约19GB)，留空间给检索器
-tmux new -d -s vllm "export TRITON_CACHE_DIR=~/.triton/cache_vllm_rag; export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port $VLLM_PORT --gpu-memory-utilization 0.6 --max-model-len 25000 || sleep 86400"
-info "已触发启动 RAG 依赖的 vLLM (Port: $VLLM_PORT, GPU: 3)"
+# 使用 RERANK_MODEL_PATH 和 RERANK_MODEL_NAME
+tmux new -d -s vllm "export TRITON_CACHE_DIR=~/.triton/cache_vllm_rag; export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${RERANK_MODEL_PATH} --served-model-name ${RERANK_MODEL_NAME} --port ${VLLM_PORT} --gpu-memory-utilization 0.6 --max-model-len 25000 || sleep 86400"
+info "已触发启动 RAG 依赖的 vLLM (Port: ${VLLM_PORT}, GPU: 3)"
 
 sleep 15
 
 # --- 3.2 启动主路推理、总结与评测 vLLM (分别独占 0, 1, 2 卡) ---
 
 kill_session "vllm_main"
-# 独占 GPU 0，因为是主卡，显存利用率可以拉高到 0.85
+# 使用 MODEL_PATH 和 MODEL_NAME
 tmux new -d -s vllm_main "export TRITON_CACHE_DIR=~/.triton/cache_vllm_main; export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${MODEL_PATH} --served-model-name ${MODEL_NAME} --port ${MAIN_VLLM_PORT} --gpu-memory-utilization 0.85 --max-model-len 20000 || sleep 86400"
 info "已触发启动 vLLM 主路推理 (Port: $MAIN_VLLM_PORT, GPU: 0)"
 
 sleep 15
 
 kill_session "vllm_summary"
-# 独占 GPU 1
-tmux new -d -s vllm_summary "export TRITON_CACHE_DIR=~/.triton/cache_vllm_summary; export CUDA_VISIBLE_DEVICES=1; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name Qwen3-8B --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.85 --max-model-len 20000 || sleep 86400"
+# 使用 SUMMARY_MODEL_PATH 和 SUMMARY_MODEL_NAME
+tmux new -d -s vllm_summary "export TRITON_CACHE_DIR=~/.triton/cache_vllm_summary; export CUDA_VISIBLE_DEVICES=1; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${SUMMARY_MODEL_PATH} --served-model-name ${SUMMARY_MODEL_NAME} --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.85 --max-model-len 20000 || sleep 86400"
 info "已触发启动 vLLM 总结模型 (Port: $SUMMARY_VLLM_PORT, GPU: 1)"
 
 sleep 15
 
 kill_session "vllm_judge"
-# 独占 GPU 2
-tmux new -d -s vllm_judge "export TRITON_CACHE_DIR=~/.triton/cache_vllm_judge; export CUDA_VISIBLE_DEVICES=2; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.85 --max-model-len 22000 || sleep 86400"
+# 使用 JUDGE_MODEL_PATH 和 JUDGE_MODEL_NAME
+tmux new -d -s vllm_judge "export TRITON_CACHE_DIR=~/.triton/cache_vllm_judge; export CUDA_VISIBLE_DEVICES=2; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${JUDGE_MODEL_PATH} --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.85 --max-model-len 22000 || sleep 86400"
 info "已触发启动 vLLM 裁判模型 (Port: $JUDGE_VLLM_PORT, GPU: 2)"
 
 info "等待所有服务拉起..."
@@ -184,7 +170,6 @@ info "全部服务就绪，开始执行基准测试！🚀"
 # ================= 4. UCL Bench =================
 info "================== [1/3] UCL Bench =================="
 
-# 激活主环境
 source $CONDA_SH
 conda activate searchr1_new
 
@@ -219,16 +204,14 @@ python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
     --inference_path "${UCL_RES_PATH}" \
     --output_path "${UCL_RESULT_PATH}"
 
-
 # ================= 5. LawBench =================
 info "================== [2/3] LawBench =================="
 
-# 切换为 LawBench 的独立环境
 info " -> 切换为 LawBench 环境..."
 source $CONDA_SH
 conda activate lawbench
 
-LAWBEN CH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
+LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
 LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored"
 LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench.json"
 
@@ -255,11 +238,9 @@ python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_result.py \
     --score_dir "${LAWBENCH_SCORE_DIR}" \
     --output_path "${LAWBENCH_RESULT_PATH}"
 
-
 # ================= 6. LexEval =================
 info "================== [3/3] LexEval =================="
 
-# 切换回主环境
 info " -> 切换回 searchr1_new 环境..."
 source $CONDA_SH
 conda activate searchr1_new
@@ -313,9 +294,3 @@ info "   - UCL:      ${UCL_RESULT_PATH}"
 info "   - LawBench: ${LAWBENCH_RESULT_PATH}"
 info "   - LexEval:  ${LEXEVAL_RESULT_PATH}"
 info "========================================================="
-
-# 杀掉后台评测模型释放显存 (保留基础 RAG 供日常调试可不杀)
-# tmux kill-session -t vllm_main || true
-# tmux kill-session -t vllm_summary || true
-# tmux kill-session -t vllm_judge || true
-# info "清理完毕，模型推理显存已释放。"
