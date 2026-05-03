@@ -3,7 +3,6 @@ import logging
 import re
 import time
 import requests
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -48,16 +47,7 @@ NEW_SYSTEM_PROMPT = """你是一个严谨且专业的法律AI助手。你的任�
 
 class VLLM_Retriever_Agent:
     def __init__(self, vllm_url, retrieve_path=None, model_name="Qwen3-8B", max_turn=12, topk=10):
-        # 新增：读取 API 模式的环境变量配置
-        self.use_direct_api = os.getenv("USE_DIRECT_API", "false").lower() == "true"
-        self.api_key = os.getenv("API_KEY", "EMPTY")
-        env_url = os.getenv("MAIN_API_URL")
-
-        if self.use_direct_api and env_url:
-            self.vllm_url = env_url
-        else:
-            self.vllm_url = f"{vllm_url}/v1/completions"
-            
+        self.vllm_url = f"{vllm_url}/v1/completions"
         self.retrieve_path = retrieve_path
         self.model_name = model_name
         self.max_turn = max_turn
@@ -122,53 +112,6 @@ class VLLM_Retriever_Agent:
 
     def gen(self, query, instruction=""):
         question = f"{instruction}\n{query}".strip() if instruction else query.strip()
-
-        
-
-        # ================== 新增：纯 API 直连模式 ==================
-        if self.use_direct_api:
-            payload = {
-                "model": self.model_name,
-                "messages": [
-                    {"role": "system", "content": "你是一个乐于助人的智能助手。"},
-                    {"role": "user", "content": question}
-                ],
-                "temperature": 0.1,
-                "stream": False
-            }
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            start_time = time.time()
-            try:
-                res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=200).json()
-                if "error" in res:
-                    logger.error(f"API 返回错误: {res['error']}")
-                    output_text = f"API Error: {res['error']}"
-                    prompt_tokens, comp_tokens = 0, 0
-                else:
-                    output_text = res["choices"][0]["message"]["content"]
-                    usage = res.get("usage", {})
-                    prompt_tokens = usage.get("prompt_tokens", 0)
-                    comp_tokens = usage.get("completion_tokens", 0)
-            except Exception as e:
-                logger.error(f"API 请求异常: {e}")
-                output_text = "Error"
-                prompt_tokens, comp_tokens = 0, 0
-
-            # 伪造 agent_metrics 保持与 infer 脚本的兼容性
-            agent_metrics = {
-                "tool_latency_sec": time.time() - start_time, 
-                "rag_count": 0,
-                "user_prompt_tokens": prompt_tokens,
-                "main_total_prompt_tokens": prompt_tokens, 
-                "main_total_comp_tokens": comp_tokens
-            }
-            return output_text, agent_metrics
-        # ==========================================================
-
         prompt = NEW_SYSTEM_PROMPT.format(question_text=question)
         
         cnt, search_word_before = 0, ""
@@ -235,13 +178,7 @@ class VLLM_Retriever_Agent:
         return "\n".join(history), agent_metrics
 
 def get_universal_vllm_summary(query, history, port, model_name="Qwen3-8B"):
-    
-    # ================== 新增：纯 API 模式下直接透传 ==================
-    if os.getenv("USE_DIRECT_API", "false").lower() == "true":
-        # 直接把 gen() 跑出来的原始回答当做 summary 返回，跳过额外请求
-        return history, 0, 0
-    # ================================================================
-
+    # 更新后的统一 Prompt
     prompt = (
         "你是一个专业、严谨的法律AI助手。请根据下方提供的【原问题】与系统的【思维链解析】，提取并整理出最终答案。\n\n"
         "【核心规则】：\n"
