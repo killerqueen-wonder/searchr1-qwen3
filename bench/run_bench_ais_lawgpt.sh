@@ -219,6 +219,7 @@ export CUSTOM_MODEL_CACHE="/F00120250029/lixiang_share/panghuaiwen_share/legal_R
 # 如果 lawgpt_api.py 支持参数，请手动加入显存限制参数
 tmux new -d -s vllm_main "export CUDA_VISIBLE_DEVICES=0; \
     export HF_HOME='${CUSTOM_MODEL_CACHE}'; \
+    export HF_ENDPOINT='https://hf-mirror.com'; \
     source $CONDA_SH && conda activate lawgpt; \
     cd ${BASE_DIR}/LaWGPT; \
     python lawgpt_api.py --port ${MAIN_VLLM_PORT} || sleep 86400"
