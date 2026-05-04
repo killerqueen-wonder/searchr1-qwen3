@@ -133,8 +133,8 @@ info "已触发启动 RAG 检索器 (Port: $RETRIEVER_PORT, GPU: 3)"
 sleep 15
 
 kill_session "vllm"
-# 使用 RERANK_MODEL_PATH 和 RERANK_MODEL_NAME
-tmux new -d -s vllm "export TRITON_CACHE_DIR=~/.triton/cache_vllm_rag; export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${RERANK_MODEL_PATH} --served-model-name ${RERANK_MODEL_NAME} --port ${VLLM_PORT} --gpu-memory-utilization 0.6 --max-model-len 25000 || sleep 86400"
+# 使用 RERANK_MODEL_PATH 和 RERANK_MODEL_NAME--enforce-eager
+tmux new -d -s vllm "export TRITON_CACHE_DIR=~/.triton/cache_vllm_rag; export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${RERANK_MODEL_PATH} --served-model-name ${RERANK_MODEL_NAME} --port ${VLLM_PORT} --gpu-memory-utilization 0.6 --max-model-len 25000 --enforce-eager || sleep 86400"
 info "已触发启动 RAG 依赖的 vLLM (Port: ${VLLM_PORT}, GPU: 3)"
 
 sleep 15
