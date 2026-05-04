@@ -156,6 +156,9 @@ class VLLM_Retriever_Agent:
             except Exception as e:
                 logger.error(f"API 请求异常: {e}")
                 output_text = "Error"
+                print("[debug] request payload:")
+                print(payload)
+                
                 prompt_tokens, comp_tokens = 0, 0
 
             # 伪造 agent_metrics 保持与 infer 脚本的兼容性
@@ -181,7 +184,7 @@ class VLLM_Retriever_Agent:
             payload = {
                 "model": self.model_name,
                 "prompt": f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n",
-                "max_tokens": 1500,
+                "max_tokens": 2500,
                 "temperature": 0.3,
                 "stop": ["</search>", "</answer>", "<|im_end|>"],
                 "stop_token_ids": [151645, 151643]
@@ -194,6 +197,9 @@ class VLLM_Retriever_Agent:
                 current_completion_tokens = usage.get("completion_tokens", 0)
             except Exception as e:
                 logger.error(f"vLLM 请求异常: {e}")
+                output_text = "Error"
+                print("[debug] request payload:")
+                print(payload)
                 break
 
             if cnt == 0: sys_user_prompt_tokens = current_prompt_tokens

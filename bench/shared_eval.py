@@ -23,7 +23,7 @@ GENERAL_JUDGE_PROMPT = """你是一个权威的法律答案评测专家。请根
 请严格按照以下格式输出你的评测结果：
 先输出简短的评分理由，最后必须在一行中输出最终得分，格式为：[[分数]]，例如 [[85]]。"""
 # ================= 通用 API 调用函数 =================
-def call_vllm_api(prompt, model_name, port=8009, max_tokens=1024, temperature=0.1):
+def call_vllm_api(prompt, model_name, port=8009, max_tokens=2024, temperature=0.1):
     """通用的 vLLM API 调用函数"""
     # 增加 ChatML 包装，防止模型退化为文本续写
     formatted_prompt = f"<|im_start|>system\n你是一个客观、公正的 AI 评测助手。<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
@@ -42,6 +42,8 @@ def call_vllm_api(prompt, model_name, port=8009, max_tokens=1024, temperature=0.
         return response.json()["choices"][0]["text"].strip()
     except Exception as e:
         logger.error(f"API调用失败: {e}")
+        print("[debug] request payload:")
+        print(payload)
         return "-1"
 
 def parse_score_100(result_text):
