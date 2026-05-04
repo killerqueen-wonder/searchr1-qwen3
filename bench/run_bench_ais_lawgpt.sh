@@ -55,6 +55,19 @@ kill_session() {
     fi
 }
 
+# ----------------- 环境预检 -----------------
+if ! command -v tmux &> /dev/null; then
+    info "未检测到 tmux，尝试安装..."
+    apt update && apt install -y tmux
+fi
+
+conda config --add envs_dirs /data/panghuaiwen/legal_R1/env 2>/dev/null || true
+
+if ! command -v nvidia-smi &> /dev/null || ! nvidia-smi &> /dev/null; then
+    error "致命错误：NVIDIA GPU 未正常挂载或驱动损坏！容器环境异常！"
+    exit 1
+fi
+
 info "========================================================="
 info " 🚀 LawGPT 极速直通评测启动 (无需 RAG 与 Summary)"
 info " 方案：GPU 0 [LawGPT] | GPU 1 [裁判]"
