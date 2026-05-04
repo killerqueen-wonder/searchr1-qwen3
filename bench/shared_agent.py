@@ -126,18 +126,62 @@ class VLLM_Retriever_Agent:
         
 
         # ================== 新增：纯 API 直连模式 ==================
+        # if self.use_direct_api:
+        #     payload = {
+        #         "model": self.model_name,
+        #         "messages": [
+        #             {"role": "system", "content": "你是一个乐于助人的智能助手。"},
+        #             {"role": "user", "content": question}
+        #         ],
+        #         "temperature": 0.1,
+        #         "stream": False
+        #     }
+        #     headers = {
+        #         "Authorization": f"Bearer {self.api_key}",
+        #         "Content-Type": "application/json"
+        #     }
+            
+        #     start_time = time.time()
+        #     try:
+        #         res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=200).json()
+        #         if "error" in res:
+        #             logger.error(f"API 返回错误: {res['error']}")
+        #             output_text = f"API Error: {res['error']}"
+        #             prompt_tokens, comp_tokens = 0, 0
+        #         else:
+        #             output_text = res["choices"][0]["message"]["content"]
+        #             usage = res.get("usage", {})
+        #             prompt_tokens = usage.get("prompt_tokens", 0)
+        #             comp_tokens = usage.get("completion_tokens", 0)
+        #     except Exception as e:
+        #         logger.error(f"API 请求异常: {e}")
+        #         output_text = "Error"
+        #         print("[debug] request payload:")
+        #         print(payload)
+                
+        #         prompt_tokens, comp_tokens = 0, 0
+
+        #     # 伪造 agent_metrics 保持与 infer 脚本的兼容性
+        #     agent_metrics = {
+        #         "tool_latency_sec": time.time() - start_time, 
+        #         "rag_count": 0,
+        #         "user_prompt_tokens": prompt_tokens,
+        #         "main_total_prompt_tokens": prompt_tokens, 
+        #         "main_total_comp_tokens": comp_tokens
+        #     }
+        #     return output_text, agent_metrics
+        # ==========================================================
+
+        # ================== 修改后：纯 API 直连模式 (适配 LawGPT) ==================
         if self.use_direct_api:
+            # 修改 payload，使用 prompt 替代 messages
             payload = {
-                "model": self.model_name,
-                "messages": [
-                    {"role": "system", "content": "你是一个乐于助人的智能助手。"},
-                    {"role": "user", "content": question}
-                ],
+                "prompt": question,
+                "max_tokens": 2048, # 覆盖 lawgpt_api.py 默认的 256
                 "temperature": 0.1,
-                "stream": False
+                "top_p": 0.75
             }
             headers = {
-                "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
             
@@ -147,12 +191,17 @@ class VLLM_Retriever_Agent:
                 if "error" in res:
                     logger.error(f"API 返回错误: {res['error']}")
                     output_text = f"API Error: {res['error']}"
+                    print("[debug] gen error, payload:")
+                    print(payload)
                     prompt_tokens, comp_tokens = 0, 0
                 else:
-                    output_text = res["choices"][0]["message"]["content"]
+                    # 修改解析方式，适配 lawgpt_api.py 返回的 text 字段
+                    output_text = res["choices"][0]["text"]
+                    
+                    # 你的 API 目前不返回 usage，做个容错以免评测脚本崩溃
                     usage = res.get("usage", {})
-                    prompt_tokens = usage.get("prompt_tokens", 0)
-                    comp_tokens = usage.get("completion_tokens", 0)
+                    prompt_tokens = usage.get("prompt_tokens", len(question))
+                    comp_tokens = usage.get("completion_tokens", len(output_text))
             except Exception as e:
                 logger.error(f"API 请求异常: {e}")
                 output_text = "Error"
