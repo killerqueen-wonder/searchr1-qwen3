@@ -10,7 +10,7 @@ export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}" # 新增：Conda
 # 1. 主路推理模型 (对应 MAIN_VLLM_PORT)
 #模型路径已编码进py文件
 # export MODEL_PATH="${MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
-export MODEL_NAME="${MODEL_NAME:-lawgpt}"
+export MODEL_NAME="${MODEL_NAME:-lawgpt_0504}"
 
 # 2. 裁判模型配置 (对应 JUDGE_VLLM_PORT)
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
