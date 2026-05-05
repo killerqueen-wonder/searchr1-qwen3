@@ -5,7 +5,7 @@ set -e
 export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal_R1}"
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 
-export MODEL_NAME="${MODEL_NAME:-lawgpt_0504_2046}"
+export MODEL_NAME="${MODEL_NAME:-lawgpt_0505}"
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
 export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
 
@@ -95,8 +95,8 @@ tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=1; \
     --model ${JUDGE_MODEL_PATH} \
     --served-model-name ${JUDGE_MODEL_NAME} \
     --port ${JUDGE_VLLM_PORT} \
-    --gpu-memory-utilization 0.85 \
-    --max-model-len 22000 --enforce-eager || sleep 86400"
+    --gpu-memory-utilization 0.9 \
+    --max-model-len 16000 --enforce-eager || sleep 86400"
 info "已触发启动 Judge 裁判服务 (GPU: 1)"
 
 wait_for_port $MAIN_VLLM_PORT $PORT_TIMEOUT "vllm_main"
