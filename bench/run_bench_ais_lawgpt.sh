@@ -58,8 +58,7 @@ kill_session() {
 # ----------------- 环境预检 -----------------
 if ! command -v tmux &> /dev/null; then
     info "未检测到 tmux，尝试安装..."
-    sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
-    sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+
     apt update && apt install -y tmux
 fi
 
