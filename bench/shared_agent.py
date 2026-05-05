@@ -187,7 +187,7 @@ class VLLM_Retriever_Agent:
             
             start_time = time.time()
             try:
-                res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=200).json()
+                res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=2000).json()
                 if "error" in res:
                     logger.error(f"API 返回错误: {res['error']}")
                     output_text = f"API Error: {res['error']}"
