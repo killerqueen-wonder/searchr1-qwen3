@@ -9,7 +9,7 @@ export MODEL_NAME="${MODEL_NAME:-lawgpt_0505}"
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
 export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
 
-WORKERS="${WORKERS:-32}"
+WORKERS="${WORKERS:-16}"
 
 # 端口配置
 MAIN_VLLM_PORT=8007
@@ -96,7 +96,7 @@ tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=1; \
     --served-model-name ${JUDGE_MODEL_NAME} \
     --port ${JUDGE_VLLM_PORT} \
     --gpu-memory-utilization 0.9 \
-    --max-model-len 16000 --enforce-eager || sleep 86400"
+    --max-model-len 10000 --enforce-eager || sleep 86400"
 info "已触发启动 Judge 裁判服务 (GPU: 1)"
 
 wait_for_port $MAIN_VLLM_PORT $PORT_TIMEOUT "vllm_main"
