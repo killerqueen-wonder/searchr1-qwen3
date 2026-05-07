@@ -5,8 +5,9 @@ set -e
 export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal_R1}"
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 
-export MODEL_NAME="${MODEL_NAME:-legalone-0505}"
-export MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/models--CSHaitao--LegalOne-8B"
+# 修改点 1: 更新为新模型的 Name 和 Path
+export MODEL_NAME="${MODEL_NAME:-luwen-0507}"
+export MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/luwen/zju_model_0813_100k"
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
 export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
 
@@ -72,14 +73,14 @@ fi
 
 info "========================================================="
 info " 🚀 legalone 极速直通评测启动 (无需 RAG 与 Summary)"
-info " 方案：GPU 0 [legalone] | GPU 1 [裁判]"
+info " 方案：GPU 0 [${MODEL_NAME}] | GPU 1 [裁判]"
 info "========================================================="
 
 # --- 2. 启动服务 ---
-# 启动主路推理 LawGPT (GPU 0)
+# 启动主路推理 (GPU 0)
 kill_session "vllm_main"
-# 使用 MODEL_PATH 和 MODEL_NAME
-tmux new -d -s vllm_main "export TRITON_CACHE_DIR=~/.triton/cache_vllm_main; export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${MODEL_PATH} --served-model-name ${MODEL_NAME} --port ${MAIN_VLLM_PORT} --gpu-memory-utilization 0.9 --max-model-len 10000 || sleep 86400"
+# 修改点 2: 启动命令中新增了 --trust-remote-code 和 --dtype bfloat16，适配新模型架构要求
+tmux new -d -s vllm_main "export TRITON_CACHE_DIR=~/.triton/cache_vllm_main; export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${MODEL_PATH} --served-model-name ${MODEL_NAME} --port ${MAIN_VLLM_PORT} --gpu-memory-utilization 0.9 --max-model-len 10000 --trust-remote-code --dtype bfloat16 || sleep 86400"
 info "已触发启动 vLLM 主路推理 (Port: $MAIN_VLLM_PORT, GPU: 0)"
 
 

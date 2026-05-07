@@ -172,15 +172,30 @@ class VLLM_Retriever_Agent:
         #     return output_text, agent_metrics
         # ==========================================================
 
-        # ================== 修改后：纯 API 直连模式 (适配 LawGPT) ==================
+        # ================== 纯 API 直连模式 (多模型分流适配) ==================
         if self.use_direct_api:
-            # 修改 payload，使用 prompt 替代 messages
-            payload = {
-                "prompt": question,
-                "max_tokens": 2048, # 覆盖 lawgpt_api.py 默认的 256
-                "temperature": 0.1,
-                "top_p": 0.75
-            }
+            # 判断是否为 luwen / zju_model 系列新模型
+            if "luwen" in self.model_name.lower():
+                # --- 新增线路：适配 zju_model (luwen) ---
+                formatted_prompt = f"</s>Human:{question} </s>Assistant: "
+                payload = {
+                    "prompt": formatted_prompt,
+                    "max_tokens": 2048,
+                    "temperature": 0.1,
+                    "top_p": 0.75,
+                    "stop": ["</s>", "Human:"] # 增加截断词，防止无限生成
+                }
+                fallback_prompt_len = len(formatted_prompt)
+            else:
+                # --- 原有线路：保持原有逻辑不变 (如 LawGPT) ---
+                payload = {
+                    "prompt": question,
+                    "max_tokens": 2048, 
+                    "temperature": 0.1,
+                    "top_p": 0.75
+                }
+                fallback_prompt_len = len(question)
+
             headers = {
                 "Content-Type": "application/json"
             }
@@ -191,21 +206,20 @@ class VLLM_Retriever_Agent:
                 if "error" in res:
                     logger.error(f"API 返回错误: {res['error']}")
                     output_text = f"API Error: {res['error']}"
-                    print("[debug] gen error, payload:")
+                    print(f"[debug] gen error ({self.model_name}), payload:")
                     print(payload)
                     prompt_tokens, comp_tokens = 0, 0
                 else:
-                    # 修改解析方式，适配 lawgpt_api.py 返回的 text 字段
                     output_text = res["choices"][0]["text"]
                     
-                    # 你的 API 目前不返回 usage，做个容错以免评测脚本崩溃
+                    # 容错处理：如果 API 不返回 usage，按字符长度估算兜底
                     usage = res.get("usage", {})
-                    prompt_tokens = usage.get("prompt_tokens", len(question))
+                    prompt_tokens = usage.get("prompt_tokens", fallback_prompt_len)
                     comp_tokens = usage.get("completion_tokens", len(output_text))
             except Exception as e:
                 logger.error(f"API 请求异常: {e}")
                 output_text = "Error"
-                print("[debug] request payload:")
+                print(f"[debug] request payload ({self.model_name}):")
                 print(payload)
                 
                 prompt_tokens, comp_tokens = 0, 0
