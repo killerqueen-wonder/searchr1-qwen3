@@ -2,8 +2,9 @@ import requests
 import re
 import logging
 
-logger = logging.getLogger(__name__)
+import random # <--- 1. 新增引入 random 模块
 
+logger = logging.getLogger(__name__)
 GENERAL_JUDGE_PROMPT = """你是一个权威的法律答案评测专家。请根据提供的【问题】、【参考答案】和【AI助手的最终回答】，按照以下维度对AI助手的回答进行综合打分（0 - 100分）：
 
 1. **核心事实覆盖 (Accuracy, 40分)**: AI的最终结论是否涵盖了参考答案中的关键法律事实或结论？
@@ -39,7 +40,20 @@ def call_vllm_api(prompt, model_name, port=8009, max_tokens=2024, temperature=0.
     try:
         response = requests.post(url, json=payload, timeout=200)
         response.raise_for_status()
-        return response.json()["choices"][0]["text"].strip()
+        result_text = response.json()["choices"][0]["text"].strip()
+        
+        # ================= 新增：统一的 1/64 评测轨迹抽样 =================
+        if random.randint(1, 64) == 1:
+            logger.info(
+                f"\n========== [Central Eval Trace 1/64] Model: {model_name} ==========\n"
+                f"[Judge Input (Formatted)]:\n{formatted_prompt}\n\n"
+                f"[Judge Output]:\n{result_text}\n"
+                f"====================================================================\n"
+            )
+        # ==================================================================
+        
+        return result_text
+    
     except Exception as e:
         logger.error(f"API调用失败: {e}")
         print("[debug] request payload:")

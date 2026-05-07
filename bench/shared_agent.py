@@ -4,6 +4,7 @@ import re
 import time
 import requests
 import os
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +233,15 @@ class VLLM_Retriever_Agent:
                 "main_total_prompt_tokens": prompt_tokens, 
                 "main_total_comp_tokens": comp_tokens
             }
+            if random.randint(1, 64) == 1:
+                logger.info(
+                    f"\n========== [Trace Monitor 1/64] Model: {self.model_name} ==========\n"
+                    f"[Prompt]:\n{payload.get('prompt', 'N/A')}\n\n"
+                    f"[Output]:\n{output_text}\n"
+                    f"==================================================================\n"
+                )
             return output_text, agent_metrics
+        
         # ==========================================================
 
         prompt = NEW_SYSTEM_PROMPT.format(question_text=question)
@@ -300,8 +309,22 @@ class VLLM_Retriever_Agent:
             "tool_latency_sec": sys_tool_latency, "rag_count": sys_rag_count,
             "user_prompt_tokens": sys_user_prompt_tokens,
             "main_total_prompt_tokens": sys_total_prompt_tokens, "main_total_comp_tokens": sys_total_completion_tokens
-        }
-        return "\n".join(history), agent_metrics
+        }        
+
+        # 先把 history 拼接好
+        final_output = "\n".join(history)
+
+        # ================= 新增：1/64 概率抽样打印轨迹 =================
+        if random.randint(1, 64) == 1:
+            logger.info(
+                f"\n========== [Trace Monitor 1/64] Model: {self.model_name} ==========\n"
+                f"[Prompt]:\n{prompt}\n\n"
+                f"[Output/History]:\n{final_output}\n"
+                f"==================================================================\n"
+            )
+        # ===============================================================
+
+        return final_output, agent_metrics
 
 def get_universal_vllm_summary(query, history, port, model_name="Qwen3-8B"):
     

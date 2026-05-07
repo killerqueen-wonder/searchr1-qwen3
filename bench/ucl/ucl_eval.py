@@ -14,6 +14,35 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path: sys.path.append(parent_dir)
 from shared_eval import call_vllm_api
 
+import os
+import time
+import logging
+import random
+
+# ====== 全局日志与监测配置开始 ======
+BASE_DIR = os.environ.get(
+    "BASE_DIR", 
+    "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1"
+)
+LOG_DIR = os.path.join(BASE_DIR, "dataset", "result", "bench_result", "log")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+# 建议 Eval 脚本的文件名带上特定前缀以和 Infer 区分
+current_time = time.strftime("%Y%m%d_%H%M%S")
+log_file_path = os.path.join(LOG_DIR, f"eval_pipeline_{current_time}.log")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file_path, encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
+# ====== 全局日志与监测配置结束 ======
+
 def compute_ucl_score(evaluation_result):
     """解析 UCL 的 [[1]] [[2]] [[3]] 格式"""
     try:

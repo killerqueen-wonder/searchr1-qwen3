@@ -40,8 +40,34 @@ from shared_agent import VLLM_Retriever_Agent, get_universal_vllm_summary
 # =================================================
 
 os.umask(0)
+import os
+import time
+import logging
+
+
+# ====== 全局日志与监测配置开始 ======
+BASE_DIR = os.environ.get(
+    "BASE_DIR", 
+    "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1"
+)
+LOG_DIR = os.path.join(BASE_DIR, "dataset", "result", "bench_result", "log")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+# 建议 Eval 脚本的文件名带上特定前缀以和 Infer 区分
+current_time = time.strftime("%Y%m%d_%H%M%S")
+log_file_path = os.path.join(LOG_DIR, f"infer_pipeline_{current_time}.log")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file_path, encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+
 logger = logging.getLogger(__name__)
-logging.basicConfig(level='INFO')
+# ====== 全局日志与监测配置结束 ======
 
 def list_to_dict(data_list):
     """将处理后的平铺列表按 task_name 重新组合为字典 (UCL-Bench特有格式)"""
