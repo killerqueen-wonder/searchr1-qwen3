@@ -1308,7 +1308,7 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
                 f"- 【候选案例 - 判决结果】：{doc_result[:1400]}...\n\n"
                 "### 输出（请直接输出150字简报）：  /no_think"
             )
-            analysis = await async_vllm_client.generate_async(prompt, max_new_tokens=250)
+            analysis = await async_vllm_client.generate_async(prompt, max_new_tokens=200)
             return analysis.strip()
 
         # 并发请求所有候选项的摘要
