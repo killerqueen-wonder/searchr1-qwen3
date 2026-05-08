@@ -132,7 +132,7 @@ tmux_send_commands "vllm" \
         --served-model-name Qwen3-8B \
         --port $VLLM_PORT \
         --max-model-len 12000 \
-        --gpu-memory-utilization 0.35 \
+        --gpu-memory-utilization 0.4 \
         --kv-cache-dtype fp8_e5m2 \
         --trust-remote-code"
 
