@@ -160,7 +160,7 @@ python3 -m verl.trainer.main_ppo \
     data.val_files=$DATA_DIR/test.parquet \
     data.train_batch_size=8 \
     data.val_batch_size=8 \
-    data.max_prompt_length=28000 \
+    data.max_prompt_length=22000 \
     data.max_response_length=1200 \
     +data.max_start_length=4000 \
     +data.max_obs_length=2000 \
@@ -190,7 +190,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.ref.fsdp_config.param_offload=true \
     actor_rollout_ref.rollout.temperature=0.4 \
-    actor_rollout_ref.rollout.max_num_batched_tokens=32000 \
+    actor_rollout_ref.rollout.max_num_batched_tokens=26000 \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
     +trainer.use_critic=false \
@@ -208,7 +208,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.total_training_steps=1801 \
     trainer.resume_mode=disable \
     trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
-    +max_turns=10 \
+    +max_turns=8 \
     ray_kwargs.ray_init.num_cpus=16 \
     +retriever.url="http://127.0.0.1:8005/retrieve" \
     +retriever.topk=8 \
