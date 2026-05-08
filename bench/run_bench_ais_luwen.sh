@@ -22,7 +22,7 @@ PORT_TIMEOUT=1600
 # 开启强制直通模式 (极其重要：将屏蔽 RAG 与 Summary)
 export USE_DIRECT_API="true"
 
-export CONDA_SH="/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh"
+export CONDA_SH="/F00120250029/lixiang_share/Data/conda/bin/conda/etc/profile.d/conda.sh"
 
 info() { echo -e "\033[32m[INFO]\033[0m $1"; }
 error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
