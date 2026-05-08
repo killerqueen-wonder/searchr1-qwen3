@@ -109,7 +109,7 @@ tmux_send_commands "retriever_filter8005" \
     "export HF_HUB_OFFLINE=1" \
     "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
     "git pull origin main" \
-    "python async_retrieval_server.py \
+    "python search_r1/search/async_retrieval_server.py \
         --port $RETRIEVER_PORT \
         --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
         --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
