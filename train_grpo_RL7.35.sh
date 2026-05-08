@@ -2,7 +2,7 @@
 # ==============================================================================
 # RAG + LLM Judge + GRPO 全自动训练总管道脚本 (RL 7.35)
 # 适用环境：4 x A800 (80GB), Kubernetes / AI Studio
-# 显存隔离方案
+# 显存隔离方案 FSDP + TP=2 + FlashAttention + FP8(后台)
 
 # ==============================================================================
 
@@ -182,7 +182,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.fsdp_config.param_offload=true \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=true \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
-    actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.45 \
     actor_rollout_ref.rollout.enforce_eager=true \
