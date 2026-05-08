@@ -80,68 +80,68 @@ fi
 # ==================== 1. 启动底层依赖服务 (后台 tmux) ====================
 info "开始拉起底层服务 (A800 资源压榨版)..."
 
-# 组件 A: Reward LLM Judge 服务 (⚠️ 绑定至 GPU 3)
-kill_session "reward_llm"
-tmux new-session -d -s reward_llm -n reward
-tmux_send_commands "reward_llm" \
-    "export CUDA_VISIBLE_DEVICES=3" \
-    "conda activate vllm_server" \
-    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-    "python -m vllm.entrypoints.openai.api_server \
-        --model $REWARD_MODEL \
-        --served-model-name qwen3-8b-reward \
-        --host 0.0.0.0 --port $REWARD_PORT \
-        --enable-prefix-caching \
-        --max-num-seqs 32 \
-        --max-model-len 32000 \
-        --gpu-memory-utilization 0.3 \
-        --kv-cache-dtype fp8 \
-        --trust-remote-code"
+# # 组件 A: Reward LLM Judge 服务 (⚠️ 绑定至 GPU 3)
+# kill_session "reward_llm"
+# tmux new-session -d -s reward_llm -n reward
+# tmux_send_commands "reward_llm" \
+#     "export CUDA_VISIBLE_DEVICES=3" \
+#     "conda activate vllm_server" \
+#     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
+#     "python -m vllm.entrypoints.openai.api_server \
+#         --model $REWARD_MODEL \
+#         --served-model-name qwen3-8b-reward \
+#         --host 0.0.0.0 --port $REWARD_PORT \
+#         --enable-prefix-caching \
+#         --max-num-seqs 32 \
+#         --max-model-len 32000 \
+#         --gpu-memory-utilization 0.3 \
+#         --kv-cache-dtype fp8 \
+#         --trust-remote-code"
 
-# 组件 B: RAG 检索过滤服务 (⚠️ 绑定至 GPU 2)
-kill_session "retriever_filter8005"
-tmux new-session -d -s retriever_filter8005 -n retriever
-tmux_send_commands "retriever_filter8005" \
-    "conda activate retriever_filter" \
-    "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-    "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-    "export TRANSFORMERS_OFFLINE=1" \
-    "export HF_HUB_OFFLINE=1" \
-    "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
-    "git pull origin main" \
-    "python search_r1/search/async_retrieval_server.py \
-        --port $RETRIEVER_PORT \
-        --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
-        --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
-        --retriever_name hybrid_filter \
-        --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
-        --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
-        --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
-        --filter_model $FILTER_MODEL \
-        --gpu_ids 2 --gpu_memory_limit_per_gpu 10"
+# # 组件 B: RAG 检索过滤服务 (⚠️ 绑定至 GPU 2)
+# kill_session "retriever_filter8005"
+# tmux new-session -d -s retriever_filter8005 -n retriever
+# tmux_send_commands "retriever_filter8005" \
+#     "conda activate retriever_filter" \
+#     "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+#     "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+#     "export TRANSFORMERS_OFFLINE=1" \
+#     "export HF_HUB_OFFLINE=1" \
+#     "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
+#     "git pull origin main" \
+#     "python search_r1/search/async_retrieval_server.py \
+#         --port $RETRIEVER_PORT \
+#         --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
+#         --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
+#         --retriever_name hybrid_filter \
+#         --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
+#         --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
+#         --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
+#         --filter_model $FILTER_MODEL \
+#         --gpu_ids 2 --gpu_memory_limit_per_gpu 10"
 
-# 组件 C: vLLM API Rerank 服务 (⚠️ 绑定至 GPU 0)
-kill_session "vllm"
-tmux new-session -d -s vllm -n vllm
-tmux_send_commands "vllm" \
-    "export CUDA_VISIBLE_DEVICES=0" \
-    "conda activate vllm_server" \
-    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-    "python -m vllm.entrypoints.openai.api_server \
-        --model $FILTER_MODEL \
-        --served-model-name Qwen3-8B \
-        --port $VLLM_PORT \
-        --max-model-len 12000 \
-        --gpu-memory-utilization 0.26 \
-        --kv-cache-dtype fp8 \
-        --trust-remote-code"
+# # 组件 C: vLLM API Rerank 服务 (⚠️ 绑定至 GPU 0)
+# kill_session "vllm"
+# tmux new-session -d -s vllm -n vllm
+# tmux_send_commands "vllm" \
+#     "export CUDA_VISIBLE_DEVICES=0" \
+#     "conda activate vllm_server" \
+#     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
+#     "python -m vllm.entrypoints.openai.api_server \
+#         --model $FILTER_MODEL \
+#         --served-model-name Qwen3-8B \
+#         --port $VLLM_PORT \
+#         --max-model-len 12000 \
+#         --gpu-memory-utilization 0.26 \
+#         --kv-cache-dtype fp8 \
+#         --trust-remote-code"
 
-# ==================== 2. 健康检查 ====================
-info "等待所有依赖服务就绪..."
+# # ==================== 2. 健康检查 ====================
+# info "等待所有依赖服务就绪..."
 
-wait_for_port $REWARD_PORT $PORT_TIMEOUT "reward_llm" || exit 1
-wait_for_port $VLLM_PORT $PORT_TIMEOUT "vllm" || exit 1
-wait_for_port $RETRIEVER_PORT $PORT_TIMEOUT "retriever_filter8005" || exit 1
+# wait_for_port $REWARD_PORT $PORT_TIMEOUT "reward_llm" || exit 1
+# wait_for_port $VLLM_PORT $PORT_TIMEOUT "vllm" || exit 1
+# wait_for_port $RETRIEVER_PORT $PORT_TIMEOUT "retriever_filter8005" || exit 1
 
 # ==================== 3. 启动主训练任务 ====================
 info "======================================================"
