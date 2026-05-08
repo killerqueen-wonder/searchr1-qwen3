@@ -121,11 +121,11 @@ tmux_send_commands "retriever_filter8005" \
         --filter_model $FILTER_MODEL \
         --gpu_ids 2 --gpu_memory_limit_per_gpu 10"
 
-# 组件 C: vLLM API Rerank 服务 (⚠️ 绑定至 GPU 0)
+# 组件 C: vLLM API Rerank 服务 (⚠️ 绑定至 GPU 1)
 kill_session "vllm"
 tmux new-session -d -s vllm -n vllm
 tmux_send_commands "vllm" \
-    "export CUDA_VISIBLE_DEVICES=0" \
+    "export CUDA_VISIBLE_DEVICES=1" \
     "conda activate vllm_server" \
     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
     "python -m vllm.entrypoints.openai.api_server \
@@ -133,7 +133,7 @@ tmux_send_commands "vllm" \
         --served-model-name Qwen3-8B \
         --port $VLLM_PORT \
         --max-model-len 12000 \
-        --gpu-memory-utilization 0.26 \
+        --gpu-memory-utilization 0.2 \
         --kv-cache-dtype fp8_e5m2 \
         --trust-remote-code"
 
@@ -150,7 +150,7 @@ info "架构启动完毕，正式开始 GRPO LoRA 强化学习训练 (A800)！�
 info "======================================================"
 
 
-
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
@@ -180,7 +180,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.35 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.3 \
     actor_rollout_ref.rollout.n=2 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.ref.fsdp_config.param_offload=true \
