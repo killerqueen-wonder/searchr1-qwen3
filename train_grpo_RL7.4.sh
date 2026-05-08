@@ -118,7 +118,7 @@ tmux_send_commands "retriever_filter8005" \
         --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
         --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
         --filter_model $FILTER_MODEL \
-        --gpu_ids 3 --gpu_memory_limit_per_gpu 10"
+        --gpu_ids 3 --gpu_memory_limit_per_gpu 3"
 
 # 组件 C: Filter/Rerank 服务 (留在 GPU 3，显存限制收缩至 35%)
 kill_session "vllm"
