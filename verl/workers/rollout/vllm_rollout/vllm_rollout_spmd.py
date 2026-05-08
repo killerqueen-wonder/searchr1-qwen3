@@ -210,7 +210,7 @@ class vLLMRollout(BaseRollout):
             seed=config.get("seed", 0),
             **compilation_config,
             **self.lora_kwargs,
-            kv_cache_dtype="fp8_e5m2",#test set
+
             **engine_kwargs,
         )
 
