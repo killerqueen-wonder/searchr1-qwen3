@@ -81,21 +81,23 @@ fi
 # ==================== 1. 启动底层依赖服务 (后台 tmux) ====================
 info "开始拉起底层服务 (A800 资源压榨版)..."
 
-# 组件 A: Reward LLM (GPU 2) - 移除 FP8
+# 组件 A: Reward LLM (GPU 2)
 kill_session "reward_llm"
 tmux new-session -d -s reward_llm -n reward
 tmux_send_commands "reward_llm" \
     "export CUDA_VISIBLE_DEVICES=2" \
     "conda activate vllm_server" \
+    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
     "python -m vllm.entrypoints.openai.api_server \
         --model $REWARD_MODEL \
         --served-model-name qwen3-8b-reward \
         --host 0.0.0.0 --port $REWARD_PORT \
         --enable-prefix-caching \
+        --max-num-seqs 32 \
         --max-model-len 32000 \
-        --gpu-memory-utilization 0.7 \
-        --kv-cache-dtype auto \
-        --trust-remote-code" # 修改: kv-cache 改回 auto
+        --gpu-memory-utilization 0.8 \
+        --kv-cache-dtype fp8_e5m2 \
+        --trust-remote-code"
 
 # 组件 B: RAG 检索过滤服务 (GPU 3)
 kill_session "retriever_filter8005"
@@ -107,19 +109,19 @@ tmux_send_commands "retriever_filter8005" \
         --gpu_ids 3 --gpu_memory_limit_per_gpu 15" # 明确指定 GPU 3
 
 # 组件 C: Filter/Rerank 服务 (GPU 3 的剩余空间或 CPU)
-# 建议将 Filter 与 Retriever 合并在 GPU 3，留出 GPU 1 给 Rollout
 kill_session "vllm"
 tmux new-session -d -s vllm -n vllm
 tmux_send_commands "vllm" \
     "export CUDA_VISIBLE_DEVICES=3" \
     "conda activate vllm_server" \
+    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
     "python -m vllm.entrypoints.openai.api_server \
         --model $FILTER_MODEL \
         --served-model-name Qwen3-8B \
         --port $VLLM_PORT \
         --max-model-len 12000 \
-        --gpu-memory-utilization 0.4 \
-        --kv-cache-dtype auto \
+        --gpu-memory-utilization 0.7 \
+        --kv-cache-dtype fp8_e5m2 \
         --trust-remote-code"
 
 # ==================== 2. 健康检查 ====================
@@ -134,8 +136,9 @@ info "======================================================"
 info "架构启动完毕，正式开始 GRPO LoRA 强化学习训练 (A800)！🚀"
 info "======================================================"
 
-export NVTE_FP8_RECIPE=NONE
+
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export CUDA_VISIBLE_DEVICES=0,1
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
@@ -181,7 +184,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.val_before_train=false \
-    trainer.n_gpus_per_node=4 \
+    trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.save_freq=100 \
     trainer.test_freq=100 \
@@ -190,10 +193,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.resume_mode=disable \
     trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
     +max_turns=10 \
-    ray_kwargs.ray_init.num_gpus=4 \
-    +actor_rollout_ref.actor.resource_pool=[[0]] \
-    +actor_rollout_ref.ref.resource_pool=[[0]] \
-    +actor_rollout_ref.rollout.resource_pool=[[1]] \
+    ray_kwargs.ray_init.num_gpus=2 \
     +retriever.url="http://127.0.0.1:8005/retrieve" \
     +retriever.topk=8 \
     2>&1 | tee $EXPERIMENT_NAME.log
