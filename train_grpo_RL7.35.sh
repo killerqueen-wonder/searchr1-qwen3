@@ -112,7 +112,14 @@ tmux_send_commands "retriever_filter8005" \
     "git pull origin main" \
     "python search_r1/search/async_retrieval_server.py \
         --port $RETRIEVER_PORT \
-        --gpu_ids 3 --gpu_memory_limit_per_gpu 15" # 明确指定 GPU 3
+        --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
+        --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
+        --retriever_name hybrid_filter \
+        --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
+        --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
+        --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
+        --filter_model $FILTER_MODEL \
+        --gpu_ids 3 --gpu_memory_limit_per_gpu 10"
 
 # 组件 C: Filter/Rerank 服务 (GPU 3 的剩余空间或 CPU)
 kill_session "vllm"
