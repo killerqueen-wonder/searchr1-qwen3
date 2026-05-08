@@ -175,8 +175,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.kl_loss_coef=0.06 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.entropy_coeff=0 \
-    +actor_rollout_ref.actor.fsdp_config.model_dtype=bfloat16 \
-    +actor_rollout_ref.ref.fsdp_config.model_dtype=bfloat16 \
+    actor_rollout_ref.actor.fsdp_config.model_dtype=bfloat16 \
+    actor_rollout_ref.ref.fsdp_config.model_dtype=bfloat16 \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.model.use_fused_kernels=true \
     actor_rollout_ref.actor.fsdp_config.param_offload=true \
