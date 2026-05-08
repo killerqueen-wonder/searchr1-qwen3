@@ -7,7 +7,7 @@
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 export DATA_DIR='/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/multi_form_RL/with_search'
-export BASE_MODEL="/data/panghuaiwen/legal_R1/model/SFT_ckp/qwen3_SFT6.2_0419/checkpoint-2-708/tfmr"
+export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_SFT6.2_0508/checkpoint-2-750/tfmr"
 
 export REWARD_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
 export FILTER_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
