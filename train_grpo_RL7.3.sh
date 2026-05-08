@@ -148,6 +148,8 @@ info "======================================================"
 info "架构启动完毕，正式开始 GRPO LoRA 强化学习训练 (A800)！🚀"
 info "======================================================"
 
+export VLLM_USE_V1=0
+
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
