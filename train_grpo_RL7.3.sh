@@ -29,15 +29,7 @@ export NCCL_SHM_DISABLE=1
 export RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE=1
 
 # conda 初始化
-if [ -f "/data/panghuaiwen/miniconda3/etc/profile.d/conda.sh" ]; then
-    CONDA_SH="/data/panghuaiwen/miniconda3/etc/profile.d/conda.sh"
-elif [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
-    CONDA_SH="/opt/conda/etc/profile.d/conda.sh"
-else
-    echo -e "\033[31m[ERROR]\033[0m 未找到 conda.sh"
-    exit 1
-fi
-source $CONDA_SH
+export CONDA_SH="/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh"
 
 info() { echo -e "\033[32m[INFO]\033[0m $1"; }
 error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
