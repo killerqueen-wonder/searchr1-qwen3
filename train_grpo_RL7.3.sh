@@ -95,7 +95,7 @@ tmux_send_commands "reward_llm" \
         --max-num-seqs 32 \
         --max-model-len 32000 \
         --gpu-memory-utilization 0.3 \
-        --kv-cache-dtype fp8 \
+        --kv-cache-dtype fp8_e5m2 \
         --trust-remote-code"
 
 # 组件 B: RAG 检索过滤服务 (⚠️ 绑定至 GPU 2)
@@ -133,7 +133,7 @@ tmux_send_commands "vllm" \
         --port $VLLM_PORT \
         --max-model-len 12000 \
         --gpu-memory-utilization 0.26 \
-        --kv-cache-dtype fp8 \
+        --kv-cache-dtype fp8_e5m2 \
         --trust-remote-code"
 
 # ==================== 2. 健康检查 ====================
@@ -179,7 +179,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.35 \
     actor_rollout_ref.rollout.n=4 \
-    +actor_rollout_ref.rollout.engine_kwargs.vllm.kv_cache_dtype='fp8' \
+    +actor_rollout_ref.rollout.engine_kwargs.vllm.kv_cache_dtype='fp8_e5m2' \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.ref.fsdp_config.param_offload=true \
     actor_rollout_ref.rollout.temperature=0.4 \
