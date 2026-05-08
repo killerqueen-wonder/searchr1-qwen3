@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# RAG + LLM Judge + GRPO 全自动训练总管道脚本 (RL 7.3)
+# RAG + LLM Judge + GRPO 全自动训练总管道脚本 (RL 7.35)
 # 适用环境：4 x A800 (80GB), Kubernetes / AI Studio
 # 显存隔离方案
 
@@ -104,6 +104,12 @@ kill_session "retriever_filter8005"
 tmux new-session -d -s retriever_filter8005 -n retriever
 tmux_send_commands "retriever_filter8005" \
     "conda activate retriever_filter" \
+    "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+    "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+    "export TRANSFORMERS_OFFLINE=1" \
+    "export HF_HUB_OFFLINE=1" \
+    "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
+    "git pull origin main" \
     "python search_r1/search/async_retrieval_server.py \
         --port $RETRIEVER_PORT \
         --gpu_ids 3 --gpu_memory_limit_per_gpu 15" # 明确指定 GPU 3
