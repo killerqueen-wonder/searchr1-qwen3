@@ -95,7 +95,7 @@ tmux_send_commands "reward_llm" \
         --max-num-seqs 32 \
         --max-model-len 32000 \
         --gpu-memory-utilization 0.3 \
-        --kv-cache-dtype fp8_e5m2 \
+        --kv-cache-dtype fp8 \
         --trust-remote-code"
 
 # 组件 B: RAG 检索过滤服务 (⚠️ 绑定至 GPU 2)
@@ -133,7 +133,7 @@ tmux_send_commands "vllm" \
         --port $VLLM_PORT \
         --max-model-len 12000 \
         --gpu-memory-utilization 0.26 \
-        --kv-cache-dtype fp8_e5m2 \
+        --kv-cache-dtype fp8 \
         --trust-remote-code"
 
 # ==================== 2. 健康检查 ====================
