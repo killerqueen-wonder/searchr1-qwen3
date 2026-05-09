@@ -98,45 +98,45 @@ info "开始拉起底层服务 (Reward, RAG, Rerank 集中隔离至 GPU 3)..."
 #         --kv-cache-dtype fp8_e5m2 \
 #         --trust-remote-code"
 
-# 组件 B: RAG 检索过滤服务 (保留在 GPU 3，显存限制 10G 不变)
-kill_session "retriever_filter8005"
-tmux new-session -d -s retriever_filter8005 -n retriever
-tmux_send_commands "retriever_filter8005" \
-    "conda activate retriever_filter" \
-    "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-    "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-    "export TRANSFORMERS_OFFLINE=1" \
-    "export HF_HUB_OFFLINE=1" \
-    "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
-    "git pull origin main" \
-    "python search_r1/search/async_retrieval_server.py \
-        --port $RETRIEVER_PORT \
-        --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
-        --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
-        --retriever_name hybrid_filter \
-        --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
-        --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
-        --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
-        --filter_model $FILTER_MODEL \
-        --gpu_ids 3 --gpu_memory_limit_per_gpu 3"
+# # 组件 B: RAG 检索过滤服务 (保留在 GPU 3，显存限制 10G 不变)
+# kill_session "retriever_filter8005"
+# tmux new-session -d -s retriever_filter8005 -n retriever
+# tmux_send_commands "retriever_filter8005" \
+#     "conda activate retriever_filter" \
+#     "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+#     "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+#     "export TRANSFORMERS_OFFLINE=1" \
+#     "export HF_HUB_OFFLINE=1" \
+#     "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
+#     "git pull origin main" \
+#     "python search_r1/search/async_retrieval_server.py \
+#         --port $RETRIEVER_PORT \
+#         --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
+#         --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
+#         --retriever_name hybrid_filter \
+#         --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
+#         --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
+#         --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
+#         --filter_model $FILTER_MODEL \
+#         --gpu_ids 3 --gpu_memory_limit_per_gpu 3"
 
 # sleep 15
 
-# # 组件 C: Filter/Rerank 服务 (留在 GPU 3，显存限制收缩至 35%)
-# kill_session "vllm"
-# tmux new-session -d -s vllm -n vllm
-# tmux_send_commands "vllm" \
-#     "export CUDA_VISIBLE_DEVICES=3" \
-#     "conda activate vllm_server" \
-#     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-#     "python -m vllm.entrypoints.openai.api_server \
-#         --model $FILTER_MODEL \
-#         --served-model-name Qwen3-8B \
-#         --port $VLLM_PORT \
-#         --max-model-len 12000 \
-#         --gpu-memory-utilization 0.4 \
-#         --kv-cache-dtype fp8_e5m2 \
-#         --trust-remote-code"
+# 组件 C: Filter/Rerank 服务 (留在 GPU 3，显存限制收缩至 35%)
+kill_session "vllm"
+tmux new-session -d -s vllm -n vllm
+tmux_send_commands "vllm" \
+    "export CUDA_VISIBLE_DEVICES=3" \
+    "conda activate vllm_server" \
+    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
+    "python -m vllm.entrypoints.openai.api_server \
+        --model $FILTER_MODEL \
+        --served-model-name Qwen3-8B \
+        --port $VLLM_PORT \
+        --max-model-len 12000 \
+        --gpu-memory-utilization 0.4 \
+        --kv-cache-dtype fp8_e5m2 \
+        --trust-remote-code"
 
 # ==================== 2. 健康检查 ====================
 info "等待所有依赖服务就绪 (由于显卡3高负载，可能需要稍微多等一会)..."
