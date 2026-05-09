@@ -88,7 +88,6 @@ tmux_send_commands "reward_llm" \
         --host 0.0.0.0 --port $REWARD_PORT \
         --enable-prefix-caching \
         --enable-chunked-prefill \
-        --disable-log-requests \
         --max-num-seqs 128 \
         --max-model-len 32000 \
         --gpu-memory-utilization 0.7 \
