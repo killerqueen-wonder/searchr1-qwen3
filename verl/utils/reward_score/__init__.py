@@ -109,12 +109,21 @@ def default_compute_score(
         from . import local_LLM_judgement
 
         res = local_LLM_judgement.compute_score(solution_str, ground_truth,extra_info)
+
     elif data_source in [
         'multi',
     ]:
         from . import local_LLM_judgement_grpo
 
         res = local_LLM_judgement_grpo.compute_score(solution_str, ground_truth,extra_info)
+
+    elif data_source in [
+        'multi_no_search',
+    ]:
+        from . import local_LLM_judgement_grpo_no_search
+
+        res = local_LLM_judgement_grpo_no_search.compute_score(solution_str, ground_truth,extra_info)
+        
     elif data_source in [
         'legal_exam',
     ]:

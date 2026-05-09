@@ -1,23 +1,18 @@
 #!/bin/bash
-# 适用 4x H20 (141GB VRAM) 极致算力版 - 【3+1 物理隔离架构】
-# GPU 3: 专职运行 Reward + Filter + Retriever (基建卡)
-# GPU 0, 1, 2: 专职运行 FSDP 训练 + Rollout (纯净训练卡)
+#no search model RL 3+1方案
+#4A800
 
-export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
-
-export DATA_DIR='/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/multi_form_RL/with_search'
-export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_SFT6.2_0508/checkpoint-2-750/tfmr"
+export DATA_DIR='/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/multi_form_RL/no_search'
+export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_SFT6.2_no_search_0509/checkpoint-2-675/tfmr"
 
 export REWARD_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
-export FILTER_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
 
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.3-0509-H20-141G-3plus1
+
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-no_search_0509
 export WAND_PROJECT='Search-R1'
 export WANDB_API_KEY='847a7dd2aadbd8146fa82d3cc3b88826530401ec'
 
 # 端口配置
-RETRIEVER_PORT=8005
-VLLM_PORT=8006
 REWARD_PORT=9000 
 
 # 超时与分布式环境设置
@@ -96,59 +91,17 @@ tmux_send_commands "reward_llm" \
         --disable-log-requests \
         --max-num-seqs 128 \
         --max-model-len 32000 \
-        --gpu-memory-utilization 0.45 \
+        --gpu-memory-utilization 0.7 \
         --dtype bfloat16 \
         --trust-remote-code"
 
-# 组件 B: RAG 检索过滤服务 (GPU 3)
-# 指定到 GPU 3，限制显存使用 5GB
-kill_session "retriever_filter8005"
-tmux new-session -d -s retriever_filter8005 -n retriever
-tmux_send_commands "retriever_filter8005" \
-    "conda activate retriever_filter" \
-    "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-    "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-    "export TRANSFORMERS_OFFLINE=1" \
-    "export HF_HUB_OFFLINE=1" \
-    "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
-    "git pull origin main" \
-    "python search_r1/search/async_retrieval_server.py \
-        --port $RETRIEVER_PORT \
-        --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
-        --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
-        --retriever_name hybrid_filter \
-        --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
-        --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
-        --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
-        --filter_model $FILTER_MODEL \
-        --gpu_ids 3 --gpu_memory_limit_per_gpu 5"
 
-# 组件 C: Filter/Rerank 服务 (GPU 3)
-# 分配 0.3 (约42GB) 显存
-kill_session "vllm"
-tmux new-session -d -s vllm -n vllm
-tmux_send_commands "vllm" \
-    "export CUDA_VISIBLE_DEVICES=3" \
-    "conda activate vllm_server" \
-    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-    "python -m vllm.entrypoints.openai.api_server \
-        --model $FILTER_MODEL \
-        --served-model-name Qwen3-8B \
-        --port $VLLM_PORT \
-        --enable-chunked-prefill \
-        --disable-log-requests \
-        --max-model-len 12000 \
-        --gpu-memory-utilization 0.45 \
-        --max-num-seqs 128 \
-        --dtype bfloat16 \
-        --trust-remote-code"
 
 # ==================== 2. 健康检查 ====================
 info "等待所有依赖服务就绪..."
 
 wait_for_port $REWARD_PORT $PORT_TIMEOUT "reward_llm" || exit 1
-wait_for_port $VLLM_PORT $PORT_TIMEOUT "vllm" || exit 1
-wait_for_port $RETRIEVER_PORT $PORT_TIMEOUT "retriever_filter8005" || exit 1
+
 
 # ==================== 3. 启动主训练任务 (GPU 0, 1, 2) ====================
 info "======================================================"
@@ -162,9 +115,9 @@ python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
-    data.train_batch_size=36 \
-    data.val_batch_size=36 \
-    data.max_prompt_length=28000 \
+    data.train_batch_size=12 \
+    data.val_batch_size=12 \
+    data.max_prompt_length=6000 \
     data.max_response_length=1200 \
     +data.max_start_length=4000 \
     +data.max_obs_length=2000 \
@@ -174,8 +127,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path=$BASE_MODEL \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=true \
-    actor_rollout_ref.actor.ppo_mini_batch_size=18 \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=6 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=3 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.actor.use_kl_loss=true \
     actor_rollout_ref.actor.kl_loss_coef=0.06 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
@@ -183,7 +136,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.actor.fsdp_config.param_offload=false \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=false \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=6 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.55 \
@@ -192,7 +145,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=6 \
     actor_rollout_ref.ref.fsdp_config.param_offload=false \
     actor_rollout_ref.rollout.temperature=0.4 \
-    actor_rollout_ref.rollout.max_num_batched_tokens=65536 \
+    actor_rollout_ref.rollout.max_num_batched_tokens=12000 \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
     +trainer.use_critic=false \
