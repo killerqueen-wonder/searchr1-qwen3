@@ -77,7 +77,7 @@ fi
 info "开始拉起底层服务 (H20 141GB 满血版)..."
 
 # 组件 A: Reward LLM (GPU 2)
-# 141G 优化: util 提至 0.45 (约分配 63GB)，并发请求数提升至 128
+
 kill_session "reward_llm"
 tmux new-session -d -s reward_llm -n reward
 tmux_send_commands "reward_llm" \
@@ -89,10 +89,11 @@ tmux_send_commands "reward_llm" \
         --served-model-name qwen3-8b-reward \
         --host 0.0.0.0 --port $REWARD_PORT \
         --enable-prefix-caching \
-        --max-num-seqs 128 \
+        --max-num-seqs 64 \
         --max-model-len 32000 \
-        --gpu-memory-utilization 0.25 \
+        --gpu-memory-utilization 0.2 \
         --dtype bfloat16 \
+        --enable-chunked-prefill\
         --trust-remote-code"
 
 # 组件 B: RAG 检索过滤服务 (GPU 1)
@@ -118,7 +119,7 @@ tmux_send_commands "retriever_filter8005" \
         --gpu_ids 1 --gpu_memory_limit_per_gpu 5"
 
 # 组件 C: Filter/Rerank 服务 (GPU 3)
-# 141G 优化: util 提至 0.35 (约分配 49GB)，并发请求数提升至 128
+
 kill_session "vllm"
 tmux new-session -d -s vllm -n vllm
 tmux_send_commands "vllm" \
@@ -130,9 +131,10 @@ tmux_send_commands "vllm" \
         --served-model-name Qwen3-8B \
         --port $VLLM_PORT \
         --max-model-len 12000 \
-        --gpu-memory-utilization 0.25 \
-        --max-num-seqs 128 \
+        --gpu-memory-utilization 0.2 \
+        --max-num-seqs 64 \
         --dtype bfloat16 \
+        --enable-chunked-prefill\
         --trust-remote-code"
 
 # ==================== 2. 健康检查 ====================
@@ -151,8 +153,8 @@ python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
-    data.train_batch_size=16 \
-    data.val_batch_size=16 \
+    data.train_batch_size=18 \
+    data.val_batch_size=18 \
     data.max_prompt_length=28000 \
     data.max_response_length=1200 \
     +data.max_start_length=4000 \
@@ -163,8 +165,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path=$BASE_MODEL \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=true \
-    actor_rollout_ref.actor.ppo_mini_batch_size=16 \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=18 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=6 \
     actor_rollout_ref.actor.use_kl_loss=true \
     actor_rollout_ref.actor.kl_loss_coef=0.06 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
@@ -172,10 +174,11 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.actor.fsdp_config.param_offload=false \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=false \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=6 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
+    actor_rollout_ref.rollout.enable_prefix_caching=true\
     actor_rollout_ref.rollout.n=4 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=false \
