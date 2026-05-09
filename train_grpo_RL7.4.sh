@@ -94,7 +94,7 @@ tmux_send_commands "reward_llm" \
         --enable-prefix-caching \
         --max-num-seqs 32 \
         --max-model-len 32000 \
-        --gpu-memory-utilization 0.45 \
+        --gpu-memory-utilization 0.5 \
         --kv-cache-dtype fp8_e5m2 \
         --trust-remote-code"
 
@@ -132,7 +132,7 @@ tmux_send_commands "vllm" \
         --served-model-name Qwen3-8B \
         --port $VLLM_PORT \
         --max-model-len 12000 \
-        --gpu-memory-utilization 0.45 \
+        --gpu-memory-utilization 0.4 \
         --kv-cache-dtype fp8_e5m2 \
         --trust-remote-code"
 
