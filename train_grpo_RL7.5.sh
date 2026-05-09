@@ -91,7 +91,7 @@ tmux_send_commands "reward_llm" \
         --enable-prefix-caching \
         --max-num-seqs 128 \
         --max-model-len 32000 \
-        --gpu-memory-utilization 0.45 \
+        --gpu-memory-utilization 0.25 \
         --dtype bfloat16 \
         --trust-remote-code"
 
@@ -130,7 +130,7 @@ tmux_send_commands "vllm" \
         --served-model-name Qwen3-8B \
         --port $VLLM_PORT \
         --max-model-len 12000 \
-        --gpu-memory-utilization 0.35 \
+        --gpu-memory-utilization 0.25 \
         --max-num-seqs 128 \
         --dtype bfloat16 \
         --trust-remote-code"
@@ -175,7 +175,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.45 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
     actor_rollout_ref.rollout.n=4 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=false \
