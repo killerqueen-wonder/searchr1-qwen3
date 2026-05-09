@@ -80,23 +80,23 @@ fi
 # ==================== 1. 启动底层依赖服务 (后台 tmux 集中于 GPU 3) ====================
 info "开始拉起底层服务 (Reward, RAG, Rerank 集中隔离至 GPU 3)..."
 
-# 组件 A: Reward LLM (移动到 GPU 3，显存限制在 45%)
-kill_session "reward_llm"
-tmux new-session -d -s reward_llm -n reward
-tmux_send_commands "reward_llm" \
-    "export CUDA_VISIBLE_DEVICES=3" \
-    "conda activate vllm_server" \
-    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-    "python -m vllm.entrypoints.openai.api_server \
-        --model $REWARD_MODEL \
-        --served-model-name qwen3-8b-reward \
-        --host 0.0.0.0 --port $REWARD_PORT \
-        --enable-prefix-caching \
-        --max-num-seqs 32 \
-        --max-model-len 32000 \
-        --gpu-memory-utilization 0.5 \
-        --kv-cache-dtype fp8_e5m2 \
-        --trust-remote-code"
+# # 组件 A: Reward LLM (移动到 GPU 3，显存限制在 45%)
+# kill_session "reward_llm"
+# tmux new-session -d -s reward_llm -n reward
+# tmux_send_commands "reward_llm" \
+#     "export CUDA_VISIBLE_DEVICES=3" \
+#     "conda activate vllm_server" \
+#     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
+#     "python -m vllm.entrypoints.openai.api_server \
+#         --model $REWARD_MODEL \
+#         --served-model-name qwen3-8b-reward \
+#         --host 0.0.0.0 --port $REWARD_PORT \
+#         --enable-prefix-caching \
+#         --max-num-seqs 32 \
+#         --max-model-len 32000 \
+#         --gpu-memory-utilization 0.5 \
+#         --kv-cache-dtype fp8_e5m2 \
+#         --trust-remote-code"
 
 # 组件 B: RAG 检索过滤服务 (保留在 GPU 3，显存限制 10G 不变)
 kill_session "retriever_filter8005"
@@ -120,21 +120,23 @@ tmux_send_commands "retriever_filter8005" \
         --filter_model $FILTER_MODEL \
         --gpu_ids 3 --gpu_memory_limit_per_gpu 3"
 
-# 组件 C: Filter/Rerank 服务 (留在 GPU 3，显存限制收缩至 35%)
-kill_session "vllm"
-tmux new-session -d -s vllm -n vllm
-tmux_send_commands "vllm" \
-    "export CUDA_VISIBLE_DEVICES=3" \
-    "conda activate vllm_server" \
-    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-    "python -m vllm.entrypoints.openai.api_server \
-        --model $FILTER_MODEL \
-        --served-model-name Qwen3-8B \
-        --port $VLLM_PORT \
-        --max-model-len 12000 \
-        --gpu-memory-utilization 0.4 \
-        --kv-cache-dtype fp8_e5m2 \
-        --trust-remote-code"
+# sleep 15
+
+# # 组件 C: Filter/Rerank 服务 (留在 GPU 3，显存限制收缩至 35%)
+# kill_session "vllm"
+# tmux new-session -d -s vllm -n vllm
+# tmux_send_commands "vllm" \
+#     "export CUDA_VISIBLE_DEVICES=3" \
+#     "conda activate vllm_server" \
+#     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
+#     "python -m vllm.entrypoints.openai.api_server \
+#         --model $FILTER_MODEL \
+#         --served-model-name Qwen3-8B \
+#         --port $VLLM_PORT \
+#         --max-model-len 12000 \
+#         --gpu-memory-utilization 0.4 \
+#         --kv-cache-dtype fp8_e5m2 \
+#         --trust-remote-code"
 
 # ==================== 2. 健康检查 ====================
 info "等待所有依赖服务就绪 (由于显卡3高负载，可能需要稍微多等一会)..."
