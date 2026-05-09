@@ -174,7 +174,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path=$BASE_MODEL \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=true \
-    actor_rollout_ref.actor.ppo_mini_batch_size=6 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=9 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=6 \
     actor_rollout_ref.actor.use_kl_loss=true \
     actor_rollout_ref.actor.kl_loss_coef=0.06 \
