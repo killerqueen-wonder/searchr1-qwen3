@@ -2,6 +2,9 @@
 # 适用 4x H20 (141GB VRAM) 极致算力版 - 【3+1 物理隔离架构】
 # GPU 3: 专职运行 Reward + Filter + Retriever (基建卡)
 # GPU 0, 1, 2: 专职运行 FSDP 训练 + Rollout (纯净训练卡)
+#说明：ppo_mini_batch_size=6，生成回答数 n=4，GPU 数量 = 3，
+#全局单次计算量：6 (提示词数量) * 4 (回答数量) = 24
+#分配到单张卡 (Normalized)：24 / 3张卡 = 8
 
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
 
@@ -77,71 +80,71 @@ if ! command -v tmux &> /dev/null; then
 fi
 
 # ==================== 1. 启动底层依赖服务 (全部集中在 GPU 3) ====================
-# info "开始拉起底层服务 (部署于 GPU 3 基建卡)..."
+info "开始拉起底层服务 (部署于 GPU 3 基建卡)..."
 
-# # 组件 A: Reward LLM (GPU 3)
-# # 分配 0.3 (约42GB) 显存，开启 chunked-prefill 加速长文本吞吐
-# kill_session "reward_llm"
-# tmux new-session -d -s reward_llm -n reward
-# tmux_send_commands "reward_llm" \
-#     "export CUDA_VISIBLE_DEVICES=3" \
-#     "conda activate vllm_server" \
-#     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-#     "python -m vllm.entrypoints.openai.api_server \
-#         --model $REWARD_MODEL \
-#         --served-model-name qwen3-8b-reward \
-#         --host 0.0.0.0 --port $REWARD_PORT \
-#         --enable-prefix-caching \
-#         --enable-chunked-prefill \
-#         --max-num-seqs 64 \
-#         --max-model-len 33000 \
-#         --gpu-memory-utilization 0.5 \
-#         --dtype bfloat16 \
-#         --trust-remote-code"
+# 组件 A: Reward LLM (GPU 3)
+# 分配 0.3 (约42GB) 显存，开启 chunked-prefill 加速长文本吞吐
+kill_session "reward_llm"
+tmux new-session -d -s reward_llm -n reward
+tmux_send_commands "reward_llm" \
+    "export CUDA_VISIBLE_DEVICES=3" \
+    "conda activate vllm_server" \
+    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
+    "python -m vllm.entrypoints.openai.api_server \
+        --model $REWARD_MODEL \
+        --served-model-name qwen3-8b-reward \
+        --host 0.0.0.0 --port $REWARD_PORT \
+        --enable-prefix-caching \
+        --enable-chunked-prefill \
+        --max-num-seqs 64 \
+        --max-model-len 33000 \
+        --gpu-memory-utilization 0.5 \
+        --dtype bfloat16 \
+        --trust-remote-code"
 
-# # 组件 B: RAG 检索过滤服务 (GPU 3)
-# # 指定到 GPU 3，限制显存使用 5GB
-# kill_session "retriever_filter8005"
-# tmux new-session -d -s retriever_filter8005 -n retriever
-# tmux_send_commands "retriever_filter8005" \
-#     "conda activate retriever_filter" \
-#     "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-#     "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-#     "export TRANSFORMERS_OFFLINE=1" \
-#     "export HF_HUB_OFFLINE=1" \
-#     "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
-#     "git pull origin main" \
-#     "python search_r1/search/async_retrieval_server.py \
-#         --port $RETRIEVER_PORT \
-#         --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
-#         --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
-#         --retriever_name hybrid_filter \
-#         --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
-#         --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
-#         --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
-#         --filter_model $FILTER_MODEL \
-#         --gpu_ids 3 --gpu_memory_limit_per_gpu 5"
+# 组件 B: RAG 检索过滤服务 (GPU 3)
+# 指定到 GPU 3，限制显存使用 5GB
+kill_session "retriever_filter8005"
+tmux new-session -d -s retriever_filter8005 -n retriever
+tmux_send_commands "retriever_filter8005" \
+    "conda activate retriever_filter" \
+    "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+    "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+    "export TRANSFORMERS_OFFLINE=1" \
+    "export HF_HUB_OFFLINE=1" \
+    "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
+    "git pull origin main" \
+    "python search_r1/search/async_retrieval_server.py \
+        --port $RETRIEVER_PORT \
+        --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
+        --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
+        --retriever_name hybrid_filter \
+        --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
+        --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
+        --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
+        --filter_model $FILTER_MODEL \
+        --gpu_ids 3 --gpu_memory_limit_per_gpu 5"
 
-# sleep 15
+sleep 15
 
-# # 组件 C: Filter/Rerank 服务 (GPU 3)
-# # 分配 0.3 (约42GB) 显存
-# kill_session "vllm"
-# tmux new-session -d -s vllm -n vllm
-# tmux_send_commands "vllm" \
-#     "export CUDA_VISIBLE_DEVICES=3" \
-#     "conda activate vllm_server" \
-#     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-#     "python -m vllm.entrypoints.openai.api_server \
-#         --model $FILTER_MODEL \
-#         --served-model-name Qwen3-8B \
-#         --port $VLLM_PORT \
-#         --enable-chunked-prefill \
-#         --max-model-len 12000 \
-#         --gpu-memory-utilization 0.40 \
-#         --max-num-seqs 64 \
-#         --dtype bfloat16 \
-#         --trust-remote-code"
+# 组件 C: Filter/Rerank 服务 (GPU 3)
+# 分配 0.3 (约42GB) 显存
+kill_session "vllm"
+tmux new-session -d -s vllm -n vllm
+tmux_send_commands "vllm" \
+    "export CUDA_VISIBLE_DEVICES=3" \
+    "conda activate vllm_server" \
+    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
+    "python -m vllm.entrypoints.openai.api_server \
+        --model $FILTER_MODEL \
+        --served-model-name Qwen3-8B \
+        --port $VLLM_PORT \
+        --enable-chunked-prefill \
+        --max-model-len 12000 \
+        --gpu-memory-utilization 0.40 \
+        --max-num-seqs 64 \
+        --dtype bfloat16 \
+        --trust-remote-code"
 
 # ==================== 2. 健康检查 ====================
 info "等待所有依赖服务就绪..."
