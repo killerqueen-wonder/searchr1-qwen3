@@ -89,8 +89,8 @@ tmux_send_commands "reward_llm" \
         --enable-prefix-caching \
         --enable-chunked-prefill \
         --max-num-seqs 128 \
-        --max-model-len 32000 \
-        --gpu-memory-utilization 0.7 \
+        --max-model-len 33000 \
+        --gpu-memory-utilization 0.9 \
         --dtype bfloat16 \
         --trust-remote-code"
 
