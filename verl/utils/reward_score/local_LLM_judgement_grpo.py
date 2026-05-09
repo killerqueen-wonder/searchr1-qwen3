@@ -198,7 +198,7 @@ class VLLMRewardManager:
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1,  # 给一点微小温度防止一直采样到同样的死循环语法错误
                     max_tokens=64,
-                    timeout=30.0      # 设置超时机制
+                    timeout=1000.0      # 设置超时机制
                 )
                 content = response.choices[0].message.content.strip()
                 parsed_data = parse_judge_json(content)

@@ -93,9 +93,9 @@ tmux_send_commands "reward_llm" \
         --host 0.0.0.0 --port $REWARD_PORT \
         --enable-prefix-caching \
         --enable-chunked-prefill \
-        --max-num-seqs 128 \
-        --max-model-len 32000 \
-        --gpu-memory-utilization 0.45 \
+        --max-num-seqs 64 \
+        --max-model-len 33000 \
+        --gpu-memory-utilization 0.5 \
         --dtype bfloat16 \
         --trust-remote-code"
 
@@ -122,6 +122,8 @@ tmux_send_commands "retriever_filter8005" \
         --filter_model $FILTER_MODEL \
         --gpu_ids 3 --gpu_memory_limit_per_gpu 5"
 
+sleep 15
+
 # 组件 C: Filter/Rerank 服务 (GPU 3)
 # 分配 0.3 (约42GB) 显存
 kill_session "vllm"
@@ -136,8 +138,8 @@ tmux_send_commands "vllm" \
         --port $VLLM_PORT \
         --enable-chunked-prefill \
         --max-model-len 12000 \
-        --gpu-memory-utilization 0.45 \
-        --max-num-seqs 128 \
+        --gpu-memory-utilization 0.40 \
+        --max-num-seqs 64 \
         --dtype bfloat16 \
         --trust-remote-code"
 
@@ -160,8 +162,8 @@ python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
-    data.train_batch_size=36 \
-    data.val_batch_size=36 \
+    data.train_batch_size=18 \
+    data.val_batch_size=18 \
     data.max_prompt_length=28000 \
     data.max_response_length=1200 \
     +data.max_start_length=4000 \
@@ -172,7 +174,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path=$BASE_MODEL \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=true \
-    actor_rollout_ref.actor.ppo_mini_batch_size=18 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=6 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=6 \
     actor_rollout_ref.actor.use_kl_loss=true \
     actor_rollout_ref.actor.kl_loss_coef=0.06 \
@@ -202,8 +204,8 @@ python3 -m verl.trainer.main_ppo \
     trainer.val_before_train=false \
     trainer.n_gpus_per_node=3 \
     trainer.nnodes=1 \
-    trainer.save_freq=100 \
-    trainer.test_freq=100 \
+    trainer.save_freq=30 \
+    trainer.test_freq=30 \
     trainer.total_epochs=2 \
     trainer.total_training_steps=1801 \
     trainer.resume_mode=disable \
