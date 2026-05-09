@@ -78,83 +78,83 @@ info "开始拉起底层服务 (H20 141GB 满血版)..."
 
 # 组件 A: Reward LLM (GPU 2)
 
-kill_session "reward_llm"
-tmux new-session -d -s reward_llm -n reward
-tmux_send_commands "reward_llm" \
-    "export CUDA_VISIBLE_DEVICES=2" \
-    "conda activate vllm_server" \
-    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-    "python -m vllm.entrypoints.openai.api_server \
-        --model $REWARD_MODEL \
-        --served-model-name qwen3-8b-reward \
-        --host 0.0.0.0 --port $REWARD_PORT \
-        --enable-prefix-caching \
-        --max-num-seqs 64 \
-        --max-model-len 32000 \
-        --gpu-memory-utilization 0.2 \
-        --dtype bfloat16 \
-        --enable-chunked-prefill\
-        --trust-remote-code"
+# kill_session "reward_llm"
+# tmux new-session -d -s reward_llm -n reward
+# tmux_send_commands "reward_llm" \
+#     "export CUDA_VISIBLE_DEVICES=2" \
+#     "conda activate vllm_server" \
+#     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
+#     "python -m vllm.entrypoints.openai.api_server \
+#         --model $REWARD_MODEL \
+#         --served-model-name qwen3-8b-reward \
+#         --host 0.0.0.0 --port $REWARD_PORT \
+#         --enable-prefix-caching \
+#         --max-num-seqs 64 \
+#         --max-model-len 32000 \
+#         --gpu-memory-utilization 0.2 \
+#         --dtype bfloat16 \
+#         --enable-chunked-prefill\
+#         --trust-remote-code"
 
-# 组件 B: RAG 检索过滤服务 (GPU 1)
-kill_session "retriever_filter8005"
-tmux new-session -d -s retriever_filter8005 -n retriever
-tmux_send_commands "retriever_filter8005" \
-    "conda activate retriever_filter" \
-    "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-    "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
-    "export TRANSFORMERS_OFFLINE=1" \
-    "export HF_HUB_OFFLINE=1" \
-    "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
-    "git pull origin main" \
-    "python search_r1/search/async_retrieval_server.py \
-        --port $RETRIEVER_PORT \
-        --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
-        --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
-        --retriever_name hybrid_filter \
-        --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
-        --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
-        --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
-        --filter_model $FILTER_MODEL \
-        --gpu_ids 1 --gpu_memory_limit_per_gpu 5"
+# # 组件 B: RAG 检索过滤服务 (GPU 1)
+# kill_session "retriever_filter8005"
+# tmux new-session -d -s retriever_filter8005 -n retriever
+# tmux_send_commands "retriever_filter8005" \
+#     "conda activate retriever_filter" \
+#     "export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+#     "export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model" \
+#     "export TRANSFORMERS_OFFLINE=1" \
+#     "export HF_HUB_OFFLINE=1" \
+#     "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
+#     "git pull origin main" \
+#     "python search_r1/search/async_retrieval_server.py \
+#         --port $RETRIEVER_PORT \
+#         --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
+#         --case_corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/lecard_court_psi.jsonl' \
+#         --retriever_name hybrid_filter \
+#         --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
+#         --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
+#         --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
+#         --filter_model $FILTER_MODEL \
+#         --gpu_ids 1 --gpu_memory_limit_per_gpu 5"
 
-# 组件 C: Filter/Rerank 服务 (GPU 3)
+# # 组件 C: Filter/Rerank 服务 (GPU 3)
 
-kill_session "vllm"
-tmux new-session -d -s vllm -n vllm
-tmux_send_commands "vllm" \
-    "export CUDA_VISIBLE_DEVICES=3" \
-    "conda activate vllm_server" \
-    "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
-    "python -m vllm.entrypoints.openai.api_server \
-        --model $FILTER_MODEL \
-        --served-model-name Qwen3-8B \
-        --port $VLLM_PORT \
-        --max-model-len 12000 \
-        --gpu-memory-utilization 0.2 \
-        --max-num-seqs 64 \
-        --dtype bfloat16 \
-        --enable-chunked-prefill\
-        --trust-remote-code"
+# kill_session "vllm"
+# tmux new-session -d -s vllm -n vllm
+# tmux_send_commands "vllm" \
+#     "export CUDA_VISIBLE_DEVICES=3" \
+#     "conda activate vllm_server" \
+#     "export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH" \
+#     "python -m vllm.entrypoints.openai.api_server \
+#         --model $FILTER_MODEL \
+#         --served-model-name Qwen3-8B \
+#         --port $VLLM_PORT \
+#         --max-model-len 12000 \
+#         --gpu-memory-utilization 0.2 \
+#         --max-num-seqs 64 \
+#         --dtype bfloat16 \
+#         --enable-chunked-prefill\
+#         --trust-remote-code"
 
-# ==================== 2. 健康检查 ====================
-info "等待所有依赖服务就绪..."
+# # ==================== 2. 健康检查 ====================
+# info "等待所有依赖服务就绪..."
 
-wait_for_port $REWARD_PORT $PORT_TIMEOUT "reward_llm" || exit 1
-wait_for_port $VLLM_PORT $PORT_TIMEOUT "vllm" || exit 1
-wait_for_port $RETRIEVER_PORT $PORT_TIMEOUT "retriever_filter8005" || exit 1
+# wait_for_port $REWARD_PORT $PORT_TIMEOUT "reward_llm" || exit 1
+# wait_for_port $VLLM_PORT $PORT_TIMEOUT "vllm" || exit 1
+# wait_for_port $RETRIEVER_PORT $PORT_TIMEOUT "retriever_filter8005" || exit 1
 
 # ==================== 3. 启动主训练任务 ====================
 info "======================================================"
 info "架构启动完毕，正式开始 GRPO LoRA 强化学习训练 (H20 141GB)！🚀"
 info "======================================================"
-
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
-    data.train_batch_size=36 \
-    data.val_batch_size=36 \
+    data.train_batch_size=32 \
+    data.val_batch_size=32 \
     data.max_prompt_length=28000 \
     data.max_response_length=1200 \
     +data.max_start_length=4000 \
@@ -165,8 +165,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.path=$BASE_MODEL \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=true \
-    actor_rollout_ref.actor.ppo_mini_batch_size=18 \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=6 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=16 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.actor.use_kl_loss=true \
     actor_rollout_ref.actor.kl_loss_coef=0.06 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
@@ -174,7 +174,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.actor.fsdp_config.param_offload=false \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=false \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=6 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
