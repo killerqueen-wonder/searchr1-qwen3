@@ -93,7 +93,6 @@ tmux_send_commands "reward_llm" \
         --host 0.0.0.0 --port $REWARD_PORT \
         --enable-prefix-caching \
         --enable-chunked-prefill \
-        --disable-log-requests \
         --max-num-seqs 128 \
         --max-model-len 32000 \
         --gpu-memory-utilization 0.45 \
@@ -136,7 +135,6 @@ tmux_send_commands "vllm" \
         --served-model-name Qwen3-8B \
         --port $VLLM_PORT \
         --enable-chunked-prefill \
-        --disable-log-requests \
         --max-model-len 12000 \
         --gpu-memory-utilization 0.45 \
         --max-num-seqs 128 \
