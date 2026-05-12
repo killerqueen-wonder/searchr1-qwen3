@@ -14,9 +14,11 @@ export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/
 export REWARD_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
 export FILTER_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
 
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.3-0509-H20-141G-3plus1
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.3-0512-H20-141G-3plus1
 export WAND_PROJECT='Search-R1'
 export WANDB_API_KEY='847a7dd2aadbd8146fa82d3cc3b88826530401ec'
+# export WANDB_RESUME="allow" 
+# export WANDB_RUN_ID="45w01nhm" # 请替换为真实的 ID
 
 # 端口配置
 RETRIEVER_PORT=8005
@@ -211,9 +213,9 @@ python3 -m verl.trainer.main_ppo \
     trainer.test_freq=30 \
     trainer.total_epochs=2 \
     trainer.total_training_steps=1801 \
-    trainer.resume_mode=disable \
+    trainer.resume_mode=auto \
     trainer.default_hdfs_dir=null \
-    trainer.default_local_dir=/data/panghuaiwen/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
+    trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/$EXPERIMENT_NAME \
     +max_turns=10 \
     ray_kwargs.ray_init.num_cpus=16 \
     +retriever.url="http://127.0.0.1:8005/retrieve" \
