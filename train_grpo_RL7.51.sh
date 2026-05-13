@@ -196,7 +196,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.n=4 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=6 \
     actor_rollout_ref.ref.fsdp_config.param_offload=false \
-    actor_rollout_ref.rollout.temperature=0.4 \
+    actor_rollout_ref.rollout.temperature=0.5 \
     actor_rollout_ref.rollout.max_num_batched_tokens=60000 \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
