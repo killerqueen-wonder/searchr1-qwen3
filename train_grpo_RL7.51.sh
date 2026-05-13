@@ -14,7 +14,7 @@ export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/
 export REWARD_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
 export FILTER_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
 
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.3-0512-H20-141G-3plus1
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.3-0514-H20-141G-3plus1
 export WAND_PROJECT='Search-R1'
 export WANDB_API_KEY='847a7dd2aadbd8146fa82d3cc3b88826530401ec'
 # export WANDB_RESUME="allow" 
@@ -169,7 +169,7 @@ python3 -m verl.trainer.main_ppo \
     data.val_files=$DATA_DIR/test.parquet \
     data.train_batch_size=18 \
     data.val_batch_size=18 \
-    data.max_prompt_length=28000 \
+    data.max_prompt_length=25000 \
     data.max_response_length=1200 \
     +data.max_start_length=4000 \
     +data.max_obs_length=2000 \
@@ -197,7 +197,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=6 \
     actor_rollout_ref.ref.fsdp_config.param_offload=false \
     actor_rollout_ref.rollout.temperature=0.4 \
-    actor_rollout_ref.rollout.max_num_batched_tokens=65536 \
+    actor_rollout_ref.rollout.max_num_batched_tokens=60000 \
     algorithm.use_kl_in_reward=false \
     +algorithm.no_think_rl=false \
     +trainer.use_critic=false \
@@ -216,7 +216,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.resume_mode=auto \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/$EXPERIMENT_NAME \
-    +max_turns=10 \
+    +max_turns=9 \
     ray_kwargs.ray_init.num_cpus=16 \
     +retriever.url="http://127.0.0.1:8005/retrieve" \
     +retriever.topk=8 \

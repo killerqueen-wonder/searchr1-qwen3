@@ -593,6 +593,7 @@ class HybridRetriever(BaseRetriever):
 
     
 class HybridFilterRetriever(HybridRetriever):
+    #自带llm filter，已替换为异步混合检索
     def __init__(self, config):
         """
         初始化混合过滤检索器 (HybridFilterRetriever)。

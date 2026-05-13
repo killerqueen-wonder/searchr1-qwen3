@@ -48,47 +48,42 @@ UNIFIED_JUDGE_PROMPT_TEMPLATE = """你是一位严谨的AI推理行为与法律�
 [参考答案 (Ground Truth Answer)]
 {reference_answer}
 
-[被测模型完整输出]
+[被测模型完整轨迹]
 {model_output}
+
+[被测模型最终回答]
+{answer_content}
 
 [被测模型实际搜到的内容提取]
 {retrieved_info}
 
 **评分维度与阶梯标准：**
 
-1. **核心事实准确度 (accuracy)**:对比【被测模型完整输出】的结论部分和【参考答案】
-   - [85-100分]: 最终结论完全准确，涵盖了参考答案中的关键事实。
-   - [60-84分]: 结论基本正确，但遗漏了部分非核心细节或存在微小瑕疵。
-   - [30-59分]: 结论部分错误，或逻辑混乱。
-   - [0-29分]: 严重错误，结论与参考矛盾，或存在幻觉编造。
+1. **核心事实准确度 (accuracy)**(对比【被测模型最终回答】和【参考答案】):
+   - [100分]: 最终结论完全准确，与参考答案中的关键事实或答案完全一致。
+   - [70分]: 结论基本正确，但遗漏了部分非核心细节或增加了多余内容，存在微小错误。
+   - [40分]: 结论部分错误，或逻辑混乱。
+   - [0分]: 严重错误，结论与参考矛盾，或存在幻觉编造。
 
-2. **轨迹与时机对齐 (alignment)**:对比【被测模型完整输出】的检索轨迹和【参考轨迹】
-   - [85-100分]: 在与参考轨迹相同的逻辑断点处发起了检索（<search>），检索策略与参考高度一致。
-   - [60-84分]: 检索时机略有偏差，或策略略宽泛，但整体逻辑合理。
-   - [30-59分]: 错过了必要的检索节点，或进行了多余的低效检索。
-   - [0-29分]: 参考进行了检索但模型完全未检索，或在极度不合理的地方滥用工具。
+2. **轨迹与时机对齐 (alignment)**(对比【被测模型完整输出】和【参考轨迹】):
+   - [100分]: 被测模型在与参考轨迹相同的逻辑断点处发起了检索，检索策略与参考高度一致。
+   - [70分]: 检索时机略有偏差，或策略略宽泛，但整体逻辑合理。
+   - [40分]: 被测模型错过了参考轨迹必要的检索节点，或被测模型进行了多余的低效检索。
+   - [0分]: 参考轨迹进行了检索但模型完全未检索，或被测模型在极度不必要的地方滥用检索工具。
 
-3. **信息增量价值 (info_gain)**:对比【被测模型实际搜到的内容提取】和【参考答案】
-   - [85-100分]: 搜回的信息（包含在 <information> 中）极其精准，直接支撑了最终参考答案的核心内容。
-   - [60-84分]: 搜回的信息部分相关，能提供背景支持，但缺失最关键的一击。
-   - [30-59分]: 搜到的多为边缘信息，对解题帮助有限。
-   - [0-29分]: 搜回的内容完全无关，或模型根本没有进行有效检索（无返回内容）。
+3. **信息增量价值 (info_gain)**(对比【被测模型实际搜到的内容提取】和【参考答案】):
+   - [100分]: 搜回的信息极其精准，直接支撑了最终参考答案的核心内容。
+   - [70分]: 搜回的信息部分相关，能提供背景支持，但缺失最关键的一击。
+   - [40分]: 搜到的多为边缘信息，对解题帮助有限。
+   - [0分]: 搜回的内容完全无关，或模型根本没有进行有效检索（无返回内容）。
 
-请仅输出一个 JSON 字典，不要包含任何其他分析过程文字，确保包含 "accuracy", "alignment", "info_gain" 三个键。
-例如：{{"accuracy": 85, "alignment": 90, "info_gain": 80}}  /no_think"""
+
+请仅输出一个 JSON 字典，不要包含任何其他分析过程文字，确保包含 "accuracy", "alignment", "info_gain",  三个键。
+例如：{{"accuracy": 70, "alignment": 40, "info_gain": 70 }}  /no_think"""
 
 import json
 
-def extract_answer_content(text: str) -> str:
-    """
-    提取文本中【最后一次】出现 <answer> 和 </answer> 之间的内容。
-    """
-    # 找到所有匹配项
-    matches = re.findall(r"<answer>(.*?)(?:</answer>|$)", text, re.DOTALL)
-    if matches:
-        # 返回最后一个匹配项并去空格
-        return matches[-1].strip()
-    return ""
+
 
 def extract_answer_content(text):
     match = re.search(r"<answer>(.*?)(</answer>|$)", text, re.DOTALL)
@@ -152,7 +147,7 @@ def parse_judge_json(raw_str: str) -> dict:
             return data
     except Exception as e:
         # 如果需要，这里可以解除注释打印具体的解析错误
-        print(f"[JSON Decode Error] {e} -> String: {clean_str}")
+        print(f"[judge LLM JSON Decode Error] {e} -> String: {clean_str}")
         return None
         
     return None
@@ -176,7 +171,7 @@ class VLLMRewardManager:
         self.client = get_client(api_url)
         self.model_name = "qwen3-8b-reward" 
 
-    def get_unified_subjective_scores(self, question: str, reference_cot: str, reference_answer: str, model_output: str, retrieved_info: str) -> dict:
+    def get_unified_subjective_scores(self, question: str, reference_cot: str, reference_answer: str,  retrieved_info: str,answer_content:str) -> dict:
         """
         调用 LLM 获取三维打分 JSON，最多重试 3 次，超时或错误则返回 0 分字典。
         """
@@ -184,7 +179,7 @@ class VLLMRewardManager:
             question=question,
             reference_cot=reference_cot,
             reference_answer=reference_answer,
-            model_output=model_output,
+            answer_content=answer_content,
             retrieved_info=retrieved_info
         )
         
@@ -207,7 +202,7 @@ class VLLMRewardManager:
                     return {
                         "accuracy": float(parsed_data["accuracy"]),
                         "alignment": float(parsed_data["alignment"]),
-                        "info_gain": float(parsed_data["info_gain"])
+                        "info_gain": float(parsed_data["info_gain"]),
                     }
                 else:
                     # 修复点：显式捕获解析失败，并打印原文以便 Debug
@@ -337,13 +332,14 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     
     question = extra_info.get('question', "题目缺失") if extra_info else "题目缺失"
 
+    final_score = 0
     # --- Step 1: 格式与内容基础门控 ---
     if not correct_format(solution_str):
-        return 0.0  
+        # return 0.0  
+        final_score -= 0.2 
     
     answer_content = extract_answer_content(solution_str)
-    if len(answer_content) < 3:
-        return 0.05  
+
 
     # --- Step 2: 检索词质量 (法律检索相似度) ---
     query_quality_100 = calculate_query_quality_score(solution_str)
@@ -355,13 +351,14 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         question=question,
         reference_cot=reference_cot,
         reference_answer=reference_answer,
-        model_output=solution_str,
+        answer_content=answer_content,
         retrieved_info=retrieved_info
     )
 
     acc_100 = subjective_scores["accuracy"]
     align_100 = subjective_scores["alignment"]
     info_100 = subjective_scores["info_gain"]
+
 
     # --- Step 4: 启发式奖金计算 (search_bonus & length_bonus) ---
     # 检索次数对齐奖金
@@ -371,30 +368,30 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     
     search_bonus = 0.0
     if diff <= 1:
-        search_bonus = 0.10  
+        search_bonus = 0.02  
     elif diff <= 2:
-        search_bonus = 0.05
+        search_bonus = 0.01
         
     # 长度奖金项 (新公式：上限 0.1)
-    length_punish = min(0.1, len(solution_str) * 0.000001)
+    length_punish = min(0.05, len(solution_str) * 0.0003)
 
     # --- Step 5: 最终分数聚合 ---
-    # 比例：Acc(0.45) + Align(0.20) + Info(0.20) + Query(0.15)
-    subjective_total = (acc_100 * 0.8 / 100.0) + \
+    # 比例：Acc(0.6) + Align(0.08) + Info(0.1) +Query(0.02)
+    subjective_total = (acc_100 * 1 / 100.0) + \
                        (align_100 * 0.08 / 100.0) + \
                        (info_100 * 0.10 / 100.0) + \
                        (query_quality_100 * 0.02 / 100.0)
 
-    final_score = subjective_total + search_bonus - length_punish
+    final_score = final_score + subjective_total + search_bonus - length_punish
 
     # --- 日志采样 ---
     if random.randint(1, 64) == 1:
         print(f"\n[GRPO RL Reward] Final: {final_score:.4f}")
         print(f"Components -> Acc:{acc_100}, Align:{align_100}, Info:{info_100}, Query:{query_quality_100:.1f}")
         print(f"Bonuses    -> SearchBonus:{search_bonus}, LengthBonus:{length_punish:.4f}")
-        print(f"Q: ...{question[-100:]}")
-        print(f"GT: ...{ground_truth[-200:]}")
-        print(f"Model think: {solution_str[2000:]}...")
+        print(f"Q: ...{question[-200:]}")
+        print(f"GT: ...{reference[-2000:]}")
+        print(f"Model think: {solution_str}...")
         print(f"Model Answer: {answer_content}...")
         
 

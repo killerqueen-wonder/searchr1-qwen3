@@ -594,7 +594,7 @@ class LLMGenerationManager:
             if not clean_str.endswith("}"):
                 clean_str = clean_str + "}"
             # ================= JSON 鲁棒性清洗结束 =================
-            search_query = json.loads(search_json_str)
+            search_query = json.loads(clean_str)
             
 
             # 2. 组装发给 FastAPI 的 UnifiedQueryRequest 载荷
