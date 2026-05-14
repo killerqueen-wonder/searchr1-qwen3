@@ -85,9 +85,22 @@ import json
 
 
 
+import re
+
 def extract_answer_content(text):
-    match = re.search(r"<answer>(.*?)(</answer>|$)", text, re.DOTALL)
-    return match.group(1).strip() if match else ""
+    # 1. 优先尝试匹配带闭合标签的完整 <answer>...</answer>
+    match = re.search(r"<answer>(.*?)</answer>", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    
+    # 2. 当没有完整的闭合标签时，寻找最后一个 "<answer>"
+    last_index = text.rfind("<answer>")
+    if last_index != -1:
+        # 返回从最后一个 "<answer>" 结尾到字符串最后的内容
+        return text[last_index + len("<answer>"):].strip()
+    
+    # 3. 如果依然不匹配（连 "<answer>" 都没有），返回空字符串
+    return ""
 
 
 def count_search_actions(text: str) -> int:
@@ -336,7 +349,8 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     # --- Step 1: 格式与内容基础门控 ---
     if not correct_format(solution_str):
         # return 0.0  
-        final_score -= 0.2 
+        print("[debug]warning: 模型输出标签格式错误。")
+        final_score -= 0.3 
     
     answer_content = extract_answer_content(solution_str)
 
@@ -372,8 +386,10 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     elif diff <= 2:
         search_bonus = 0.01
         
-    # 长度奖金项 (新公式：上限 0.1)
-    length_punish = min(0.05, len(solution_str) * 0.0003)
+    # 长度奖金项 (新公式：上限 0.1,20000字到顶)
+    length_punish_limit=0.1
+    length_punish = min(length_punish_limit, (len(solution_str)*0.000005)*length_punish_limit)
+    # length_punish = min(0.1, len(solution_str) * 0.00001)
 
     # --- Step 5: 最终分数聚合 ---
     # 比例：Acc(0.6) + Align(0.08) + Info(0.1) +Query(0.02)
