@@ -466,9 +466,9 @@ class LLMGenerationManager:
                     valid_action.append(1)
                     is_search.append(1)
                 else:
-                    next_obs.append(f'\n我先前的操作有问题。 \
-如果我想搜索，应该把关键词放在<search> 和 </search>之间。 \
-如果我想给出最终回答，应该把答案放在 <answer> 和 </answer>之间。让我重新思考。\n')
+                    next_obs.append(f'\n【系统提示】 \
+如果下一步需要搜索，应该把搜索内容放在<search> 和 </search>之间。 \
+如果下一步给出最终回答，应该把答案放在 <answer> 和 </answer>之间。让我重新思考。【/系统提示】\n')
                     dones.append(0)
                     valid_action.append(0)
                     is_search.append(0)

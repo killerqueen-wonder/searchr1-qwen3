@@ -9,7 +9,7 @@ from openai import OpenAI, BadRequestError
 # 1. 拆分版 Prompt 定义 (精准裁剪上下文，缩小输入长度)
 # =============================================================================
 
-JUDGE_PROMPT_ACCURACY = """你是一位严谨的法律事实审计员。请对比【参考答案】和【被测模型最终回答】，给出核心事实准确度打分 (0-100分)。
+JUDGE_PROMPT_ACCURACY = """你是一位严谨的法律事实审计员。请对比【参考答案】和【被测模型最终回答】，给出核心事实准确度打分 (1-4分)。
 
 [参考答案]
 {reference_answer}
@@ -18,15 +18,15 @@ JUDGE_PROMPT_ACCURACY = """你是一位严谨的法律事实审计员。请对�
 {answer_content}
 
 评分标准：
-- [100分]: 最终结论完全准确，与参考答案关键事实一致。
-- [70分]: 结论基本正确，但遗漏部分细节或带微小错误。
-- [40分]: 结论部分错误。
-- [0分]: 严重错误，结论矛盾或出现幻觉。
+- [4分]: 最终结论完全准确，与参考答案关键事实一致。
+- [3分]: 结论基本正确，但遗漏部分细节或带微小错误。
+- [2分]: 结论部分错误。
+- [1分]: 严重错误，结论矛盾或出现幻觉。
 
-请仅输出一个评分数字，格式严格为：[[分数]]，例如 [[85]]。不要输出其他解释。 /no_think"""
+请仅输出一个评分数字，格式严格为：[[分数]]，例如 [[3]]。不要输出其他解释。 /no_think"""
 
 
-JUDGE_PROMPT_ALIGNMENT = """你是一位AI推理行为审计员。请对比【参考轨迹】和【被测模型完整轨迹】，给出轨迹与时机对齐打分 (0-100分)。
+JUDGE_PROMPT_ALIGNMENT = """你是一位AI推理行为审计员。请对比【参考轨迹】和【被测模型完整轨迹】，根据被测轨迹的检索时机与参考轨迹是否对齐，给出打分 (1-4分)。
 
 [参考轨迹]
 {reference_cot}
@@ -35,29 +35,29 @@ JUDGE_PROMPT_ALIGNMENT = """你是一位AI推理行为审计员。请对比【�
 {model_output}
 
 评分标准：
-- [100分]: 检索时机和策略与参考轨迹高度一致。
-- [70分]: 检索时机或策略略有偏差，但整体合理。
-- [40分]: 错过必要检索节点，或进行了多余的低效检索。
-- [0分]: 该检索却未检索，或极度滥用工具。
+- [4分]: 检索时机和策略与参考轨迹高度一致。
+- [3分]: 检索时机或策略略有偏差，但整体合理。
+- [2分]: 错过必要检索节点，或进行了多余的低效检索。
+- [1分]: 该检索却未检索，或极度滥用工具。
 
-请仅输出一个评分数字，格式严格为：[[分数]]，例如 [[70]]。不要输出其他解释。 /no_think"""
+请仅输出一个评分数字，格式严格为：[[分数]]，例如 [[2]]。不要输出其他解释。 /no_think"""
 
 
-JUDGE_PROMPT_INFO_GAIN = """你是一位信息价值审计员。请对比【被测模型实际搜到的内容提取】和【参考答案】，给出信息增量价值打分 (0-100分)。
+JUDGE_PROMPT_INFO_GAIN = """你是一位信息价值审计员。请对比【被测模型的检索内容】和【参考答案】，判断被测模型的检索内容是否与参考答案相关，给出信息增量价值打分 (1-4分)。
 
 [参考答案]
 {reference_answer}
 
-[被测模型实际搜到的内容提取]
+[被测模型的检索内容]
 {retrieved_info}
 
 评分标准：
-- [100分]: 搜回信息极精准，直接支撑参考答案的核心内容。
-- [70分]: 信息部分相关，提供背景支持但非关键一击。
-- [40分]: 搜到多为边缘信息，帮助有限。
-- [0分]: 完全无关，或未进行有效检索(无返回)。
+- [4分]: 搜回信息极精准，直接支撑参考答案的核心内容。
+- [3分]: 信息部分相关，提供背景支持但非关键一击。
+- [2分]: 搜到多为边缘信息，帮助有限。
+- [1分]: 完全无关，或未进行有效检索(无返回)。
 
-请仅输出一个评分数字，格式严格为：[[分数]]，例如 [[100]]。不要输出其他解释。 /no_think"""
+请仅输出一个评分数字，格式严格为：[[分数]]，例如 [[3]]。不要输出其他解释。 /no_think"""
 
 # =============================================================================
 # 2. 辅助函数 (保持不变)
@@ -96,10 +96,87 @@ def parse_single_score(raw_str: str) -> float:
     return 0.0
 
 def correct_format(text):
+    #answer必须齐全，search和syllogism必须闭合
     if "<answer>" not in text or "</answer>" not in text: return False
     if "<search>" in text and "</search>" not in text: return False
     if "<syllogism>" in text and "</syllogism>" not in text: return False
     return True
+
+def check_information_tags_strict(text: str) -> bool:
+    """
+    判断字符串中是否至少存在一对 <information> 标签，
+    并且 <information> 和 </information> 必须严格交替出现。
+    """
+    # 使用正则表达式提取所有开始和结束标签，按出现顺序存入列表
+    # </?information> 会匹配 <information> 和 </information>
+    tags = re.findall(r'</?information>', text)
+    
+    # 条件1：至少要存在标签（且如果是正确交替，总数必定是偶数，至少2个）
+    if not tags:
+        return False
+        
+    # 状态变量：0 表示当前等待开始标签，1 表示当前等待结束标签
+    state = 0 
+    
+    for tag in tags:
+        if tag == "<information>":
+            if state == 1:
+                # 错误：上一个标签也是开始标签（出现了 <info> <info>）
+                return False
+            state = 1
+            
+        elif tag == "</information>":
+            if state == 0:
+                # 错误：没有开始标签就直接结束，或者连续出现了结束标签（如 </info> 或 <info></info></info>）
+                return False
+            state = 0
+            
+    # 条件2：遍历结束后，状态必须回到 0，即所有打开的标签都已正确闭合
+    return state == 0
+
+def check_search_json(text: str) -> bool:
+    """
+    判断字符串中是否至少存在一对 <search> 和 </search>，
+    且其中包含符合特定格式要求的 JSON 文本。
+    """
+    # 使用正则表达式提取 <search> 和 </search> 之间的所有内容
+    # re.DOTALL 参数允许 '.' 匹配包括换行符在内的任意字符
+    matches = re.findall(r'<search>(.*?)</search>', text, re.DOTALL)
+    
+    for content in matches:
+        try:
+            # 尝试将提取到的内容解析为 JSON 字典
+            # json.loads 会自动忽略首尾的空白字符和换行
+            data = json.loads(content)
+            
+            # 确保解析出来的是一个 JSON 对象（字典），而不是数组或普通字符串
+            if not isinstance(data, dict):
+                continue
+            
+            # 将 JSON 的所有键提取为集合，方便进行精确比对
+            keys = set(data.keys())
+            
+            # 校验规则 1：法律检索
+            if data.get("检索类型") == "法律检索":
+                expected_keys = {"检索类型", "关键词", "检索目的"}
+                # 集合比对：不仅要求包含这三个键，且不能有其他多余的键
+                if keys == expected_keys:
+                    return True
+                    
+            # 校验规则 2：类案检索
+            elif data.get("检索类型") == "类案检索":
+                expected_keys = {"检索类型", "检索案情", "罪名", "其他情节"}
+                # 集合比对：必须且只能包含这四个键
+                if keys == expected_keys:
+                    return True
+                    
+        except json.JSONDecodeError:
+            # 如果 json.loads 抛出异常，说明标签内的内容不是合法的 JSON
+            # 捕获异常并跳过，继续检查下一对标签
+            continue
+            
+    # 如果遍历完所有匹配项都没有符合条件的，则返回 False
+    return False
 
 # =============================================================================
 # 3. 客户端与并发请求管理
@@ -215,7 +292,15 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     # --- Step 1: 格式与内容基础门控 ---
     if not correct_format(solution_str):
         print("[debug]warning: 模型输出标签格式错误。")
-        final_score -= 0.3 
+        final_score -= 0.2 
+
+    if check_search_json(solution_str):
+        #检索格式是否正确
+        final_score += 0.02
+
+    if check_information_tags_strict(solution_str):
+        #检索结果是否成功返回
+        final_score += 0.08 
     
     answer_content = extract_answer_content(solution_str)
 
@@ -235,9 +320,9 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         model_output=solution_str
     )
 
-    acc_100 = subjective_scores["accuracy"]
-    align_100 = subjective_scores["alignment"]
-    info_100 = subjective_scores["info_gain"]
+    acc_4 = subjective_scores["accuracy"]
+    align_4 = subjective_scores["alignment"]
+    info_4 = subjective_scores["info_gain"]
 
     # --- Step 4: 启发式奖金计算 ---
     gt_search_count = count_search_actions(reference_cot)
@@ -245,24 +330,23 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     diff = abs(gt_search_count - model_search_count)
     
     search_bonus = 0.0
-    if diff <= 1: search_bonus = 0.03  
-    elif diff <= 2: search_bonus = 0.02
+    if diff <= 1: search_bonus = 0.01  
         
     length_punish_limit = 0.15
     length_punish = min(length_punish_limit, (len(solution_str)*0.000005)*length_punish_limit)
 
     # --- Step 5: 最终分数聚合 ---
-    subjective_total = (acc_100 * 1 / 100.0) + \
-                       (align_100 * 0.1 / 100.0) + \
-                       (info_100 * 0.1 / 100.0) + \
+    subjective_total = (acc_4 * 1 / 4.0) + \
+                       (align_4 * 0.02 / 4.0) + \
+                       (info_4 * 0.08 / 4.0) + \
                        (query_quality_100 * 0.05 / 100.0)
 
     final_score = final_score + subjective_total + search_bonus - length_punish
 
     if random.randint(1, 64) == 1:
         print(f"\n[GRPO RL Reward] Final: {final_score:.4f}")
-        print(f"Components -> Acc:{acc_100}, Align:{align_100}, Info:{info_100}, Query:{query_quality_100:.1f}")
-        print(f"Bonuses    -> SearchBonus:{search_bonus}, LengthBonus:{length_punish:.4f}")
+        print(f"Components -> Acc:{acc_4}, Align:{align_4}, Info:{info_4}, Query:{query_quality_100:.1f}")
+        print(f"Bonuses    -> LengthBonus:{length_punish:.4f}")
         print(f"Q: ...{question[-200:]}")
         print(f"GT: ...{reference[-2000:]}")
         print(f"Model think: {solution_str}...")
