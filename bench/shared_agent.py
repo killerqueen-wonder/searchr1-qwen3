@@ -159,7 +159,7 @@ class VLLM_Retriever_Agent:
         payload = {
             "queries": [query_str.strip()],
             "topk": self.topk,
-            "return_scores": False
+            "return_scores": True
         }
         try:
             response = requests.post(self.retrieve_path, json=payload, timeout=120)
