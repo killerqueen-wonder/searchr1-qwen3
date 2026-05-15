@@ -336,7 +336,10 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     diff = abs(gt_search_count - model_search_count)
     
     search_bonus = 0.0
-    if diff <= 1: search_bonus = 0.01  
+    #与参考轨迹检索次数相近
+    if diff <= 1: search_bonus = 0.02  
+    #简单题，参考轨迹与被测轨迹都无需检索，补偿可能的检索信息失分
+    if gt_search_count == 0 and model_search_count==0 : search_bonus = 0.06
         
     length_punish_limit = 0.2
     length_punish = min(length_punish_limit, (len(solution_str)*0.000005)*length_punish_limit)
