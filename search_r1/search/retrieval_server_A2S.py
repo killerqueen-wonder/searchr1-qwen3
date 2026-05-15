@@ -397,7 +397,7 @@ if __name__ == "__main__":
     parser.add_argument("--corpus_path", type=str, default="/home/peterjin/mnt/data/retrieval-corpus/wiki-18.jsonl", help="Local corpus file.")
     parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
     parser.add_argument("--retriever_name", type=str, default="e5", help="Name of the retriever model.")
-    parser.add_argument("--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model.")
+    parser.add_argument("--retriever_model", type=str, default="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/e5-base-v2", help="Path of the retriever model.")
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
 
     parser.add_argument("--gpu_ids", type=int, nargs='+', default=[3, 4, 5, 7], help="GPU device IDs to use.")
