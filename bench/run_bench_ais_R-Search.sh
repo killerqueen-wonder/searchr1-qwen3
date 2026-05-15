@@ -124,7 +124,7 @@ info "已触发启动 Judge 裁判服务 "
 
 wait_for_port $MAIN_VLLM_PORT $PORT_TIMEOUT "r_vllm_main"
 wait_for_port $JUDGE_VLLM_PORT $PORT_TIMEOUT "r_vllm_judge"
-wait_for_port 80 $PORT_TIMEOUT "r_retriever_81"
+wait_for_port $PORT $PORT_TIMEOUT "r_retriever_81"
 info "所有服务就绪，开始执行基准测试！🚀"
 
 # --- 3. 运行评测 ---
