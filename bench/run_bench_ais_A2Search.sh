@@ -103,6 +103,7 @@ tmux_send_commands "retriever_80" \
     "cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3" \
     "git pull origin main" \
     "python search_r1/search/retrieval_server_A2S.py \
+        --index_path'/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/case/e5_Flat.index'
         --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
         --topk 8 \
         --gpu_ids 3 --gpu_memory_limit_per_gpu 5"
