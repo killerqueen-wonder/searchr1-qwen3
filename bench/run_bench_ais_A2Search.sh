@@ -22,7 +22,7 @@ PORT_TIMEOUT=1600
 
 # 开启强制直通模式 (极其重要：将屏蔽 RAG 与 Summary)
 export USE_DIRECT_API="true"
-
+export RETRIEVE_PATH="http://127.0.0.1:80/retrieve"
 export CONDA_SH="/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh"
 
 info() { echo -e "\033[32m[INFO]\033[0m $1"; }
@@ -37,7 +37,7 @@ wait_for_port() {
     
     while true; do
         # 兼容你的 FastAPI /health 和 vLLM 的 /health
-        if curl -s -f --noproxy '*' "http://127.0.0.1:$port/health" > /dev/null 2>&1; then
+        if curl -s --noproxy '*' "http://127.0.0.1:$port/health" > /dev/null 2>&1; then
             info "端口 $port 已就绪"
             return 0
         fi
@@ -73,14 +73,12 @@ if ! command -v nvidia-smi &> /dev/null || ! nvidia-smi &> /dev/null; then
 fi
 
 info "========================================================="
-info " 🚀 legalone 极速直通评测启动 (无需 RAG 与 Summary)"
-info " 方案：GPU 0 [${MODEL_NAME}] | GPU 1 [裁判]"
+info " 🚀 A2Search 专属评测启动"
 info "========================================================="
 
 # --- 2. 启动服务 ---
 # 启动主路推理 (GPU 0)
 kill_session "vllm_main"
-# 修改点 2: 启动命令中新增了 --trust-remote-code 和 --dtype bfloat16，适配新模型架构要求
 tmux new -d -s vllm_main "export TRITON_CACHE_DIR=~/.triton/cache_vllm_main; export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${MODEL_PATH} --served-model-name ${MODEL_NAME} --port ${MAIN_VLLM_PORT} --gpu-memory-utilization 0.9 --max-model-len 4096 --trust-remote-code --dtype bfloat16 || sleep 86400"
 info "已触发启动 vLLM 主路推理 (Port: $MAIN_VLLM_PORT, GPU: 0)"
 
@@ -114,6 +112,7 @@ info "已触发启动 Judge 裁判服务 (GPU: 1)"
 
 wait_for_port $MAIN_VLLM_PORT $PORT_TIMEOUT "vllm_main"
 wait_for_port $JUDGE_VLLM_PORT $PORT_TIMEOUT "vllm_judge"
+wait_for_port 80 $PORT_TIMEOUT "retriever_80"
 info "所有服务就绪，开始执行基准测试！🚀"
 
 # --- 3. 运行评测 ---
@@ -133,8 +132,9 @@ python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_infer.py \
     --model_name "${MODEL_NAME}" \
     --vllm_url "http://127.0.0.1:${MAIN_VLLM_PORT}" \
     --summary_port ${SUMMARY_VLLM_PORT} \
-    --retrieve_path "" \
-    --max_turn 1 --workers ${WORKERS}
+    --retrieve_path "${RETRIEVE_PATH}" \
+    --retriever true \
+    --max_turn 10 --workers ${WORKERS}
 
 info " -> 2. 评测阶段"
 python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval.py \

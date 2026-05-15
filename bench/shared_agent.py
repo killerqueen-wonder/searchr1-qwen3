@@ -47,6 +47,17 @@ NEW_SYSTEM_PROMPT = """你是一个严谨且专业的法律AI助手。你的任�
 以下是需要回答的问题：{question_text}
 """
 
+A2S_SYSTEM_PROMPT = """A conversation between User and Assistant. \
+The user asks a question, and the assistant solves it. \
+The assistant first thinks about the reasoning process in the mind and then provides the user with the answer. \
+During thinking, the assistant can invoke the law search tool to search for law information if needed. \
+The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags respectively, \
+and the search query and result are enclosed within <search> </search> and <result> </result> tags respectively. \
+For example, <think> This is the reasoning process. </think> <search> search query here </search> <result> search result here </result> \
+<think> This is the reasoning process. </think> <answer> The final answer is \\[ \\boxed{{answer here}} \\] </answer>. \
+In the last part of the answer, the final exact answer is enclosed within \\boxed{{}} with latex format. \
+User: {prompt}. Assistant:"""
+
 class VLLM_Retriever_Agent:
     def __init__(self, vllm_url, retrieve_path=None, model_name="Qwen3-8B", max_turn=12, topk=10):
         # 新增：读取 API 模式的环境变量配置
@@ -121,62 +132,132 @@ class VLLM_Retriever_Agent:
         except Exception as e:
             return f"检索系统网络或内部错误: {str(e)}"
 
-    def gen(self, query, instruction=""):
-        question = f"{instruction}\n{query}".strip() if instruction else query.strip()
 
+# ======= 新增：提取 \boxed{} 内容的方法 (复刻老代码逻辑) =======
+    def _extract_boxed(self, text):
+        idx = text.rfind(r"\boxed{")
+        if idx == -1:
+            return text.strip()  # 兜底：如果没找到boxed，返回原文本
+        
+        stack = 0
+        start = idx + 7
+        for i in range(start, len(text)):
+            if text[i] == '{':
+                stack += 1
+            elif text[i] == '}':
+                if stack == 0:
+                    return text[start:i].strip()
+                stack -= 1
+        return text[start:].strip()
+
+    # ======= 新增：A2S 模型专用的 RAG 检索通道 =======
+    def _search_a2s(self, query_str):
+        if not self.retrieve_path:
+            return "未启用检索功能。"
+        
+        # 适配 retrieval_server_A2S.py 的接口格式
+        payload = {
+            "queries": [query_str.strip()],
+            "topk": self.topk,
+            "return_scores": False
+        }
+        try:
+            response = requests.post(self.retrieve_path, json=payload, timeout=120)
+            response.raise_for_status()
+            json_data = response.json()
+            
+            # 解析返回结果
+            results = json_data.get("result", [[]])[0]
+            if not results:
+                return "No documents found."
+            
+            formatted_docs = []
+            for doc in results:
+                if isinstance(doc, dict):
+                    text = doc.get("text", doc.get("contents", str(doc)))
+                else:
+                    text = str(doc)
+                formatted_docs.append(text.strip())
+                
+            return "\n".join(formatted_docs)[:2000] # 截断避免爆显存
+        except Exception as e:
+            logger.error(f"A2S 检索系统网络或内部错误: {str(e)}")
+            return f"Search failed: {str(e)}"
+
+    # ======= 新增：A2S 专用的多轮推理 Pipeline =======
+    def _gen_a2s(self, question):
+        
+        prompt = A2S_SYSTEM_PROMPT.format(prompt=question)
+        
+        sys_tool_latency, sys_rag_count = 0.0, 0
+        sys_prompt_tok, sys_comp_tok = 0, 0
+        final_answer = ""
+
+        for turn in range(self.max_turn):
+            payload = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "max_tokens": 2048,
+                "temperature": 0.0,
+                "stop": ["</search>", "</answer>"]
+            }
+            try:
+                res = requests.post(self.vllm_url, json=payload, timeout=200).json()
+                if "error" in res:
+                    final_answer = "API Error"
+                    break
+                output_text = res["choices"][0]["text"]
+                usage = res.get("usage", {})
+                sys_prompt_tok += usage.get("prompt_tokens", len(prompt))
+                sys_comp_tok += usage.get("completion_tokens", len(output_text))
+            except Exception as e:
+                logger.error(f"vLLM API 请求异常: {e}")
+                final_answer = "Error"
+                break
+
+            # 触发搜索
+            if "<search>" in output_text:
+                search_query = output_text.split("<search>")[-1].strip()
+                t0 = time.time()
+                search_result_text = self._search_a2s(search_query)
+                sys_tool_latency += (time.time() - t0)
+                sys_rag_count += 1
+                
+                # 拼接检索结果并继续推断
+                prompt += f"{output_text}</search> <result> {search_result_text} </result> "
+                
+            # 触发回答提取
+            elif "<answer>" in output_text:
+                answer_block = output_text.split("<answer>")[-1].strip()
+                final_answer = self._extract_boxed(answer_block)
+                break
+            else:
+                # 异常中断或文本截断，尽力提取
+                final_answer = self._extract_boxed(output_text)
+                break
+
+        agent_metrics = {
+            "tool_latency_sec": sys_tool_latency, "rag_count": sys_rag_count,
+            "user_prompt_tokens": sys_prompt_tok,
+            "main_total_prompt_tokens": sys_prompt_tok, "main_total_comp_tokens": sys_comp_tok
+        }        
+        
+        # 将最终提取的答案伪装为 history 传入后续评测管道
+        return final_answer, agent_metrics
+    
+    def gen(self, query, instruction=""):
+
+        # ========= 核心分流：A2S 专属管道拦截 =========
+        
         
 
-        # ================== 新增：纯 API 直连模式 ==================
-        # if self.use_direct_api:
-        #     payload = {
-        #         "model": self.model_name,
-        #         "messages": [
-        #             {"role": "system", "content": "你是一个乐于助人的智能助手。"},
-        #             {"role": "user", "content": question}
-        #         ],
-        #         "temperature": 0.1,
-        #         "stream": False
-        #     }
-        #     headers = {
-        #         "Authorization": f"Bearer {self.api_key}",
-        #         "Content-Type": "application/json"
-        #     }
-            
-        #     start_time = time.time()
-        #     try:
-        #         res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=200).json()
-        #         if "error" in res:
-        #             logger.error(f"API 返回错误: {res['error']}")
-        #             output_text = f"API Error: {res['error']}"
-        #             prompt_tokens, comp_tokens = 0, 0
-        #         else:
-        #             output_text = res["choices"][0]["message"]["content"]
-        #             usage = res.get("usage", {})
-        #             prompt_tokens = usage.get("prompt_tokens", 0)
-        #             comp_tokens = usage.get("completion_tokens", 0)
-        #     except Exception as e:
-        #         logger.error(f"API 请求异常: {e}")
-        #         output_text = "Error"
-        #         print("[debug] request payload:")
-        #         print(payload)
-                
-        #         prompt_tokens, comp_tokens = 0, 0
+        question = f"{instruction}\n{query}".strip() if instruction else query.strip()
 
-        #     # 伪造 agent_metrics 保持与 infer 脚本的兼容性
-        #     agent_metrics = {
-        #         "tool_latency_sec": time.time() - start_time, 
-        #         "rag_count": 0,
-        #         "user_prompt_tokens": prompt_tokens,
-        #         "main_total_prompt_tokens": prompt_tokens, 
-        #         "main_total_comp_tokens": comp_tokens
-        #     }
-        #     return output_text, agent_metrics
-        # ==========================================================
 
         # ================== 纯 API 直连模式 (多模型分流适配) ==================
         if self.use_direct_api:
             # 判断是否为 luwen / zju_model 系列新模型
-            if "luwen" in self.model_name.lower():
+            if "luwen" in self.model_name.lower() :
                 # --- 新增线路：适配 zju_model (luwen) ---
                 formatted_prompt = f"</s>Human:{question} </s>Assistant: "
                 payload = {
@@ -187,6 +268,10 @@ class VLLM_Retriever_Agent:
                     "stop": ["</s>", "Human:"] # 增加截断词，防止无限生成
                 }
                 fallback_prompt_len = len(formatted_prompt)
+
+            elif "a2s" in self.model_name.lower():
+                return self._gen_a2s(question)
+            
             else:
                 # --- 原有线路：保持原有逻辑不变 (如 LawGPT) ---
                 payload = {
@@ -327,6 +412,8 @@ class VLLM_Retriever_Agent:
         return final_output, agent_metrics
 
 def get_universal_vllm_summary(query, history, port, model_name="Qwen3-8B"):
+    
+    
     
     # ================== 新增：纯 API 模式下直接透传 ==================
     if os.getenv("USE_DIRECT_API", "false").lower() == "true":
