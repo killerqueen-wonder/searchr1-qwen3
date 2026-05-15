@@ -5,6 +5,7 @@ import time
 import requests
 import os
 import random
+from transformers import AutoTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,9 @@ For example, <think> This is the reasoning process. </think> <search> search que
 In the last part of the answer, the final exact answer is enclosed within \\boxed{{}} with latex format. \
 User: {prompt}. Assistant:"""
 
+R_SEARCH_SYSTEM_PROMPT = "You are a helpful assistant that can solve the given question step by step. For each step, start by explaining your thought process. If additional law information is needed, provide a specific query enclosed in <search> and </search>. The system will return the top search results within <observation> and </observation>. You can perform multiple searches as needed.\nWhen you know the final answer, use <original_evidence> and </original_evidence> to provide all potentially relevant original information from the observations. Ensure the information is complete and preserves the original wording without modification. If no searches were conducted or observations were made, you can skip the summary step. Finally, provide the final answer within <answer> and </answer> tags."
+
+
 class VLLM_Retriever_Agent:
     def __init__(self, vllm_url, retrieve_path=None, model_name="Qwen3-8B", max_turn=12, topk=10):
         # 新增：读取 API 模式的环境变量配置
@@ -75,6 +79,16 @@ class VLLM_Retriever_Agent:
         self.max_turn = max_turn
         self.topk = topk
         self.search_template = '\n\n{output_text}<information>{search_results}</information>\n\n'
+
+        self.tokenizer = None
+        if "r-search" in self.model_name.lower() or "r_search" in self.model_name.lower():
+            self.max_turn = 5  # 限定检索上限为 5 轮
+            self.topk = 5      # 限定检索返回结果 top k = 5
+            model_path = os.getenv("MODEL_PATH", "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/R-Search")
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+            except Exception as e:
+                logger.error(f"加载 R-Search Tokenizer 失败: {e}")
 
     def _extract_tag(self, text, tag):
         pattern = re.compile(rf"<{tag}>(.*?)</{tag}>", re.DOTALL)
@@ -245,6 +259,134 @@ class VLLM_Retriever_Agent:
         # 将最终提取的答案伪装为 history 传入后续评测管道
         return final_answer, agent_metrics
     
+    # ==================== 新增：R-Search 专属检索通道 ====================
+    def _search_r_search(self, query_str):
+        if not self.retrieve_path:
+            return ""
+        
+        payload = {"queries": [query_str.strip()], "topk": self.topk, "return_scores": True}
+        try:
+            response = requests.post(self.retrieve_path, json=payload, timeout=120)
+            response.raise_for_status()
+            json_data = response.json()
+            
+            results = json_data.get("result", [[]])[0]
+            if not results: return ""
+            
+            format_reference = ''
+            for doc_item in results:
+                # 兼容旧字典和新字典的嵌套格式
+                content = doc_item.get('document', {}).get('contents', '')
+                if not content: content = doc_item.get('document', {}).get('text', '')
+                if not content: content = str(doc_item)
+                
+                title = content.split("\n")[0]
+                text = "\n".join(content.split("\n")[1:])
+                format_reference += f"(Title: {title}) {text}\n"
+                
+            return format_reference[:2000] # 防爆显存截断
+        except Exception as e:
+            logger.error(f"R-Search 检索系统错误: {str(e)}")
+            return ""
+
+    # ==================== 新增：R-Search 多轮推理专线 ====================
+    def _get_query_r_search(self, text):
+        pattern = re.compile(r"<search>(.*?)</search>", re.DOTALL)
+        matches = pattern.findall(text)
+        if matches:
+            return matches[-1]
+        return None
+
+    def _gen_r_search(self, question):
+        full_question = question
+        
+        # 按照 main.py 逻辑拼接 Prompt
+        if self.tokenizer and self.tokenizer.chat_template:
+            prompt = self.tokenizer.apply_chat_template(
+                [{"role": "system", "content": R_SEARCH_SYSTEM_PROMPT},
+                 {"role": "user", "content": full_question}],
+                add_generation_prompt=True,
+                tokenize=False
+            )
+        else:
+            prompt = R_SEARCH_SYSTEM_PROMPT + '\n' + full_question
+
+        sys_tool_latency, sys_rag_count = 0.0, 0
+        sys_prompt_tok, sys_comp_tok = 0, 0
+        final_answer = ""
+        cnt = 0
+        
+        curr_search_template = '\n\n{output_text}<observation>{search_results}</observation>\n\n'
+        stop_words = ["</search>", " </search>", "</search>\n", " </search>\n", "</search>\n\n", " </search>\n\n"]
+
+        while True:
+            payload = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "max_tokens": 2048, # 生成长度保持 2048 (或者兼容的长度)
+                "temperature": 0.1,
+                "top_p": 0.9,
+                "stop": stop_words
+            }
+            try:
+                res = requests.post(self.vllm_url, json=payload, timeout=200).json()
+                if "error" in res:
+                    final_answer = "API Error"
+                    break
+                output_text = res["choices"][0]["text"]
+                finish_reason = res["choices"][0].get("finish_reason", "")
+                
+                usage = res.get("usage", {})
+                sys_prompt_tok += usage.get("prompt_tokens", len(prompt))
+                sys_comp_tok += usage.get("completion_tokens", len(output_text))
+            except Exception as e:
+                logger.error(f"vLLM 请求异常: {e}")
+                final_answer = "Error"
+                break
+
+            # 处理被 API 截断的 Stop Word 问题
+            if finish_reason == "stop" and "<search>" in output_text and "</search>" not in output_text:
+                output_text += "</search>"
+                
+            response = output_text.strip()
+            
+            # 判断是否触发搜索逻辑
+            is_stop_word_hit = ("</search>" in response) or ("<search>" in response)
+            
+            if not is_stop_word_hit or cnt >= self.max_turn:
+                # ====== 提取答案 (宽松逻辑) ======
+                matches = list(re.finditer(r'<answer>(.*?)</answer>', response, re.DOTALL))
+                if matches:
+                    final_answer = matches[-1].group(1).strip()
+                else:
+                    final_answer = response # 如果没有标签，全部拿出来
+                break
+                
+            # ====== 执行检索 ======
+            tmp_query = self._get_query_r_search(response)
+            if not tmp_query and "<search>" in response:
+                tmp_query = response.split("<search>")[-1].replace("</search>", "")
+                
+            search_results = ""
+            if tmp_query:
+                t0 = time.time()
+                search_results = self._search_r_search(tmp_query)
+                sys_tool_latency += (time.time() - t0)
+                sys_rag_count += 1
+                
+            search_text = curr_search_template.format(output_text=output_text, search_results=search_results)
+            prompt += search_text
+            cnt += 1
+
+        agent_metrics = {
+            "tool_latency_sec": sys_tool_latency, "rag_count": sys_rag_count,
+            "user_prompt_tokens": sys_prompt_tok,
+            "main_total_prompt_tokens": sys_prompt_tok, "main_total_comp_tokens": sys_comp_tok
+        }        
+        return final_answer, agent_metrics
+
+    # ==============================================================================
+
     def gen(self, query, instruction=""):
 
         # ========= 核心分流：A2S 专属管道拦截 =========
@@ -271,6 +413,9 @@ class VLLM_Retriever_Agent:
 
             elif "a2s" in self.model_name.lower():
                 return self._gen_a2s(question)
+            
+            elif "r-search" in self.model_name.lower() or "r_search" in self.model_name.lower():
+                return self._gen_r_search(question)
             
             else:
                 # --- 原有线路：保持原有逻辑不变 (如 LawGPT) ---

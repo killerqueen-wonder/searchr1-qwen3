@@ -320,7 +320,7 @@ class Config:
         dataset_path: str = "./data",
         data_split: str = "train",
         faiss_gpu: bool = True,
-        
+        port =8006,
         gpu_ids: List[int] = [3, 4, 5, 7],  # 新增 GPU ID 列表
         gpu_memory_limit_per_gpu =18,#新增内存限制
         retrieval_model_path: str = "./model",
@@ -336,6 +336,7 @@ class Config:
         self.dataset_path = dataset_path
         self.data_split = data_split
         self.faiss_gpu = faiss_gpu
+        self.port=port
 
         self.gpu_ids=gpu_ids
         self.gpu_memory_limit_per_gpu=gpu_memory_limit_per_gpu
@@ -396,6 +397,7 @@ if __name__ == "__main__":
     parser.add_argument("--index_path", type=str, default="/home/peterjin/mnt/index/wiki-18/e5_Flat.index", help="Corpus indexing file.")
     parser.add_argument("--corpus_path", type=str, default="/home/peterjin/mnt/data/retrieval-corpus/wiki-18.jsonl", help="Local corpus file.")
     parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
+    parser.add_argument("--port", type=int, default=80, help="Number of retrieved passages for one query.")
     parser.add_argument("--retriever_name", type=str, default="e5", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/e5-base-v2", help="Path of the retriever model.")
     parser.add_argument('--faiss_gpu', action='store_true', help='Use GPU for computation')
@@ -416,6 +418,7 @@ if __name__ == "__main__":
         faiss_gpu=args.faiss_gpu,
         gpu_ids=args.gpu_ids,  # 传递 GPU ID
         gpu_memory_limit_per_gpu=args.gpu_memory_limit_per_gpu,  # 传递显存限制
+        port=args.port,  
 
         retrieval_model_path=args.retriever_model,
         retrieval_pooling_method="mean",
@@ -428,4 +431,4 @@ if __name__ == "__main__":
     retriever = get_retriever(config)
     
     # 3) Launch the server. By default, it listens on http://127.0.0.1:8000
-    uvicorn.run(app, host="0.0.0.0", port=80)
+    uvicorn.run(app, host="0.0.0.0", port=config.port)
