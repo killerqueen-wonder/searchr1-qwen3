@@ -63,7 +63,7 @@ JUDGE_PROMPT_INFO_GAIN = """你是一位信息价值审计员。请对比【被�
 # 2. 辅助函数 (保持不变)
 # =============================================================================
 def extract_answer_content(text):
-    match = re.search(r"<answer>(.*?)</answer>", text, re.DOTALL)
+    match = re.search(r".*<answer>(.*?)</answer>", text, re.DOTALL)
     if match: return match.group(1).strip()
     last_index = text.rfind("<answer>")
     if last_index != -1: return text[last_index + len("<answer>"):].strip()
@@ -332,7 +332,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     search_bonus = 0.0
     if diff <= 1: search_bonus = 0.01  
         
-    length_punish_limit = 0.15
+    length_punish_limit = 0.2
     length_punish = min(length_punish_limit, (len(solution_str)*0.000005)*length_punish_limit)
 
     # --- Step 5: 最终分数聚合 ---
@@ -343,10 +343,10 @@ def compute_score(solution_str, ground_truth, extra_info=None):
 
     final_score = final_score + subjective_total + search_bonus - length_punish
 
-    if random.randint(1, 64) == 1:
+    if random.randint(1, 32) == 1:
         print(f"\n[GRPO RL Reward] Final: {final_score:.4f}")
         print(f"Components -> Acc:{acc_4}, Align:{align_4}, Info:{info_4}, Query:{query_quality_100:.1f}")
-        print(f"Bonuses    -> LengthBonus:{length_punish:.4f}")
+        print(f"Bonuses    -> search_bonus:{search_bonus:.4f},LengthBonus:{length_punish:.4f}")
         print(f"Q: ...{question[-200:]}")
         print(f"GT: ...{reference[-2000:]}")
         print(f"Model think: {solution_str}...")

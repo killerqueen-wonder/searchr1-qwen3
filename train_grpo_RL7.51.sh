@@ -215,7 +215,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.total_training_steps=1801 \
     trainer.resume_mode=auto \
     trainer.default_hdfs_dir=null \
-    trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/$EXPERIMENT_NAME \
+    trainer.default_local_dir=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/$EXPERIMENT_NAME \
     +max_turns=9 \
     ray_kwargs.ray_init.num_cpus=16 \
     +retriever.url="http://127.0.0.1:8005/retrieve" \
