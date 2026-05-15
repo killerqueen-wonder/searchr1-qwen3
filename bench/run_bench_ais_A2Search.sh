@@ -28,6 +28,15 @@ export CONDA_SH="/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh"
 info() { echo -e "\033[32m[INFO]\033[0m $1"; }
 error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
 
+tmux_send_commands() {
+    local session=$1
+    shift
+    tmux send-keys -t "$session" "source $CONDA_SH" C-m
+    for cmd in "$@"; do
+        tmux send-keys -t "$session" "$cmd" C-m
+    done
+}
+
 wait_for_port() {
     local port=$1
     local timeout=$2
