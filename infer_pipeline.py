@@ -26,6 +26,10 @@ export CUDA_VISIBLE_DEVICES=3
 source /F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh
 conda activate retriever_filter
 cd /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/searchr1-qwen3
+export TRANSFORMERS_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model
+export HF_HUB_CACHE=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model
+export TRANSFORMERS_OFFLINE=1
+export HF_HUB_OFFLINE=1
 python search_r1/search/async_retrieval_server.py \
     --port 8005 \
     --corpus_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/law/法律法规3.0.jsonl' \
