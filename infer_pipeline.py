@@ -220,7 +220,7 @@ def main():
         tensor_parallel_size=NUM_GPUS, 
         trust_remote_code=True,
         enable_prefix_caching=True,
-        max_model_len=30000, 
+        max_model_len=40000, 
         gpu_memory_utilization=0.85 
     )
     
@@ -228,6 +228,7 @@ def main():
     
     # 抽取并格式化初始 Prompt，保留指定字段
     trajectories = []
+    MAX_PROMPT_LEN = 35000  # 设置安全跳过阈值
     for idx, row in df_sampled.iterrows():
         # 提取目标字段
         data_format_id = row.get('format_id', 'unknown')
@@ -244,6 +245,16 @@ def main():
             tokenize=False, 
             add_generation_prompt=True
         )
+
+        # ====== 新增：长度校验与跳过逻辑 ======
+        token_ids = tokenizer.encode(formatted_prompt)
+        
+        if len(token_ids) > MAX_PROMPT_LEN:
+            print(f"\n[警告] 发现异常超长数据！索引: {idx}, 长度: {len(token_ids)} tokens，直接跳过。")
+            # 打印字符串的最后 2000 个字符，防止刷屏
+            print(f"[数据尾部预览]:\n...{formatted_prompt[-2000:]}")
+            print("-" * 60)
+            continue  # 跳过当前循环，不加入 trajectories
         
         trajectories.append({
             "id": idx,
@@ -258,6 +269,8 @@ def main():
             "final_answer": None,
             "is_done": False
         })
+
+    print(f"[INFO] 过滤完毕，实际进入 Rollout 的有效数据共 {len(trajectories)} 条。")
 
     # 设置采样参数
     sampling_params = SamplingParams(
