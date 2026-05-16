@@ -5,7 +5,7 @@ set -e
 export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal_R1}"
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 
-export MODEL_NAME="${MODEL_NAME:-lawgpt_0505}"
+export MODEL_NAME="${MODEL_NAME:-lawgpt_0517}"
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
 export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
 
