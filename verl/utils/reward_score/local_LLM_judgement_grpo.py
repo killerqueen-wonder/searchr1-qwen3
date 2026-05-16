@@ -103,7 +103,23 @@ def parse_single_score(raw_str: str) -> float:
 
 def correct_format(text):
     #answer必须齐全，search和syllogism必须闭合
-    if "<answer>" not in text or "</answer>" not in text: return False
+    
+    # 按顺序找出所有的 <answer> 和 </answer> 标签
+    tags = re.findall(r'(<answer>|</answer>)', text)
+    
+    # 1. 如果标签总数小于 2，或者不是偶数（成对出现），直接返回 False
+    if len(tags) < 2 or len(tags) % 2 != 0:
+        return False
+    
+    # 2. 检查是否交替出现
+    # 偶数索引（0, 2, 4...）必须是 '<answer>'
+    # 奇数索引（1, 3, 5...）必须是 '</answer>'
+    for i, tag in enumerate(tags):
+        if i % 2 == 0 and tag != '<answer>':
+            return False
+        if i % 1 == 0 and i % 2 != 0 and tag != '</answer>':
+            return False
+        
     if "<search>" in text and "</search>" not in text: return False
     if "<syllogism>" in text and "</syllogism>" not in text: return False
     return True
@@ -309,6 +325,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         final_score += 0.08 
     
     answer_content = extract_answer_content(solution_str)
+    
 
     # --- Step 2: 检索词质量 ---
     query_quality_100 = calculate_query_quality_score(solution_str)
@@ -344,11 +361,17 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     length_punish_limit = 0.2
     length_punish = min(length_punish_limit, (len(solution_str)*0.000005)*length_punish_limit)
 
+    if answer_content=='和' or answer_content=='':
+        #不输出答案，直接判负
+        acc_4 = 0.1
+
     # --- Step 5: 最终分数聚合 ---
     subjective_total = (acc_4 * 1 / 4.0) + \
                        (align_4 * 0.02 / 4.0) + \
                        (info_4 * 0.08 / 4.0) + \
                        (query_quality_100 * 0.05 / 100.0)
+    
+    
 
     final_score = final_score + subjective_total + search_bonus - length_punish
 
