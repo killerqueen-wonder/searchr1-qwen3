@@ -6,7 +6,7 @@ export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 
 # 修改点 1: 更新为新模型的 Name 和 Path
-export MODEL_NAME="${MODEL_NAME:-R-Search-0515}"
+export MODEL_NAME="${MODEL_NAME:-R-Search-0516}"
 export MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/R-Search"
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
 export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
