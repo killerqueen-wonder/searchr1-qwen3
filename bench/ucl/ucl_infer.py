@@ -103,9 +103,22 @@ def process_single_item(item, agent, summary_port):
     total_time_sec = time.time() - start_time
     
     # 4. 结算 Token
+    is_direct_api = os.getenv("USE_DIRECT_API", "false").lower() == "true"
+    
+    total_tokens = agent_metrics["main_total_prompt_tokens"] + agent_metrics["main_total_comp_tokens"] + sum_prompt_tok + sum_comp_tok
     user_prompt_tokens = agent_metrics["user_prompt_tokens"]
-    completion_tokens = sum_comp_tok  
-    total_tokens = (agent_metrics["main_total_prompt_tokens"] + agent_metrics["main_total_comp_tokens"]) + (sum_prompt_tok + sum_comp_tok)
+
+    if is_direct_api:
+        if "a2s" in agent.model_name.lower() or "r-search" in agent.model_name.lower() or "r_search" in agent.model_name.lower():
+            total_generated_text_length = len(history) if len(history) > 0 else 1
+            final_answer_length = len(summary)
+            ratio = min(1.0, final_answer_length / total_generated_text_length)
+            completion_tokens = int(agent_metrics["main_total_comp_tokens"] * ratio)
+        else:
+            completion_tokens = agent_metrics["main_total_comp_tokens"]
+    else:
+        completion_tokens = sum_comp_tok
+
     inter_agent_tokens = total_tokens - user_prompt_tokens - completion_tokens
 
     # 5. 构建符合 UCL 格式的输出
@@ -125,6 +138,30 @@ def process_single_item(item, agent, summary_port):
     out_item["inter_agent_tokens"] = inter_agent_tokens
     
     return out_item
+
+    # user_prompt_tokens = agent_metrics["user_prompt_tokens"]
+    # completion_tokens = sum_comp_tok  
+    # total_tokens = (agent_metrics["main_total_prompt_tokens"] + agent_metrics["main_total_comp_tokens"]) + (sum_prompt_tok + sum_comp_tok)
+    # inter_agent_tokens = total_tokens - user_prompt_tokens - completion_tokens
+
+
+    # # 5. 构建符合 UCL 格式的输出
+    # out_item = item.copy()
+    # out_item["dialogue"] = f"用户：{query}\nAI助手：{summary}\n"
+    # out_item["model"] = agent.model_name
+    # out_item["thinking"] = history
+    # out_item["summary"] = summary
+    
+    # # 注入性能指标
+    # out_item["total_time_sec"] = total_time_sec
+    # out_item["tool_latency_sec"] = agent_metrics["tool_latency_sec"]
+    # out_item["rag_count"] = agent_metrics["rag_count"]
+    # out_item["total_tokens"] = total_tokens
+    # out_item["user_prompt_tokens"] = user_prompt_tokens
+    # out_item["completion_tokens"] = completion_tokens
+    # out_item["inter_agent_tokens"] = inter_agent_tokens
+    
+    # return out_item
 
 def ucl_infer_main(data_path, result_path, agent, summary_port, workers=32):
     # UCL 的数据结构是 dict of lists，先拉平处理

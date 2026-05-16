@@ -58,22 +58,41 @@ def process_single_item(item, idx, agent, summary_port):
         sum_p_tok, sum_c_tok = 0, 0
 
     total_time_sec = time.time() - start_time
+    
+    # === 开始 Token 结算 ===
+    is_direct_api = os.getenv("USE_DIRECT_API", "false").lower() == "true"
+    
     total_tokens = agent_metrics["main_total_prompt_tokens"] + agent_metrics["main_total_comp_tokens"] + sum_p_tok + sum_c_tok
-    inter_agent_tokens = total_tokens - agent_metrics["user_prompt_tokens"] - sum_c_tok
+    user_prompt_tokens = agent_metrics["user_prompt_tokens"]
+    
+    if is_direct_api:
+        if "a2s" in agent.model_name.lower() or "r-search" in agent.model_name.lower() or "r_search" in agent.model_name.lower():
+            total_generated_text_length = len(history) if len(history) > 0 else 1
+            final_answer_length = len(summary)
+            ratio = min(1.0, final_answer_length / total_generated_text_length)
+            completion_tokens = int(agent_metrics["main_total_comp_tokens"] * ratio)
+        else:
+            completion_tokens = agent_metrics["main_total_comp_tokens"]
+    else:
+        completion_tokens = sum_c_tok
+        
+    inter_agent_tokens = total_tokens - user_prompt_tokens - completion_tokens
 
     out_item = item.copy()
     out_item["thinking"] = history
     out_item["output"] = summary
+    
+    # 注入 metrics 嵌套字典
     out_item["metrics"] = {
         "total_time_sec": total_time_sec,
         "tool_latency_sec": agent_metrics["tool_latency_sec"],
         "rag_count": agent_metrics["rag_count"],
         "total_tokens": total_tokens,
-        "user_prompt_tokens": agent_metrics["user_prompt_tokens"],
-        "completion_tokens": sum_c_tok,
+        "user_prompt_tokens": user_prompt_tokens,
+        "completion_tokens": completion_tokens,
         "inter_agent_tokens": inter_agent_tokens
     }
-    return idx, out_item  # 返回索引以便排序
+    return idx, out_item
 
 def main(args):
     os.makedirs(args.output_dir, exist_ok=True)

@@ -52,12 +52,29 @@ def process_single_item(data_item, idx, agent, summary_port):
     summary, sum_p_tok, sum_c_tok = get_universal_vllm_summary(full_prompt, history, summary_port, model_name="Qwen3-8B")
     
     total_time_sec = time.time() - start_time
+    
+    # === 开始 Token 结算 ===
+    is_direct_api = os.getenv("USE_DIRECT_API", "false").lower() == "true"
+    
     total_tokens = agent_metrics["main_total_prompt_tokens"] + agent_metrics["main_total_comp_tokens"] + sum_p_tok + sum_c_tok
-    inter_agent_tokens = total_tokens - agent_metrics["user_prompt_tokens"] - sum_c_tok
+    user_prompt_tokens = agent_metrics["user_prompt_tokens"]
 
+    if is_direct_api:
+        if "a2s" in agent.model_name.lower() or "r-search" in agent.model_name.lower() or "r_search" in agent.model_name.lower():
+            total_generated_text_length = len(history) if len(history) > 0 else 1
+            final_answer_length = len(summary)
+            ratio = min(1.0, final_answer_length / total_generated_text_length)
+            completion_tokens = int(agent_metrics["main_total_comp_tokens"] * ratio)
+        else:
+            completion_tokens = agent_metrics["main_total_comp_tokens"]
+    else:
+        completion_tokens = sum_c_tok
+        
+    inter_agent_tokens = total_tokens - user_prompt_tokens - completion_tokens
+
+    # 直接返回字典结果
     return {
         "origin_idx": idx,
-        
         "instruction": instruction,
         "question": question,
         "prediction": summary,
@@ -68,8 +85,8 @@ def process_single_item(data_item, idx, agent, summary_port):
             "tool_latency_sec": agent_metrics["tool_latency_sec"],
             "rag_count": agent_metrics["rag_count"],
             "total_tokens": total_tokens,
-            "user_prompt_tokens": agent_metrics["user_prompt_tokens"],
-            "completion_tokens": sum_c_tok,
+            "user_prompt_tokens": user_prompt_tokens,
+            "completion_tokens": completion_tokens,
             "inter_agent_tokens": inter_agent_tokens
         }
     }

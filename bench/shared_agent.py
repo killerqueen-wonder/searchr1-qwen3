@@ -205,6 +205,7 @@ class VLLM_Retriever_Agent:
         
         sys_tool_latency, sys_rag_count = 0.0, 0
         sys_prompt_tok, sys_comp_tok = 0, 0
+        first_turn_prompt_tok = 0 
         final_answer = ""
 
         for turn in range(self.max_turn):
@@ -221,9 +222,16 @@ class VLLM_Retriever_Agent:
                     final_answer = "API Error"
                     break
                 output_text = res["choices"][0]["text"]
+
                 usage = res.get("usage", {})
-                sys_prompt_tok += usage.get("prompt_tokens", len(prompt))
+                current_prompt_tokens = usage.get("prompt_tokens", len(prompt))
+                sys_prompt_tok += current_prompt_tokens
                 sys_comp_tok += usage.get("completion_tokens", len(output_text))
+                
+                # 新增：只截取第一轮的 prompt token 作为 user input
+                if turn == 0:
+                    first_turn_prompt_tok = current_prompt_tokens
+
             except Exception as e:
                 logger.error(f"vLLM API 请求异常: {e}")
                 final_answer = "Error"
@@ -250,9 +258,10 @@ class VLLM_Retriever_Agent:
                 final_answer = self._extract_boxed(output_text)
                 break
 
+        
         agent_metrics = {
             "tool_latency_sec": sys_tool_latency, "rag_count": sys_rag_count,
-            "user_prompt_tokens": sys_prompt_tok,
+            "user_prompt_tokens": first_turn_prompt_tok, 
             "main_total_prompt_tokens": sys_prompt_tok, "main_total_comp_tokens": sys_comp_tok
         }        
         
@@ -315,6 +324,8 @@ class VLLM_Retriever_Agent:
         sys_prompt_tok, sys_comp_tok = 0, 0
         final_answer = ""
         cnt = 0
+        first_turn_prompt_tok = 0
+        is_first_turn = True
         
         curr_search_template = '\n\n{output_text}<observation>{search_results}</observation>\n\n'
         stop_words = ["</search>", " </search>", "</search>\n", " </search>\n", "</search>\n\n", " </search>\n\n"]
@@ -337,8 +348,14 @@ class VLLM_Retriever_Agent:
                 finish_reason = res["choices"][0].get("finish_reason", "")
                 
                 usage = res.get("usage", {})
-                sys_prompt_tok += usage.get("prompt_tokens", len(prompt))
+                current_prompt_tokens = usage.get("prompt_tokens", len(prompt))
+                sys_prompt_tok += current_prompt_tokens
                 sys_comp_tok += usage.get("completion_tokens", len(output_text))
+                
+                if is_first_turn:
+                    first_turn_prompt_tok = current_prompt_tokens
+                    is_first_turn = False
+
             except Exception as e:
                 logger.error(f"vLLM 请求异常: {e}")
                 final_answer = "Error"
@@ -380,9 +397,9 @@ class VLLM_Retriever_Agent:
 
         agent_metrics = {
             "tool_latency_sec": sys_tool_latency, "rag_count": sys_rag_count,
-            "user_prompt_tokens": sys_prompt_tok,
+            "user_prompt_tokens": first_turn_prompt_tok, 
             "main_total_prompt_tokens": sys_prompt_tok, "main_total_comp_tokens": sys_comp_tok
-        }        
+        }   
         return final_answer, agent_metrics
 
     # ==============================================================================
