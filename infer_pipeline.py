@@ -38,7 +38,7 @@ python search_r1/search/async_retrieval_server.py \
     --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
     --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
     --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
-    --gpu_ids 3 --gpu_memory_limit_per_gpu 5
+    --gpu_ids 0 --gpu_memory_limit_per_gpu 5
 """
 
 # ================= 自定义 Prompt 包装器 =================
