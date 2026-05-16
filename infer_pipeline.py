@@ -17,7 +17,7 @@ OUTPUT_FILE = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/da
 
 SAMPLE_SIZE = 3000  # 最终抽取的数据量
 MAX_TURNS = 9
-NUM_GPUS = 3
+NUM_GPUS = 2
 SEARCH_URL = "http://127.0.0.1:8005/retrieve"
 SEARCH_TOPK = 8
 
@@ -213,7 +213,7 @@ def main():
     df_sampled = df_sampled.sample(frac=1, random_state=42).reset_index(drop=True)
     
     # 初始化 LLM (限制只看显卡 0, 1, 2)
-    os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2"
+    os.environ['CUDA_VISIBLE_DEVICES'] = "0,1"
     print(f"[INFO] 正在 GPU 0,1,2 初始化 vLLM 引擎: {MODEL_PATH}")
     llm = LLM(
         model=MODEL_PATH, 
