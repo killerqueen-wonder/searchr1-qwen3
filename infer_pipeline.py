@@ -20,6 +20,26 @@ MAX_TURNS = 9
 NUM_GPUS = 2
 SEARCH_URL = "http://127.0.0.1:8005/retrieve"
 SEARCH_TOPK = 8
+FILTER_VLLM_PORT = 8007
+
+# 1. Filter vLLM 启动命令 (为 RAG 提供过滤算力)
+FILTER_VLLM_START_COMMAND = f"""
+export CUDA_VISIBLE_DEVICES=3
+source /F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh
+conda activate vllm_server
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+python -m vllm.entrypoints.openai.api_server \\
+    --model {MODEL_PATH} \\
+    --served-model-name Qwen3-8B \\
+    --port {FILTER_VLLM_PORT} \\
+    --enable-chunked-prefill \\
+    --max-model-len 12000 \\
+    --gpu-memory-utilization 0.40 \\
+    --max-num-seqs 64 \\
+    --dtype bfloat16 \\
+    --trust-remote-code
+"""
+
 
 RAG_START_COMMAND = """
 export CUDA_VISIBLE_DEVICES=3
@@ -182,6 +202,11 @@ def local_rag_search(search_json_str: str) -> str:
 
 # ================= 主控制流程 =================
 def main():
+
+    print("[INFO] 开始拉起 Filter vLLM 子进程 (端口 8003)...")
+    filter_process = subprocess.Popen(FILTER_VLLM_START_COMMAND, shell=True, executable='/bin/bash')
+    wait_for_port(FILTER_VLLM_PORT)
+    
     # 1. 启动并等待 RAG 服务
     print("[INFO] 开始拉起 RAG 子进程...")
     rag_process = subprocess.Popen(RAG_START_COMMAND, shell=True, executable='/bin/bash')
