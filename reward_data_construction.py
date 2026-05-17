@@ -69,7 +69,7 @@ JUDGE_PROMPT_TEMPLATE = """你是一位严谨的 AI 行为与法律事实审计�
 
 === 输出要求 ===
 请仔细思考以上三个维度的表现，最后**仅输出**一个合法的 JSON 对象，不要输出任何其他的解释文字、Markdown 代码块或思考过程标记。格式必须严格如下：
-{"accuracy": 0, "alignment": 0, "info_gain": 0}"""
+{{"accuracy": 0, "alignment": 0, "info_gain": 0}}"""
 
 # ================= 文本处理函数 =================
 def extract_answer_content(text: str) -> str:
@@ -210,10 +210,17 @@ def main():
         print(f"[INFO] 处于测试模式，仅处理前 {TEST_MODE_LIMIT} 条数据。")
 
     print(f"[INFO] 启动线程池打分 (最大并发数: {MAX_WORKERS}) ...")
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = [executor.submit(process_single_item, item) for item in data_list]
-        for _ in as_completed(futures):
-            pass 
+    # with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    #     futures = [executor.submit(process_single_item, item) for item in data_list]
+    #     for future in as_completed(futures):
+    #         try:
+    #             future.result() # 如果子线程报错，这里会强制在主终端打印堆栈
+    #         except Exception as e:
+    #             print(f"[线程崩溃] 错误详情: {e}")
+    # 临时替换为：
+    print("[DEBUG] 正在使用单线程顺序执行，以便捕获任何潜在报错...")
+    for item in data_list:
+        process_single_item(item)
 
     print("\n[INFO] 所有数据打分完毕，开始合并与拆分数据集...")
     
