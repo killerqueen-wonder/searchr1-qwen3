@@ -13,6 +13,8 @@ from vllm import LLM, SamplingParams
 # 更新为你的 JSON 数据集路径
 DATASET_PATH = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/SFT_COT/多格式QA合集COT合并.json"
 MODEL_PATH = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_SFT6.2_0508/checkpoint-2-750/tfmr"
+RERANK_MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B"
+
 OUTPUT_FILE = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/reward_model_training/rollout_trajectories_json_3k_0517.jsonl"
 
 SAMPLE_SIZE = 3000  # 最终抽取的数据量
@@ -29,7 +31,7 @@ source /F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh
 conda activate vllm_server
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 python -m vllm.entrypoints.openai.api_server \\
-    --model {MODEL_PATH} \\
+    --model {RERANK_MODEL_PATH} \\
     --served-model-name Qwen3-8B \\
     --port {FILTER_VLLM_PORT} \\
     --enable-chunked-prefill \\
