@@ -17,7 +17,7 @@ RERANK_MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B"
 
 OUTPUT_FILE = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/reward_model_training/rollout_trajectories_json_3k_0517.jsonl"
 
-SAMPLE_SIZE = 3000  # 最终抽取的数据量
+SAMPLE_SIZE = 30  # 最终抽取的数据量
 MAX_TURNS = 9
 NUM_GPUS = 2
 SEARCH_URL = "http://127.0.0.1:8005/retrieve"
@@ -175,7 +175,7 @@ def local_rag_search(search_json_str: str) -> str:
         
         payload = {"query": search_query, "topk": SEARCH_TOPK}
         
-        response = requests.post(SEARCH_URL, json=payload, timeout=120.0)
+        response = requests.post(SEARCH_URL, json=payload, timeout=3000.0)
         response.raise_for_status()
         json_data = response.json()
         
