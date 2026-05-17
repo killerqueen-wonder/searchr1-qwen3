@@ -21,7 +21,7 @@ MODEL_NAME = "deepseek-v3" # DeepSeek-V3 的标准调用名称
 
 # 运行参数
 MAX_WORKERS = 30
-TEST_MODE_LIMIT = 5 # 设为 None 跑全量，设为数字只跑前 N 条测试
+TEST_MODE_LIMIT = 50 # 设为 None 跑全量，设为数字只跑前 N 条测试
 MAX_TEXT_LENGTH = 40000 # 单次请求最大字符数安全限制
 
 # ================= 裁判 Prompt 模板 =================
@@ -211,17 +211,17 @@ def main():
         print(f"[INFO] 处于测试模式，仅处理前 {TEST_MODE_LIMIT} 条数据。")
 
     print(f"[INFO] 启动线程池打分 (最大并发数: {MAX_WORKERS}) ...")
-    # with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-    #     futures = [executor.submit(process_single_item, item) for item in data_list]
-    #     for future in as_completed(futures):
-    #         try:
-    #             future.result() # 如果子线程报错，这里会强制在主终端打印堆栈
-    #         except Exception as e:
-    #             print(f"[线程崩溃] 错误详情: {e}")
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(process_single_item, item) for item in data_list]
+        for future in as_completed(futures):
+            try:
+                future.result() # 如果子线程报错，这里会强制在主终端打印堆栈
+            except Exception as e:
+                print(f"[线程崩溃] 错误详情: {e}")
     # 临时替换为：
-    print("[DEBUG] 正在使用单线程顺序执行，以便捕获任何潜在报错...")
-    for item in data_list:
-        process_single_item(item)
+    # print("[DEBUG] 正在使用单线程顺序执行，以便捕获任何潜在报错...")
+    # for item in data_list:
+    #     process_single_item(item)
 
     print("\n[INFO] 所有数据打分完毕，开始合并与拆分数据集...")
     
