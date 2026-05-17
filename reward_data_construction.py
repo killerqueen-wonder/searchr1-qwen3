@@ -21,7 +21,7 @@ MODEL_NAME = "deepseek-v3" # DeepSeek-V3 的标准调用名称
 
 # 运行参数
 MAX_WORKERS = 30
-TEST_MODE_LIMIT = 50 # 设为 None 跑全量，设为数字只跑前 N 条测试
+TEST_MODE_LIMIT = None # 设为 None 跑全量，设为数字只跑前 N 条测试
 MAX_TEXT_LENGTH = 40000 # 单次请求最大字符数安全限制
 
 # ================= 裁判 Prompt 模板 =================
