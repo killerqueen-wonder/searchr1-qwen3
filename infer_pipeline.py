@@ -256,7 +256,7 @@ def main():
     
     # 抽取并格式化初始 Prompt，保留指定字段
     trajectories = []
-    MAX_PROMPT_LEN = 35000  # 设置安全跳过阈值
+    MAX_PROMPT_LEN = 25000  # 设置安全跳过阈值
     for idx, row in df_sampled.iterrows():
         # 提取目标字段
         data_format_id = row.get('format_id', 'unknown')
