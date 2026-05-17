@@ -41,7 +41,7 @@ python -m vllm.entrypoints.openai.api_server \\
 """
 
 
-RAG_START_COMMAND = """
+RAG_START_COMMAND = f"""
 export CUDA_VISIBLE_DEVICES=3
 source /F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh
 conda activate retriever_filter
@@ -58,6 +58,7 @@ python search_r1/search/async_retrieval_server.py \
     --dictionary_path '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/dictionary/THUOCL_law.txt' \
     --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 8 \
     --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' \
+    --vllm_url http://127.0.0.1:{FILTER_VLLM_PORT}/v1/completions \
     --gpu_ids 0 --gpu_memory_limit_per_gpu 5
 """
 
