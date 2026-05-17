@@ -69,7 +69,8 @@ JUDGE_PROMPT_TEMPLATE = """你是一位严谨的 AI 行为与法律事实审计�
 
 === 输出要求 ===
 请仔细思考以上三个维度的表现，最后**仅输出**一个合法的 JSON 对象，不要输出任何其他的解释文字、Markdown 代码块或思考过程标记。格式必须严格如下：
-{{"accuracy": 0, "alignment": 0, "info_gain": 0}}"""
+{{"accuracy": 0, "alignment": 0, "info_gain": 0}}
+请输出你的评分："""
 
 # ================= 文本处理函数 =================
 def extract_answer_content(text: str) -> str:
