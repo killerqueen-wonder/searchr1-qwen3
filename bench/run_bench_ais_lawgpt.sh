@@ -93,7 +93,7 @@ tmux new -d -s vllm_main "export CUDA_VISIBLE_DEVICES=0; \
     --model /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/models--minlik--chinese-alpaca-plus-7b-merged \
     --served-model-name lawgpt \
     --enable-lora \
-    --lora-modules lawgpt-lora=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/hub/models--entity303--lawgpt-lora-7b \
+    --lora-modules lawgpt-lora=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/hub/models--entity303--lawgpt-lora-7b/snapshots/66b174e00dad8668901d6e3f15040b439c789ddb \
     --port 8007 \
     --gpu-memory-utilization 0.90 \
     --max-model-len 2048"
