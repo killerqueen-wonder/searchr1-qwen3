@@ -5,7 +5,8 @@ set -e
 export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal_R1}"
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 
-export MODEL_NAME="${MODEL_NAME:-lawgpt_0518}"
+export MODEL_NAME="${MODEL_NAME:-qwen3-post-train-0518}"
+export MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/models--CSHaitao--LegalOne-8B"
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
 export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
 
@@ -70,33 +71,16 @@ if ! command -v nvidia-smi &> /dev/null || ! nvidia-smi &> /dev/null; then
 fi
 
 info "========================================================="
-info " 🚀 LawGPT 极速直通评测启动 (无需 RAG 与 Summary)"
-info " 方案：GPU 0 [LawGPT] | GPU 1 [裁判]"
+info " 🚀 legalone 极速直通评测启动 (无需 RAG 与 Summary)"
+info " 方案：GPU 0 [legalone] | GPU 1 [裁判]"
 info "========================================================="
 
 # --- 2. 启动服务 ---
 # 启动主路推理 LawGPT (GPU 0)
 kill_session "vllm_main"
-export CUSTOM_MODEL_CACHE="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model"
-
-# tmux new -d -s vllm_main "export CUDA_VISIBLE_DEVICES=0; \
-#     export HF_HOME='${CUSTOM_MODEL_CACHE}'; \
-#     export HF_ENDPOINT='https://hf-mirror.com'; \
-#     source $CONDA_SH && conda activate lawgpt; \
-#     cd ${BASE_DIR}/LaWGPT; \
-#     python lawgpt_api.py --port ${MAIN_VLLM_PORT} || sleep 86400"
-# info "已触发启动 LawGPT API (GPU: 0)"
-# 在 run_bench_ais_lawgpt.sh 中修改启动命令：
-tmux new -d -s vllm_main "export CUDA_VISIBLE_DEVICES=0; \
-    source $CONDA_SH && conda activate vllm_server; \
-    python -m vllm.entrypoints.openai.api_server \
-    --model /F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/models--minlik--chinese-alpaca-plus-7b-merged \
-    --served-model-name lawgpt \
-    --enable-lora \
-    --lora-modules lawgpt-lora=/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/hub/models--entity303--lawgpt-lora-7b \
-    --port 8007 \
-    --gpu-memory-utilization 0.90 \
-    --max-model-len 10000"
+# 使用 MODEL_PATH 和 MODEL_NAME
+tmux new -d -s vllm_main "export TRITON_CACHE_DIR=~/.triton/cache_vllm_main; export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${MODEL_PATH} --served-model-name ${MODEL_NAME} --port ${MAIN_VLLM_PORT} --gpu-memory-utilization 0.9 --max-model-len 10000 || sleep 86400"
+info "已触发启动 vLLM 主路推理 (Port: $MAIN_VLLM_PORT, GPU: 0)"
 
 
 # 启动裁判模型 (GPU 1)
@@ -108,7 +92,7 @@ tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=1; \
     --served-model-name ${JUDGE_MODEL_NAME} \
     --port ${JUDGE_VLLM_PORT} \
     --gpu-memory-utilization 0.9 \
-    --max-model-len 12000 --enforce-eager || sleep 86400"
+    --max-model-len 10000 --enforce-eager || sleep 86400"
 info "已触发启动 Judge 裁判服务 (GPU: 1)"
 
 wait_for_port $MAIN_VLLM_PORT $PORT_TIMEOUT "vllm_main"
