@@ -456,7 +456,7 @@ class VLLM_Retriever_Agent:
                     f"### Instruction:\n{question}\n\n### Response:\n"
                 )
                 payload = {
-                    "model": self.model_name,
+                    "model": "lawgpt-lora",
                     "prompt": formatted_prompt,
                     "max_tokens": 2048, # LawGPT max-len 通常较短，设为2048即可
                     "temperature": 0.1,
