@@ -493,14 +493,22 @@ class VLLM_Retriever_Agent:
                     print(payload)
                     prompt_tokens, comp_tokens = 0, 0
                 else:
-                    # 修复隐患2：标准的 Chat 接口解析路径
-                    output_text = res["choices"][0]["message"]["content"] 
+                    # ===== 核心修复：兼容 Chat 和 Completions 两种格式 =====
+                    choice = res["choices"][0]
+                    if "message" in choice:
+                        # 兼容 Chat 接口 (外部大模型)
+                        output_text = choice["message"]["content"]
+                    else:
+                        # 兼容 Completions 接口 (本地 vLLM 直通)
+                        output_text = choice.get("text", "")
+                    # =======================================================
                     
                     # 容错处理：如果 API 不返回 usage，按字符长度估算兜底
                     usage = res.get("usage", {})
                     prompt_tokens = usage.get("prompt_tokens", fallback_prompt_len)
                     comp_tokens = usage.get("completion_tokens", len(output_text))
             except Exception as e:
+                # 这里捕获到的就是之前的 KeyError
                 logger.error(f"API 请求异常: {e}")
                 output_text = "Error"
                 print(f"[debug] request payload ({self.model_name}):")
