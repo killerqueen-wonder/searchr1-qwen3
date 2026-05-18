@@ -434,6 +434,20 @@ class VLLM_Retriever_Agent:
             elif "r-search" in self.model_name.lower() or "r_search" in self.model_name.lower():
                 return self._gen_r_search(question)
             
+            # ===== 修复区：新增 Qwen3 的本地直通专线 =====
+            elif "qwen" in self.model_name.lower():
+                formatted_prompt = f"<|im_start|>user\n{question}<|im_end|>\n<|im_start|>assistant\n"
+                payload = {
+                    "model": self.model_name,
+                    "prompt": formatted_prompt,
+                    "max_tokens": 4000,
+                    "temperature": 0.1,
+                    "top_p": 0.75,
+                    "stop": ["<|im_end|>"]
+                }
+                fallback_prompt_len = len(formatted_prompt)
+            # ===============================================
+            
             else:
                 # --- 标准 OpenAI Chat API 格式 (如 DeepSeek-v3, GPT-4) ---
                 payload = {
