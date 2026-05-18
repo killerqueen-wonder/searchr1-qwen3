@@ -5,8 +5,8 @@ set -e
 export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal_R1}"
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 
-export MODEL_NAME="${MODEL_NAME:-qwen3-post-train-0518}"
-export MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/models--CSHaitao--LegalOne-8B"
+export MODEL_NAME="${MODEL_NAME:-qwen3-post-train-0519}"
+export MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_SFT6.2_no_search_0509/checkpoint-2-675/tfmr"
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
 export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
 
