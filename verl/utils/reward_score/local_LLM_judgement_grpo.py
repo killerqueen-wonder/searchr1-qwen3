@@ -453,6 +453,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     final_score = final_score + subjective_total + search_bonus - length_punish
 
     if random.randint(1, 32) == 1:
+        print("=="*20)
         print(f"\n[GRPO RL Reward] Final: {final_score:.4f}")
         print(f"Components -> Acc:{acc_4}, Align:{align_4}, Info:{info_4}, Query:{query_quality_100:.1f}")
         print(f"Bonuses    -> search_bonus:{search_bonus:.4f},LengthBonus:{length_punish:.4f}")
@@ -460,5 +461,6 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         print(f"GT: ...{reference[-2000:]}")
         print(f"Model think: {solution_str}...")
         print(f"Model Answer: {answer_content}...")
+        print("=="*20)
          
     return final_score
