@@ -97,7 +97,7 @@ tmux new -d -s vllm_main "export CUDA_VISIBLE_DEVICES=0; \
     --port 8007 \
     --gpu-memory-utilization 0.90 \
     --max-model-len 10000"
-
+info "已触发启动 LawGPT API (GPU: 0)"
 
 # 启动裁判模型 (GPU 1)
 kill_session "vllm_judge"

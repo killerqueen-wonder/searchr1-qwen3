@@ -435,22 +435,25 @@ class VLLM_Retriever_Agent:
                 return self._gen_r_search(question)
             
             else:
-                # --- 原有线路：保持原有逻辑不变 (如 LawGPT) ---
+                # --- 标准 OpenAI Chat API 格式 (如 DeepSeek-v3, GPT-4) ---
                 payload = {
-                    "prompt": question,
-                    "max_tokens": 2048, 
+                    "model": self.model_name, # 外部 API 通常强制要求传递模型名
+                    "messages": [{"role": "user", "content": question}],
+                    "max_tokens": 4000,       # 强模型可以适当给大一点
                     "temperature": 0.1,
                     "top_p": 0.75
                 }
                 fallback_prompt_len = len(question)
 
+            # 修复隐患1：注入 Bearer Token 鉴权
             headers = {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}" 
             }
             
             start_time = time.time()
             try:
-                res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=2000).json()
+                res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=200).json()
                 if "error" in res:
                     logger.error(f"API 返回错误: {res['error']}")
                     output_text = f"API Error: {res['error']}"
@@ -458,7 +461,8 @@ class VLLM_Retriever_Agent:
                     print(payload)
                     prompt_tokens, comp_tokens = 0, 0
                 else:
-                    output_text = res["choices"][0]["text"]
+                    # 修复隐患2：标准的 Chat 接口解析路径
+                    output_text = res["choices"][0]["message"]["content"] 
                     
                     # 容错处理：如果 API 不返回 usage，按字符长度估算兜底
                     usage = res.get("usage", {})
