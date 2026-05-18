@@ -11,7 +11,7 @@ export USE_DIRECT_API="true"
 # ----------------- 模型路径与名称配置 -----------------
 # 1. 主路推理模型 (对应 MAIN_VLLM_PORT)
 export MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B"
-export MODEL_NAME="qwen3-8b-no-RAG-0519"
+export MODEL_NAME="qwen3-8b-no-RAG-0519-0143"
 
 # 2. 裁判模型配置 (对应 JUDGE_VLLM_PORT)
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
