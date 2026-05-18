@@ -75,7 +75,7 @@ def parse_scores(text: str) -> dict:
 
     # 5. 正则 Fallback 匹配
     # 匹配模式解释：寻找关键词，中间允许有任意非数字字符，然后捕获第一个出现的数字
-    import re
+    
     for key in default_scores.keys():
         # 尝试匹配带引号的 "accuracy": 3
         match = re.search(rf'"{key}"[^0-9]*([0-9])', text, re.IGNORECASE)
