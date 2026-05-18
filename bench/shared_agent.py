@@ -446,6 +446,24 @@ class VLLM_Retriever_Agent:
                     "stop": ["<|im_end|>"]
                 }
                 fallback_prompt_len = len(formatted_prompt)
+
+            # ===== 新增：LawGPT 专属本地直通线路 =====
+            elif "lawgpt" in self.model_name.lower():
+                # 使用标准的 Alpaca 指令模板包裹用户问题
+                formatted_prompt = (
+                    "Below is an instruction that describes a task. "
+                    "Write a response that appropriately completes the request.\n\n"
+                    f"### Instruction:\n{question}\n\n### Response:\n"
+                )
+                payload = {
+                    "model": self.model_name,
+                    "prompt": formatted_prompt,
+                    "max_tokens": 2048, # LawGPT max-len 通常较短，设为2048即可
+                    "temperature": 0.1,
+                    "top_p": 0.75,
+                    "stop": ["</s>", "### Instruction:"]
+                }
+                fallback_prompt_len = len(formatted_prompt)
             # ===============================================
             
             else:
