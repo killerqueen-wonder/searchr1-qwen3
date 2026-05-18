@@ -65,6 +65,53 @@ JUDGE_PROMPT_INFO_GAIN = """你是一位信息价值审计员。请对比【被�
 
 请仅输出一个评分数字，格式严格为：[[分数]]，例如 [[3]]。不要输出其他解释。 /no_think"""
 
+JUDGE_PROMPT_TEMPLATE = """你是一位严谨的 AI 行为与法律事实审计员。请根据提供的【问题】、【参考轨迹】、【参考答案】，对【被测模型完整轨迹】、【被测模型检索内容】、【被测模型最终回答】进行三个维度的严格打分 (1-4分)。
+【问题】是用户提出的问题，【参考轨迹】是参考模型对问题的COT过程，【参考答案】是参考模型给出的答案，【被测模型完整轨迹】是被测模型对问题的COT过程，【被测模型检索内容】是被测模型在思考问题时检索的内容，【被测模型最终回答】是被测模型给出的答案。
+你需要针对被测模型的三项输出内容，分别给出三项分数。以下提供所有信息，以及三项评分标准。
+=== 输入信息 ===
+[问题]
+{question}
+
+[参考轨迹]
+{reference_cot}
+
+[参考答案]
+{reference_answer}
+
+[被测模型完整轨迹]
+{model_output}
+
+[被测模型检索内容]
+{retrieved_info}
+
+[被测模型最终回答]
+{answer_content}
+=== 信息结束 ===
+
+=== 评分标准 ===
+1. 核心事实准确度 (accuracy): 对比【参考答案】和【被测模型最终回答】。
+   - [4分]: 最终结论完全准确，与参考答案关键事实一致。
+   - [3分]: 结论基本正确，但遗漏部分细节或带微小错误。
+   - [2分]: 结论部分错误。
+   - [1分]: 严重错误，结论矛盾，回答为空或出现无意义字符。
+
+2. 检索策略与对齐度 (alignment): 对比【参考轨迹】和【被测模型完整轨迹】。
+   - [4分]: 检索时机和策略与参考轨迹高度一致。
+   - [3分]: 检索时机或策略略有偏差，但整体合理。
+   - [2分]: 错过必要检索节点，或进行了多余的低效检索。
+   - [1分]: 该检索却未检索，或极度滥用工具。
+
+3. 信息增量价值 (info_gain): 对比【被测模型的检索内容】和【参考答案】。
+   - [4分]: 搜回信息极精准，直接支撑参考答案的核心内容。
+   - [3分]: 信息部分相关，提供背景支持但非关键一击。
+   - [2分]: 搜到多为边缘信息，帮助有限。
+   - [1分]: 完全无关，或未进行有效检索(无返回)。
+
+=== 输出要求 ===
+请仔细思考以上三个维度的表现，最后**仅输出**一个合法的 JSON 对象，不要输出任何其他的解释文字、Markdown 代码块或思考过程标记。格式必须严格如下：
+{{"accuracy": 0, "alignment": 0, "info_gain": 0}}
+请输出你的评分："""
+
 # =============================================================================
 # 2. 辅助函数 (保持不变)
 # =============================================================================
@@ -89,17 +136,65 @@ def calculate_query_quality_score(solution_str: str) -> float:
     scores_100 = [max(0.0, min(100.0, (float(s) / 20.0) * 100.0)) for s in matches]
     return sum(scores_100) / len(scores_100)
 
-def parse_single_score(raw_str: str) -> float:
-    """从模型输出中提取 [[85]] 格式的分数"""
-    clean_str = re.sub(r"<think>.*?</think>", "", raw_str, flags=re.DOTALL)
-    match = re.search(r"\[\[(\d+)\]\]", clean_str)
-    if match:
-        return float(match.group(1))
-    # 兼容模型偶尔只输出纯数字的情况
-    nums = re.findall(r"\d+", clean_str)
-    if nums:
-        return float(nums[0])
-    return 0.0
+# def parse_single_score(raw_str: str) -> float:
+#     """从模型输出中提取 [[85]] 格式的分数"""
+#     clean_str = re.sub(r"<think>.*?</think>", "", raw_str, flags=re.DOTALL)
+#     match = re.search(r"\[\[(\d+)\]\]", clean_str)
+#     if match:
+#         return float(match.group(1))
+#     # 兼容模型偶尔只输出纯数字的情况
+#     nums = re.findall(r"\d+", clean_str)
+#     if nums:
+#         return float(nums[0])
+#     return 0.0
+def parse_scores(text: str) -> dict:
+    """
+    高度鲁棒的分数提取函数：
+    1. 读取第一个 { 到第一个 }
+    2. 去掉空格，中文引号、冒号、逗号全部改为英文
+    3. 尝试 JSON 解析
+    4. 如果失败，利用关键词正则匹配，匹配失败的项记为 0 分。
+    """
+    default_scores = {"accuracy": 0, "alignment": 0, "info_gain": 0}
+    if not text:
+        return default_scores
+
+    start = text.find('{')
+    end = text.find('}')
+    
+    if start != -1 and end != -1 and end > start:
+        # 1. 截取字典字符串
+        json_str = text[start:end+1]
+        
+        # 2. 清洗：去除空白字符（包括空格、换行）
+        json_str = re.sub(r'\s+', '', json_str)
+        # 3. 清洗：中文标点替换
+        json_str = json_str.replace("“", '"').replace("”", '"').replace("：", ":").replace("，", ",")
+        
+        try:
+            # 4. 尝试解析为合法的 JSON
+            data = json.loads(json_str)
+            return {
+                "accuracy": int(data.get("accuracy", 0)),
+                "alignment": int(data.get("alignment", 0)),
+                "info_gain": int(data.get("info_gain", 0))
+            }
+        except Exception:
+            pass # 如果抛出 JSONDecodeError 等异常，放行到下方的正则 fallback
+
+    # 5. 正则 Fallback 匹配
+    # 匹配模式解释：寻找关键词，中间允许有任意非数字字符，然后捕获第一个出现的数字
+    for key in default_scores.keys():
+        # 尝试匹配带引号的 "accuracy": 3
+        match = re.search(rf'"{key}"[^0-9]*([0-9])', text, re.IGNORECASE)
+        if not match:
+            # 尝试匹配无引号的 accuracy: 3
+            match = re.search(rf'{key}[^0-9]*([0-9])', text, re.IGNORECASE)
+        
+        if match:
+            default_scores[key] = int(match.group(1))
+
+    return default_scores
 
 def correct_format(text):
     #answer必须齐全，search和syllogism必须闭合
@@ -201,7 +296,7 @@ def check_search_json(text: str) -> bool:
     return False
 
 # =============================================================================
-# 3. 客户端与并发请求管理
+# 3. 客户端与请求管理 (重构版)
 # =============================================================================
 _GLOBAL_CLIENT = None
 
@@ -216,85 +311,66 @@ class VLLMRewardManager:
         self.client = get_client(api_url)
         self.model_name = "qwen3-8b-reward" 
 
-    def _call_single_dimension(self, prompt_template: str, kwargs: dict, dimension_name: str) -> float:
-        """负责单次 API 调用，处理超长截断、重试与异常屏蔽"""
+    def get_unified_subjective_scores(self, question: str, reference_cot: str, reference_answer: str, retrieved_info: str, answer_content: str, model_output: str) -> dict:
+        """单次 API 调用获取三个维度的分数，处理超长截断、重试与异常屏蔽"""
         max_retries = 3
-        # 初始赋值
-        current_kwargs = kwargs.copy()
+        
+        # 初始化入参字典
+        kwargs = {
+            "question": question,
+            "reference_cot": reference_cot,
+            "reference_answer": reference_answer,
+            "model_output": model_output,
+            "retrieved_info": retrieved_info,
+            "answer_content": answer_content
+        }
         
         for attempt in range(max_retries):
-            prompt = prompt_template.format(**current_kwargs)
+            prompt = JUDGE_PROMPT_TEMPLATE.format(**kwargs)
             try:
                 response = self.client.chat.completions.create(
                     model=self.model_name,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1,
-                    max_tokens=32, # 只需输出数字，降低输出负担
+                    max_tokens=128, # 由于需要输出完整JSON格式，放宽 token 限制
                     timeout=300.0 
                 )
                 content = response.choices[0].message.content.strip()
-                score = parse_single_score(content)
-                return score
+                scores = parse_scores(content)
+                return scores
                 
             except BadRequestError as e:
                 # 捕获超长报错: HTTP 400
                 error_msg = str(e).lower()
                 if "maximum context length" in error_msg or "context" in error_msg:
-                    print(f"[Warning] {dimension_name} API 触发 Context Limit (尝试 {attempt+1}/{max_retries}). 尝试截断文本...")
+                    print(f"[Warning] 统一评分 API 触发 Context Limit (尝试 {attempt+1}/{max_retries}). 尝试截断文本...")
                     
-                    # 进行字符串级别截断（保留末尾，因为结论往往在后面）
-                    # 约保留最后 40000 个字符 (~25000 tokens)，留下充足余量
-                    max_chars = 35000 
-                    if "model_output" in current_kwargs and len(current_kwargs["model_output"]) > max_chars:
-                        current_kwargs["model_output"] = "...[前文已截断]..." + current_kwargs["model_output"][-max_chars:]
-                    elif "reference_cot" in current_kwargs and len(current_kwargs["reference_cot"]) > max_chars:
-                        current_kwargs["reference_cot"] = "...[前文已截断]..." + current_kwargs["reference_cot"][-max_chars:]
-                    else:
-                        # 如果没有长字段可截断，直接跳出重试
-                        break 
-                    continue # 截断后立刻进行下一次尝试
+                    # 组合后总长度变大，单字段截断长度应更保守，约保留 15000 字符 (~10000 tokens)
+                    max_chars = 15000 
+                    needs_retry = False
+                    if len(kwargs["model_output"]) > max_chars:
+                        kwargs["model_output"] = "...[前文已截断]..." + kwargs["model_output"][-max_chars:]
+                        needs_retry = True
+                    if len(kwargs["reference_cot"]) > max_chars:
+                        kwargs["reference_cot"] = "...[前文已截断]..." + kwargs["reference_cot"][-max_chars:]
+                        needs_retry = True
+                        
+                    if not needs_retry:
+                        break # 如果没有长字段可截断，直接跳出重试
+                    continue 
                 else:
-                    print(f"[Warning] {dimension_name} 出现其他 400 错误: {e}")
+                    print(f"[Warning] 统一评分 API 出现其他 400 错误: {e}")
                     time.sleep(1)
                     continue
                     
             except Exception as e:
-                # 其他 API 异常 (连接错误、超时等)，独立隔离，不影响其他维度
-                print(f"[Warning] {dimension_name} API 未知异常 (尝试 {attempt+1}/{max_retries}): {e}")
+                # 其他 API 异常 (连接错误、超时等)
+                print(f"[Warning] 统一评分 API 未知异常 (尝试 {attempt+1}/{max_retries}): {e}")
                 time.sleep(1)
                 
-        print(f"[Error] {dimension_name} 最终获取失败，当前维度返回 0 分。")
-        return 0.0
-
-    def get_unified_subjective_scores(self, reference_cot: str, reference_answer: str, retrieved_info: str, answer_content: str, model_output: str) -> dict:
-        """使用线程池并发获取三个维度的分数"""
-        
-        # 准备任务参数
-        tasks = {
-            "accuracy": (JUDGE_PROMPT_ACCURACY, {"reference_answer": reference_answer, "answer_content": answer_content}),
-            "alignment": (JUDGE_PROMPT_ALIGNMENT, {"reference_cot": reference_cot, "model_output": model_output}),
-            "info_gain": (JUDGE_PROMPT_INFO_GAIN, {"reference_answer": reference_answer, "retrieved_info": retrieved_info}),
-        }
-
-        results = {"accuracy": 0.0, "alignment": 0.0, "info_gain": 0.0}
-        
-        # 开启 3 个并发线程，压榨 vLLM 服务器性能
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            future_to_dim = {
-                executor.submit(self._call_single_dimension, prompt_tpl, kwargs, dim): dim 
-                for dim, (prompt_tpl, kwargs) in tasks.items()
-            }
-            
-            for future in concurrent.futures.as_completed(future_to_dim):
-                dim = future_to_dim[future]
-                try:
-                    results[dim] = future.result()
-                except Exception as exc:
-                    print(f"[Error] 线程执行维度 {dim} 时崩溃: {exc}")
-                    results[dim] = 0.0
-                    
-        return results
-
+        print(f"[Error] 统一评分最终获取失败，当前返回全 0 分。")
+        return {"accuracy": 0, "alignment": 0, "info_gain": 0}
+    
 # =============================================================================
 # 4. 核心评分逻辑 
 # =============================================================================
@@ -330,12 +406,13 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     # --- Step 2: 检索词质量 ---
     query_quality_100 = calculate_query_quality_score(solution_str)
 
-    # --- Step 3: LLM Judge 多维度打分 (并发获取) ---
+    # --- Step 3: LLM Judge 多维度打分 (合并获取) ---
     retrieved_info = extract_information_blocks(solution_str)
     manager = VLLMRewardManager()
     
-    # 传入完整的 solution_str 作为 model_output 以备截断使用
+    # 传入需要的所有参数
     subjective_scores = manager.get_unified_subjective_scores(
+        question=question,
         reference_cot=reference_cot,
         reference_answer=reference_answer,
         retrieved_info=retrieved_info,

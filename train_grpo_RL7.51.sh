@@ -11,10 +11,10 @@ export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
 export DATA_DIR='/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/multi_form_RL/with_search'
 export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_SFT6.2_0508/checkpoint-2-750/tfmr"
 
-export REWARD_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
+export REWARD_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_reward_model_0517/checkpoint-1-1448/tfmr"
 export FILTER_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
 
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.3-0514-H20-141G-3plus1
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.3-0518-H20
 export WAND_PROJECT='Search-R1'
 export WANDB_API_KEY='847a7dd2aadbd8146fa82d3cc3b88826530401ec'
 # export WANDB_RESUME="allow" 
