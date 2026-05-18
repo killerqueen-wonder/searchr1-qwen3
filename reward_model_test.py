@@ -7,7 +7,7 @@ from vllm import LLM, SamplingParams
 # ================= 配置区 =================
 # 模型与数据路径 (请根据实际情况修改)
 MODEL_PATH = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_reward_model_0517/checkpoint-2-2172/tfmr"
-MODEL_PATH = "/F00120250029/lixiang_share/Models/Qwen3-8B"
+MODEL_PATH = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_reward_model_0517/checkpoint-1-1448/tfmr"
 TEST_JSON_PATH = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/reward_model_training/test.json"
 OUTPUT_RESULT_PATH = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/reward_model_training/eval_origin_results_compare.json"
 
