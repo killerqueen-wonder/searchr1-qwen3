@@ -3,7 +3,7 @@ set -e
 
 # ================= 1. 命令行参数解析 =================
 # 设置默认值
-MODEL_NAME="deepseek-v3"
+MODEL_NAME="deepseek-v4-flash"
 API_KEY=""
 MAIN_API_URL=""
 
@@ -119,79 +119,79 @@ python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
 
 
 # ================= 4. LawBench =================
-info "================== [2/3] LawBench (API Mode) =================="
-conda activate lawbench
+# info "================== [2/3] LawBench (API Mode) =================="
+# conda activate lawbench
 
-LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
-LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored"
-LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench.json"
+# LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
+# LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored"
+# LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench.json"
 
-info " -> 1. 推理阶段"
-python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_infer.py \
-    --data_dir "${BASE_DIR}/lawbench/test/data/zero_shot" \
-    --output_dir "${LAWBENCH_PRED_DIR}" \
-    --model_name "${MODEL_NAME}" \
-    --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
-    --summary_port ${FAKE_SUMMARY_PORT} \
-    --max_turn 12 --topk 10 --workers ${WORKERS} --retriever
+# info " -> 1. 推理阶段"
+# python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_infer.py \
+#     --data_dir "${BASE_DIR}/lawbench/test/data/zero_shot" \
+#     --output_dir "${LAWBENCH_PRED_DIR}" \
+#     --model_name "${MODEL_NAME}" \
+#     --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
+#     --summary_port ${FAKE_SUMMARY_PORT} \
+#     --max_turn 12 --topk 10 --workers ${WORKERS} --retriever
 
-info " -> 2. 评测阶段"
-python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_eval.py \
-    --input_dir "${LAWBENCH_PRED_DIR}" \
-    --output_dir "${LAWBENCH_SCORE_DIR}" \
-    --judge_port ${JUDGE_VLLM_PORT} \
-    --judge_model_name "${JUDGE_MODEL_NAME}" \
-    --workers ${WORKERS}
+# info " -> 2. 评测阶段"
+# python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_eval.py \
+#     --input_dir "${LAWBENCH_PRED_DIR}" \
+#     --output_dir "${LAWBENCH_SCORE_DIR}" \
+#     --judge_port ${JUDGE_VLLM_PORT} \
+#     --judge_model_name "${JUDGE_MODEL_NAME}" \
+#     --workers ${WORKERS}
 
-info " -> 3. 统计汇总"
-python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_result.py \
-    --score_dir "${LAWBENCH_SCORE_DIR}" \
-    --output_path "${LAWBENCH_RESULT_PATH}"
+# info " -> 3. 统计汇总"
+# python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_result.py \
+#     --score_dir "${LAWBENCH_SCORE_DIR}" \
+#     --output_path "${LAWBENCH_RESULT_PATH}"
 
 
-# ================= 5. LexEval =================
-info "================== [3/3] LexEval (API Mode) =================="
-conda activate searchr1_new
+# # ================= 5. LexEval =================
+# info "================== [3/3] LexEval (API Mode) =================="
+# conda activate searchr1_new
 
-LEXEVAL_PRED_DIR="${BASE_DIR}/LexEval/model_output/zero_shot/${MODEL_NAME}"
-LEXEVAL_SCORE_DIR="${BASE_DIR}/LexEval/evaluation_output/${MODEL_NAME}_scored"
-LEXEVAL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lexeval/${MODEL_NAME}_lexeval.json"
+# LEXEVAL_PRED_DIR="${BASE_DIR}/LexEval/model_output/zero_shot/${MODEL_NAME}"
+# LEXEVAL_SCORE_DIR="${BASE_DIR}/LexEval/evaluation_output/${MODEL_NAME}_scored"
+# LEXEVAL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lexeval/${MODEL_NAME}_lexeval.json"
 
-info " -> 1. 推理阶段"
-for folder_id in {1..6}; do
-    if [ "$folder_id" -eq 1 ]; then max_file=3
-    elif [ "$folder_id" -eq 2 ]; then max_file=5
-    elif [ "$folder_id" -eq 3 ]; then max_file=6
-    elif [ "$folder_id" -eq 4 ]; then max_file=2
-    elif [ "$folder_id" -eq 5 ]; then max_file=4
-    elif [ "$folder_id" -eq 6 ]; then max_file=3
-    fi
-    for (( j=1; j<=$max_file; j++ )); do
-        FILE_PATH="${BASE_DIR}/LexEval/data/${folder_id}_${j}.json"
-        if [ -f "$FILE_PATH" ]; then
-            python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_infer.py \
-                --f_path "$FILE_PATH" \
-                --model_name "${MODEL_NAME}" \
-                --output_dir "${LEXEVAL_PRED_DIR}" \
-                --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
-                --summary_port ${FAKE_SUMMARY_PORT} \
-                --workers ${WORKERS}
-        fi
-    done
-done
+# info " -> 1. 推理阶段"
+# for folder_id in {1..6}; do
+#     if [ "$folder_id" -eq 1 ]; then max_file=3
+#     elif [ "$folder_id" -eq 2 ]; then max_file=5
+#     elif [ "$folder_id" -eq 3 ]; then max_file=6
+#     elif [ "$folder_id" -eq 4 ]; then max_file=2
+#     elif [ "$folder_id" -eq 5 ]; then max_file=4
+#     elif [ "$folder_id" -eq 6 ]; then max_file=3
+#     fi
+#     for (( j=1; j<=$max_file; j++ )); do
+#         FILE_PATH="${BASE_DIR}/LexEval/data/${folder_id}_${j}.json"
+#         if [ -f "$FILE_PATH" ]; then
+#             python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_infer.py \
+#                 --f_path "$FILE_PATH" \
+#                 --model_name "${MODEL_NAME}" \
+#                 --output_dir "${LEXEVAL_PRED_DIR}" \
+#                 --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
+#                 --summary_port ${FAKE_SUMMARY_PORT} \
+#                 --workers ${WORKERS}
+#         fi
+#     done
+# done
 
-info " -> 2. 评测阶段"
-python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_eval.py \
-    --input_dir "${LEXEVAL_PRED_DIR}" \
-    --output_dir "${LEXEVAL_SCORE_DIR}" \
-    --judge_port ${JUDGE_VLLM_PORT} \
-    --judge_model_name "${JUDGE_MODEL_NAME}" \
-    --workers ${WORKERS}
+# info " -> 2. 评测阶段"
+# python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_eval.py \
+#     --input_dir "${LEXEVAL_PRED_DIR}" \
+#     --output_dir "${LEXEVAL_SCORE_DIR}" \
+#     --judge_port ${JUDGE_VLLM_PORT} \
+#     --judge_model_name "${JUDGE_MODEL_NAME}" \
+#     --workers ${WORKERS}
 
-info " -> 3. 统计汇总"
-python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_result.py \
-    --score_dir "${LEXEVAL_SCORE_DIR}" \
-    --output_path "${LEXEVAL_RESULT_PATH}"
+# info " -> 3. 统计汇总"
+# python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_result.py \
+#     --score_dir "${LEXEVAL_SCORE_DIR}" \
+#     --output_path "${LEXEVAL_RESULT_PATH}"
 
 info "========================================================="
 info "🎉 API 评测任务圆满结束！"
