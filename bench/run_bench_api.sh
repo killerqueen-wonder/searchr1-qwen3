@@ -109,119 +109,120 @@ info "Judge 模型就绪！开始执行 API 评测！🚀"
 
 
 # ================= 3. UCL Bench =================
-info "================== [1/3] UCL Bench (API Mode) =================="
+# info "================== [1/3] UCL Bench (API Mode) =================="
+# source $CONDA_SH
+# conda activate searchr1_new
+
+# UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
+# UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score.json"
+# UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl.json"
+# UCL_CHATGPT_REF="${BASE_DIR}/dataset/result/res_result/qwen3_8B_eval_result.json" 
+
+# # infer_脚本的参数原样传递，但在 shared_agent 内部会被短路
+# info " -> 1. 推理阶段"
+# python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_infer.py \
+#     --data_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
+#     --result_path "${UCL_RES_PATH}" \
+#     --model_name "${MODEL_NAME}" \
+#     --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
+#     --summary_port ${FAKE_SUMMARY_PORT} \
+#     --retrieve_path "http://127.0.0.1:8005/retrieve" \
+#     --max_turn 12 --topk 10 --workers ${WORKERS} --retriever True
+
+# info " -> 2. 评测阶段"
+# python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval.py \
+#     --chatgpt_result_path "${UCL_CHATGPT_REF}" \
+#     --model_result_path "${UCL_RES_PATH}" \
+#     --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
+#     --result_path "${UCL_SCORE_PATH}" \
+#     --judge_port ${JUDGE_VLLM_PORT} \
+#     --judge_model_name "${JUDGE_MODEL_NAME}" \
+#     --workers ${WORKERS}
+
+# info " -> 3. 统计汇总"
+# python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
+#     --score_path "${UCL_SCORE_PATH}" \
+#     --inference_path "${UCL_RES_PATH}" \
+#     --output_path "${UCL_RESULT_PATH}"
+
+
+# ================= 4. LawBench =================
+info "================== [2/3] LawBench (API Mode) =================="
 source $CONDA_SH
-conda activate searchr1_new
+conda activate lawbench
 
-UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
-UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score.json"
-UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl.json"
-UCL_CHATGPT_REF="${BASE_DIR}/dataset/result/res_result/qwen3_8B_eval_result.json" 
+LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
+LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored"
+LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench.json"
 
-# infer_脚本的参数原样传递，但在 shared_agent 内部会被短路
 info " -> 1. 推理阶段"
-python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_infer.py \
-    --data_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
-    --result_path "${UCL_RES_PATH}" \
+python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_infer.py \
+    --data_dir "${BASE_DIR}/lawbench/test/data/zero_shot" \
+    --output_dir "${LAWBENCH_PRED_DIR}" \
     --model_name "${MODEL_NAME}" \
     --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
     --summary_port ${FAKE_SUMMARY_PORT} \
-    --retrieve_path "http://127.0.0.1:8005/retrieve" \
-    --max_turn 12 --topk 10 --workers ${WORKERS} --retriever True
+    --max_turn 12 --topk 10 --workers ${WORKERS} --retriever 
 
 info " -> 2. 评测阶段"
-python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval.py \
-    --chatgpt_result_path "${UCL_CHATGPT_REF}" \
-    --model_result_path "${UCL_RES_PATH}" \
-    --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
-    --result_path "${UCL_SCORE_PATH}" \
+python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_eval.py \
+    --input_dir "${LAWBENCH_PRED_DIR}" \
+    --output_dir "${LAWBENCH_SCORE_DIR}" \
     --judge_port ${JUDGE_VLLM_PORT} \
     --judge_model_name "${JUDGE_MODEL_NAME}" \
     --workers ${WORKERS}
 
 info " -> 3. 统计汇总"
-python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
-    --score_path "${UCL_SCORE_PATH}" \
-    --inference_path "${UCL_RES_PATH}" \
-    --output_path "${UCL_RESULT_PATH}"
+python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_result.py \
+    --score_dir "${LAWBENCH_SCORE_DIR}" \
+    --output_path "${LAWBENCH_RESULT_PATH}"
 
 
-# ================= 4. LawBench =================
-# info "================== [2/3] LawBench (API Mode) =================="
-# source $CONDA_SH
-# conda activate lawbench
+# ================= 5. LexEval =================
+info "================== [3/3] LexEval (API Mode) =================="
+source $CONDA_SH
+conda activate searchr1_new
 
-# LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
-# LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored"
-# LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench.json"
+LEXEVAL_PRED_DIR="${BASE_DIR}/LexEval/model_output/zero_shot/${MODEL_NAME}"
+LEXEVAL_SCORE_DIR="${BASE_DIR}/LexEval/evaluation_output/${MODEL_NAME}_scored"
+LEXEVAL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lexeval/${MODEL_NAME}_lexeval.json"
 
-# info " -> 1. 推理阶段"
-# python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_infer.py \
-#     --data_dir "${BASE_DIR}/lawbench/test/data/zero_shot" \
-#     --output_dir "${LAWBENCH_PRED_DIR}" \
-#     --model_name "${MODEL_NAME}" \
-#     --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
-#     --summary_port ${FAKE_SUMMARY_PORT} \
-#     --max_turn 12 --topk 10 --workers ${WORKERS} --retriever
+info " -> 1. 推理阶段"
+for folder_id in {1..6}; do
+    if [ "$folder_id" -eq 1 ]; then max_file=3
+    elif [ "$folder_id" -eq 2 ]; then max_file=5
+    elif [ "$folder_id" -eq 3 ]; then max_file=6
+    elif [ "$folder_id" -eq 4 ]; then max_file=2
+    elif [ "$folder_id" -eq 5 ]; then max_file=4
+    elif [ "$folder_id" -eq 6 ]; then max_file=3
+    fi
+    for (( j=1; j<=$max_file; j++ )); do
+        FILE_PATH="${BASE_DIR}/LexEval/data/${folder_id}_${j}.json"
+        if [ -f "$FILE_PATH" ]; then
+            python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_infer.py \
+                --f_path "$FILE_PATH" \
+                --model_name "${MODEL_NAME}" \
+                --output_dir "${LEXEVAL_PRED_DIR}" \
+                --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
+                --summary_port ${FAKE_SUMMARY_PORT} \
+                --workers ${WORKERS} 
+                
+        fi
+    done
+done
 
-# info " -> 2. 评测阶段"
-# python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_eval.py \
-#     --input_dir "${LAWBENCH_PRED_DIR}" \
-#     --output_dir "${LAWBENCH_SCORE_DIR}" \
-#     --judge_port ${JUDGE_VLLM_PORT} \
-#     --judge_model_name "${JUDGE_MODEL_NAME}" \
-#     --workers ${WORKERS}
+info " -> 2. 评测阶段"
+python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_eval.py \
+    --input_dir "${LEXEVAL_PRED_DIR}" \
+    --output_dir "${LEXEVAL_SCORE_DIR}" \
+    --judge_port ${JUDGE_VLLM_PORT} \
+    --judge_model_name "${JUDGE_MODEL_NAME}" \
+    --workers ${WORKERS}
 
-# info " -> 3. 统计汇总"
-# python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_result.py \
-#     --score_dir "${LAWBENCH_SCORE_DIR}" \
-#     --output_path "${LAWBENCH_RESULT_PATH}"
-
-
-# # ================= 5. LexEval =================
-# info "================== [3/3] LexEval (API Mode) =================="
-# source $CONDA_SH
-# conda activate searchr1_new
-
-# LEXEVAL_PRED_DIR="${BASE_DIR}/LexEval/model_output/zero_shot/${MODEL_NAME}"
-# LEXEVAL_SCORE_DIR="${BASE_DIR}/LexEval/evaluation_output/${MODEL_NAME}_scored"
-# LEXEVAL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lexeval/${MODEL_NAME}_lexeval.json"
-
-# info " -> 1. 推理阶段"
-# for folder_id in {1..6}; do
-#     if [ "$folder_id" -eq 1 ]; then max_file=3
-#     elif [ "$folder_id" -eq 2 ]; then max_file=5
-#     elif [ "$folder_id" -eq 3 ]; then max_file=6
-#     elif [ "$folder_id" -eq 4 ]; then max_file=2
-#     elif [ "$folder_id" -eq 5 ]; then max_file=4
-#     elif [ "$folder_id" -eq 6 ]; then max_file=3
-#     fi
-#     for (( j=1; j<=$max_file; j++ )); do
-#         FILE_PATH="${BASE_DIR}/LexEval/data/${folder_id}_${j}.json"
-#         if [ -f "$FILE_PATH" ]; then
-#             python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_infer.py \
-#                 --f_path "$FILE_PATH" \
-#                 --model_name "${MODEL_NAME}" \
-#                 --output_dir "${LEXEVAL_PRED_DIR}" \
-#                 --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
-#                 --summary_port ${FAKE_SUMMARY_PORT} \
-#                 --workers ${WORKERS}
-#         fi
-#     done
-# done
-
-# info " -> 2. 评测阶段"
-# python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_eval.py \
-#     --input_dir "${LEXEVAL_PRED_DIR}" \
-#     --output_dir "${LEXEVAL_SCORE_DIR}" \
-#     --judge_port ${JUDGE_VLLM_PORT} \
-#     --judge_model_name "${JUDGE_MODEL_NAME}" \
-#     --workers ${WORKERS}
-
-# info " -> 3. 统计汇总"
-# python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_result.py \
-#     --score_dir "${LEXEVAL_SCORE_DIR}" \
-#     --output_path "${LEXEVAL_RESULT_PATH}"
+info " -> 3. 统计汇总"
+python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_result.py \
+    --score_dir "${LEXEVAL_SCORE_DIR}" \
+    --output_path "${LEXEVAL_RESULT_PATH}"
 
 info "========================================================="
 info "🎉 API 评测任务圆满结束！"

@@ -524,16 +524,31 @@ class VLLM_Retriever_Agent:
                 "main_total_prompt_tokens": prompt_tokens, 
                 "main_total_comp_tokens": comp_tokens
             }
+            # if random.randint(1, 64) == 1:
+            #     logger.info(
+            #         f"\n========== [Trace Monitor 1/64] Model: {self.model_name} ==========\n"
+            #         f"[Prompt]:\n{payload.get('prompt', 'N/A')}\n\n"
+            #         f"[Output]:\n{output_text}\n"
+            #         f"==================================================================\n"
+            #     )
+            # return output_text, agent_metrics
+            # ================= 新增：兼容两种格式的 Prompt 提取逻辑 =================
+            display_prompt = payload.get('prompt')
+            if not display_prompt and 'messages' in payload:
+                display_prompt = payload['messages'][0]['content']
+            if not display_prompt:
+                display_prompt = 'N/A'
+            # =================================================================
+
             if random.randint(1, 64) == 1:
                 logger.info(
                     f"\n========== [Trace Monitor 1/64] Model: {self.model_name} ==========\n"
-                    f"[Prompt]:\n{payload.get('prompt', 'N/A')}\n\n"
+                    f"[Prompt]:\n{display_prompt}\n\n" # 👈 使用提取出来的变量
                     f"[Output]:\n{output_text}\n"
                     f"==================================================================\n"
                 )
             return output_text, agent_metrics
         
-        # ==========================================================
 
         prompt = NEW_SYSTEM_PROMPT.format(question_text=question)
         
