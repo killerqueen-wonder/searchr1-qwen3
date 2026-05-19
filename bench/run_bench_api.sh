@@ -38,8 +38,8 @@ export MODEL_NAME
 export USE_DIRECT_API="true"
 
 # ================= 1. 配置全局与 API 变量 =================
-export BASE_DIR="${BASE_DIR:-/data/panghuaiwen/legal_R1}"
-export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
+export BASE_DIR="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1"
+export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}" 
 
 
 
