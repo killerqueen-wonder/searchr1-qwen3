@@ -110,6 +110,7 @@ info "Judge 模型就绪！开始执行 API 评测！🚀"
 
 # ================= 3. UCL Bench =================
 info "================== [1/3] UCL Bench (API Mode) =================="
+source $CONDA_SH
 conda activate searchr1_new
 
 UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
@@ -147,6 +148,7 @@ python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
 
 # ================= 4. LawBench =================
 # info "================== [2/3] LawBench (API Mode) =================="
+# source $CONDA_SH
 # conda activate lawbench
 
 # LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
@@ -178,6 +180,7 @@ python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
 
 # # ================= 5. LexEval =================
 # info "================== [3/3] LexEval (API Mode) =================="
+# source $CONDA_SH
 # conda activate searchr1_new
 
 # LEXEVAL_PRED_DIR="${BASE_DIR}/LexEval/model_output/zero_shot/${MODEL_NAME}"
