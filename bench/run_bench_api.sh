@@ -44,7 +44,8 @@ export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 
 
 # Judge 模型配置 (如果评测打分依然用本地模型，则保留此配置)
-JUDGE_MODEL_NAME="Qwen3-8B-Judge" 
+export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
+export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
 WORKERS="${WORKERS:-32}"
 JUDGE_VLLM_PORT=8009
 PORT_TIMEOUT=1600  
@@ -70,14 +71,42 @@ kill_session() {
     fi
 }
 
-info "启动 vLLM 裁判模型..."
-kill_session "vllm_judge"
-tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=2; source $CONDA_HOME/etc/profile.d/conda.sh && conda activate vllm_server; python -m vllm.entrypoints.openai.api_server --model ${BASE_DIR}/model/Qwen/Qwen3-8B --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.85 --max-model-len 22000 || sleep 86400"
+wait_for_port() {
+    local port=$1
+    local timeout=$2
+    local session_name=$3
+    local start=$(date +%s)
+    info "等待端口 $port 就绪（超时 ${timeout}s）..."
+    
+    while true; do
+        # 兼容你的 FastAPI /health 和 vLLM 的 /health
+        if curl -s -f --noproxy '*' "http://127.0.0.1:$port/health" > /dev/null 2>&1; then
+            info "端口 $port 已就绪"
+            return 0
+        fi
+        
+        local now=$(date +%s)
+        if [ $((now - start)) -ge $timeout ]; then
+            error "端口 $port 未在 ${timeout}s 内就绪。"
+            return 1
+        fi
+        sleep 3
+    done
+}
 
-info "等待 Judge 端口就绪..."
-while ! curl -s -f --noproxy '*' "http://127.0.0.1:${JUDGE_VLLM_PORT}/health" > /dev/null 2>&1; do
-    sleep 3
-done
+kill_session "vllm_judge"
+tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=1; \
+    source $CONDA_SH && conda activate vllm_server; \
+    python -m vllm.entrypoints.openai.api_server \
+    --model ${JUDGE_MODEL_PATH} \
+    --served-model-name ${JUDGE_MODEL_NAME} \
+    --port ${JUDGE_VLLM_PORT} \
+    --gpu-memory-utilization 0.9 \
+    --max-model-len 10000 --enforce-eager || sleep 86400"
+info "已触发启动 Judge 裁判服务 (GPU: 1)"
+
+wait_for_port $JUDGE_VLLM_PORT $PORT_TIMEOUT "vllm_judge"
+
 info "Judge 模型就绪！开始执行 API 评测！🚀"
 
 
