@@ -39,7 +39,7 @@ export USE_DIRECT_API="true"
 
 # ================= 1. 配置全局与 API 变量 =================
 export BASE_DIR="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1"
-export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}" 
+
 
 
 
@@ -54,9 +54,7 @@ PORT_TIMEOUT=1600
 FAKE_VLLM_PORT=8007
 FAKE_SUMMARY_PORT=8008
 
-if [ -f "$CONDA_HOME/etc/profile.d/conda.sh" ]; then
-    source "$CONDA_HOME/etc/profile.d/conda.sh"
-fi
+export CONDA_SH="/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh"
 
 info() { echo -e "\033[32m[INFO]\033[0m $1"; }
 error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
