@@ -131,7 +131,7 @@ class VLLM_Retriever_Agent:
 
         payload = {"query": search_query_dict, "topk": self.topk}
         try:
-            response = requests.post(self.retrieve_path, json=payload, timeout=120)
+            response = requests.post(self.retrieve_path, json=payload, timeout=1200)
             response.raise_for_status()
             json_data = response.json()
             if "error" in json_data: return f"检索返回错误：{json_data['error']}"
@@ -176,7 +176,7 @@ class VLLM_Retriever_Agent:
             "return_scores": True
         }
         try:
-            response = requests.post(self.retrieve_path, json=payload, timeout=120)
+            response = requests.post(self.retrieve_path, json=payload, timeout=1200)
             response.raise_for_status()
             json_data = response.json()
             
@@ -217,7 +217,7 @@ class VLLM_Retriever_Agent:
                 "stop": ["</search>", "</answer>"]
             }
             try:
-                res = requests.post(self.vllm_url, json=payload, timeout=200).json()
+                res = requests.post(self.vllm_url, json=payload, timeout=2000).json()
                 if "error" in res:
                     final_answer = "API Error"
                     break
@@ -275,7 +275,7 @@ class VLLM_Retriever_Agent:
         
         payload = {"queries": [query_str.strip()], "topk": self.topk, "return_scores": True}
         try:
-            response = requests.post(self.retrieve_path, json=payload, timeout=120)
+            response = requests.post(self.retrieve_path, json=payload, timeout=1200)
             response.raise_for_status()
             json_data = response.json()
             
@@ -340,7 +340,7 @@ class VLLM_Retriever_Agent:
                 "stop": stop_words
             }
             try:
-                res = requests.post(self.vllm_url, json=payload, timeout=200).json()
+                res = requests.post(self.vllm_url, json=payload, timeout=2000).json()
                 if "error" in res:
                     final_answer = "API Error"
                     break
@@ -485,7 +485,7 @@ class VLLM_Retriever_Agent:
             
             start_time = time.time()
             try:
-                res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=200).json()
+                res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=2000).json()
                 if "error" in res:
                     logger.error(f"API 返回错误: {res['error']}")
                     output_text = f"API Error: {res['error']}"
@@ -553,7 +553,7 @@ class VLLM_Retriever_Agent:
                 "stop_token_ids": [151645, 151643]
             }
             try:
-                res = requests.post(self.vllm_url, json=payload, timeout=200).json()
+                res = requests.post(self.vllm_url, json=payload, timeout=2000).json()
                 output_text = res["choices"][0].get("text", "")
                 usage = res.get("usage", {})
                 current_prompt_tokens = usage.get("prompt_tokens", 0)
@@ -641,7 +641,7 @@ def get_universal_vllm_summary(query, history, port, model_name="Qwen3-8B"):
     payload = {"model": model_name, "prompt": prompt, "max_tokens": 1024, "temperature": 0.1}
     
     try:
-        res = requests.post(url, json=payload, timeout=60).json()
+        res = requests.post(url, json=payload, timeout=600).json()
         return res["choices"][0]["text"].strip(), res.get("usage", {}).get("prompt_tokens", 0), res.get("usage", {}).get("completion_tokens", 0)
     except Exception as e:
         logger.error(f"Summary API Failed: {e}")

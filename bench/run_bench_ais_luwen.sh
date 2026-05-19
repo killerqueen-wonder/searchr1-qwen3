@@ -101,74 +101,74 @@ wait_for_port $JUDGE_VLLM_PORT $PORT_TIMEOUT "vllm_judge"
 info "所有服务就绪，开始执行基准测试！🚀"
 
 # --- 3. 运行评测 ---
-info "================== [1/3] UCL Bench =================="
-source $CONDA_SH
-conda activate searchr1_new
+# info "================== [1/3] UCL Bench =================="
+# source $CONDA_SH
+# conda activate searchr1_new
 
-UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
-UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score.json"
-UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl.json"
-UCL_CHATGPT_REF="${BASE_DIR}/dataset/result/res_result/qwen3_8B_eval_result.json" 
+# UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
+# UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score.json"
+# UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl.json"
+# UCL_CHATGPT_REF="${BASE_DIR}/dataset/result/res_result/qwen3_8B_eval_result.json" 
 
-info " -> 1. 推理阶段"
-python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_infer.py \
-    --data_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
-    --result_path "${UCL_RES_PATH}" \
-    --model_name "${MODEL_NAME}" \
-    --vllm_url "http://127.0.0.1:${MAIN_VLLM_PORT}" \
-    --summary_port ${SUMMARY_VLLM_PORT} \
-    --retrieve_path "" \
-    --max_turn 1 --workers ${WORKERS}
+# info " -> 1. 推理阶段"
+# python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_infer.py \
+#     --data_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
+#     --result_path "${UCL_RES_PATH}" \
+#     --model_name "${MODEL_NAME}" \
+#     --vllm_url "http://127.0.0.1:${MAIN_VLLM_PORT}" \
+#     --summary_port ${SUMMARY_VLLM_PORT} \
+#     --retrieve_path "" \
+#     --max_turn 1 --workers ${WORKERS}
 
-info " -> 2. 评测阶段"
-python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval.py \
-    --chatgpt_result_path "${UCL_CHATGPT_REF}" \
-    --model_result_path "${UCL_RES_PATH}" \
-    --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
-    --result_path "${UCL_SCORE_PATH}" \
-    --judge_port ${JUDGE_VLLM_PORT} \
-    --judge_model_name "${JUDGE_MODEL_NAME}" \
-    --workers ${WORKERS}
+# info " -> 2. 评测阶段"
+# python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval.py \
+#     --chatgpt_result_path "${UCL_CHATGPT_REF}" \
+#     --model_result_path "${UCL_RES_PATH}" \
+#     --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
+#     --result_path "${UCL_SCORE_PATH}" \
+#     --judge_port ${JUDGE_VLLM_PORT} \
+#     --judge_model_name "${JUDGE_MODEL_NAME}" \
+#     --workers ${WORKERS}
 
-info " -> 3. 统计汇总"
-python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
-    --score_path "${UCL_SCORE_PATH}" \
-    --inference_path "${UCL_RES_PATH}" \
-    --output_path "${UCL_RESULT_PATH}"
+# info " -> 3. 统计汇总"
+# python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
+#     --score_path "${UCL_SCORE_PATH}" \
+#     --inference_path "${UCL_RES_PATH}" \
+#     --output_path "${UCL_RESULT_PATH}"
 
-# ================= 5. LawBench =================
-info "================== [2/3] LawBench =================="
+# # ================= 5. LawBench =================
+# info "================== [2/3] LawBench =================="
 
-info " -> 切换为 LawBench 环境..."
-source $CONDA_SH
-conda activate lawbench
+# info " -> 切换为 LawBench 环境..."
+# source $CONDA_SH
+# conda activate lawbench
 
-LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
-LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored"
-LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench.json"
+# LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
+# LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored"
+# LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench.json"
 
-info " -> 1. 推理阶段"
-python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_infer.py \
-    --data_dir "${BASE_DIR}/lawbench/test/data/zero_shot" \
-    --output_dir "${LAWBENCH_PRED_DIR}" \
-    --model_name "${MODEL_NAME}" \
-    --vllm_url "http://127.0.0.1:${MAIN_VLLM_PORT}" \
-    --summary_port ${SUMMARY_VLLM_PORT} \
-    --retrieve_path "${RETRIEVE_PATH}" \
-    --max_turn 12 --topk 10 --workers ${WORKERS} --retriever
+# info " -> 1. 推理阶段"
+# python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_infer.py \
+#     --data_dir "${BASE_DIR}/lawbench/test/data/zero_shot" \
+#     --output_dir "${LAWBENCH_PRED_DIR}" \
+#     --model_name "${MODEL_NAME}" \
+#     --vllm_url "http://127.0.0.1:${MAIN_VLLM_PORT}" \
+#     --summary_port ${SUMMARY_VLLM_PORT} \
+#     --retrieve_path "${RETRIEVE_PATH}" \
+#     --max_turn 12 --topk 10 --workers ${WORKERS} --retriever
 
-info " -> 2. 评测阶段"
-python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_eval.py \
-    --input_dir "${LAWBENCH_PRED_DIR}" \
-    --output_dir "${LAWBENCH_SCORE_DIR}" \
-    --judge_port ${JUDGE_VLLM_PORT} \
-    --judge_model_name "${JUDGE_MODEL_NAME}" \
-    --workers ${WORKERS}
+# info " -> 2. 评测阶段"
+# python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_eval.py \
+#     --input_dir "${LAWBENCH_PRED_DIR}" \
+#     --output_dir "${LAWBENCH_SCORE_DIR}" \
+#     --judge_port ${JUDGE_VLLM_PORT} \
+#     --judge_model_name "${JUDGE_MODEL_NAME}" \
+#     --workers ${WORKERS}
 
-info " -> 3. 统计汇总"
-python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_result.py \
-    --score_dir "${LAWBENCH_SCORE_DIR}" \
-    --output_path "${LAWBENCH_RESULT_PATH}"
+# info " -> 3. 统计汇总"
+# python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_result.py \
+#     --score_dir "${LAWBENCH_SCORE_DIR}" \
+#     --output_path "${LAWBENCH_RESULT_PATH}"
 
 # ================= 6. LexEval =================
 info "================== [3/3] LexEval =================="
