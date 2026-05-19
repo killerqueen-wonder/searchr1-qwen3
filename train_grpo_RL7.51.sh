@@ -14,7 +14,7 @@ export BASE_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/
 export REWARD_MODEL="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/SFT_ckp/qwen3_reward_model_0517/checkpoint-1-1448/tfmr"
 export FILTER_MODEL="/F00120250029/lixiang_share/Models/Qwen3-8B"
 
-export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.3-0518-H20
+export EXPERIMENT_NAME=legal_exam-ppo-qwen3-8b-RL-7.3-0519-H20
 export WAND_PROJECT='Search-R1'
 export WANDB_API_KEY='847a7dd2aadbd8146fa82d3cc3b88826530401ec'
 # export WANDB_RESUME="allow" 
@@ -182,7 +182,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.ppo_mini_batch_size=9 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=6 \
     actor_rollout_ref.actor.use_kl_loss=true \
-    actor_rollout_ref.actor.kl_loss_coef=0.06 \
+    actor_rollout_ref.actor.kl_loss_coef=0.08 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.entropy_coeff=0 \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \

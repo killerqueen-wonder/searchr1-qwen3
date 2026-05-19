@@ -394,11 +394,11 @@ def compute_score(solution_str, ground_truth, extra_info=None):
 
     if check_search_json(solution_str):
         #检索格式是否正确
-        final_score += 0.02
+        final_score += 0.1
 
     if check_information_tags_strict(solution_str):
         #检索结果是否成功返回
-        final_score += 0.08 
+        final_score += 0.1 
     
     answer_content = extract_answer_content(solution_str)
     
@@ -458,7 +458,7 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         print(f"Components -> Acc:{acc_4}, Align:{align_4}, Info:{info_4}, Query:{query_quality_100:.1f}")
         print(f"Bonuses    -> search_bonus:{search_bonus:.4f},LengthBonus:{length_punish:.4f}")
         print(f"Q: ...{question[-200:]}")
-        print(f"GT: ...{reference[-2000:]}")
+        print(f"GT: ...{reference[-1000:]}")
         print(f"Model think: {solution_str}...")
         print(f"Model Answer: {answer_content}...")
         print("=="*20)
