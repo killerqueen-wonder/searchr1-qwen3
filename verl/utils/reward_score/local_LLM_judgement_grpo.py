@@ -388,17 +388,14 @@ def compute_score(solution_str, ground_truth, extra_info=None):
 
     final_score = 0
     # --- Step 1: 格式与内容基础门控 ---
-    if not correct_format(solution_str):
-        print("[debug]warning: 模型输出标签格式错误。")
-        final_score -= 0.2 
+    if correct_format(solution_str):
+        final_score += 0.50  # 取代原来的 -0.2
 
     if check_search_json(solution_str):
-        #检索格式是否正确
-        final_score += 0.1
+        final_score += 0.25  # 原为 +0.1
 
     if check_information_tags_strict(solution_str):
-        #检索结果是否成功返回
-        final_score += 0.1 
+        final_score += 0.25  # 原为 +0.1
     
     answer_content = extract_answer_content(solution_str)
     
@@ -431,11 +428,11 @@ def compute_score(solution_str, ground_truth, extra_info=None):
     
     search_bonus = 0.0
     #与参考轨迹检索次数相近
-    if diff <= 1: search_bonus = 0.02  
+    if diff <= 1: search_bonus = 0.1  
     #简单题，参考轨迹与被测轨迹都无需检索，补偿可能的检索信息失分
-    if gt_search_count == 0 and model_search_count==0 : search_bonus = 0.06
+    if gt_search_count == 0 and model_search_count==0 : search_bonus = 0.2
         
-    length_punish_limit = 0.2
+    length_punish_limit = 0.6
     length_punish = min(length_punish_limit, (len(solution_str)*0.000005)*length_punish_limit)
 
     if answer_content=='和' or answer_content=='':
@@ -443,10 +440,10 @@ def compute_score(solution_str, ground_truth, extra_info=None):
         acc_4 = 0.1
 
     # --- Step 5: 最终分数聚合 ---
-    subjective_total = (acc_4 * 1 / 4.0) + \
-                       (align_4 * 0.02 / 4.0) + \
-                       (info_4 * 0.08 / 4.0) + \
-                       (query_quality_100 * 0.05 / 100.0)
+    subjective_total = (acc_4 * 1.00 / 4.0) + \
+                       (align_4 * 0.08 / 4.0) + \
+                       (info_4 * 0.32 / 4.0) + \
+                       (query_quality_100 * 0.20 / 100.0)
     
     
 
