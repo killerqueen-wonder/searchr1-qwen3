@@ -72,6 +72,11 @@ def parse_score_100(result_text):
     
 # ================= 新增：传统评分管道配置 =================
 # 1. 动态将 lawbench_utils 加入环境变量，确保内部的 utils 包可以被顺利 import
+import sys
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+lawbench_utils_dir = os.path.join(current_dir, "lawbench_utils")
 current_dir = os.path.dirname(os.path.abspath(__file__))
 lawbench_utils_dir = os.path.join(current_dir, "lawbench_utils")
 if lawbench_utils_dir not in sys.path:
