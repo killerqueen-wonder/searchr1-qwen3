@@ -227,4 +227,4 @@ async def unified_retrieve_endpoint(request: UnifiedQueryRequest):
 
 if __name__ == "__main__":
     print("[INFO] Starting Qwen3-Embedding Server...")
-    uvicorn.run("async_retrieval_server:app", host="0.0.0.0", port=global_config.port, workers=1)
+    uvicorn.run(app, host="0.0.0.0", port=global_config.port, workers=1)
