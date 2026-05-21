@@ -1,7 +1,7 @@
 import requests
 import re
 import logging
-
+import os
 import random # <--- 1. 新增引入 random 模块
 
 logger = logging.getLogger(__name__)
@@ -70,11 +70,16 @@ def parse_score_100(result_text):
     except:
         return 0
     
-
 # ================= 新增：传统评分管道配置 =================
-# 在此集中配置传统规则/F1的打分函数，供 lawbench_result.py 在统计阶段调用
+# 1. 动态将 lawbench_utils 加入环境变量，确保内部的 utils 包可以被顺利 import
+current_dir = os.path.dirname(os.path.abspath(__file__))
+lawbench_utils_dir = os.path.join(current_dir, "lawbench_utils")
+if lawbench_utils_dir not in sys.path:
+    sys.path.append(lawbench_utils_dir)
+
 try:
-    from lawbench_evaluation_functions import (
+    # 2. 此时可以直接从 evaluation_functions 导入，因为上一句已经把环境配好了
+    from evaluation_functions import (
         jec_ac, jec_kd, cjft, ydlj, ftcs, jdzy, jetq, 
         ljp_accusation, ljp_article, ljp_imprison, 
         wbfl, xxcq, flzx, wsjd, yqzy, lblj, zxfl, sjjc
