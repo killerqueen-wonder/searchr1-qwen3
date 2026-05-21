@@ -90,7 +90,10 @@ def main():
                 if "abstention_rate" in score_res:
                     trad_abstention = score_res.get("abstention_rate", 0) * 100.0
             except Exception as e:
-                print(f"[ERROR] 任务 {task_name} 的传统评分计算失败: {e}")
+                import traceback
+                print(f"\n[ERROR] 任务 {task_name} 的传统评分计算失败，详细追踪信息如下:")
+                traceback.print_exc()
+                print("="*50)
         else:
             print(f"[WARN] 找不到任务 {task_name} 的传统评分函数，该项记为 null。")
 
