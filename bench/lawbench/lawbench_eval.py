@@ -58,11 +58,30 @@ def evaluate_file(input_file, output_file, port, model_name, workers):
     with open(input_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
     results = {}
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = [executor.submit(process_single_item, item, key, port, model_name) for key, item in data.items()]
-        for future in tqdm(as_completed(futures), total=len(data), desc=f"Eval {os.path.basename(input_file)}"):
-            key, evaluated_item = future.result()
-            results[key] = evaluated_item
+    
+    # =========================================================
+    # 【新增逻辑】：拦截客观题，直接赋 0 分并跳过 LLM 推理
+    # =========================================================
+    task_name = os.path.basename(input_file).replace(".json", "")
+    OBJECTIVE_TASKS = {"1-2", "2-2", "2-3", "2-4", "2-8", "2-9", "3-1", "3-3", "3-6"}
+    
+    if task_name in OBJECTIVE_TASKS:
+        logger.info(f"⏩ 任务 {task_name} 是客观题，跳过 LLM Judge 打分，执行秒级落盘...")
+        for key, item in data.items():
+            out_item = item.copy()
+            out_item["eval_score"] = 0
+            out_item["eval_reason"] = "[系统拦截] 客观题，直接走传统精确匹配评测，无需大模型裁判。"
+            results[key] = out_item
+    else:
+        # =========================================================
+        # 【原有逻辑】：主观题依然走多线程并发请求 LLM
+        # =========================================================
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(process_single_item, item, key, port, model_name) for key, item in data.items()]
+            for future in tqdm(as_completed(futures), total=len(data), desc=f"Eval {os.path.basename(input_file)}"):
+                key, evaluated_item = future.result()
+                results[key] = evaluated_item
+                
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(results, f, indent=4, ensure_ascii=False)
 
