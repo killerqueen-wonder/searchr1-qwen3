@@ -3,12 +3,16 @@ import os
 import argparse
 import glob
 import sys
+import traceback
 
 # 1. 动态追踪父目录，跨级引用 shared_eval
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path: 
     sys.path.append(parent_dir)
+
+# 【同步修复 1】：锁定 lawbench_utils 的绝对路径，用于后续的“空间跳跃”
+lawbench_utils_dir = os.path.join(parent_dir, "lawbench_utils")
 
 from shared_eval import TRADITIONAL_FUNCT_DICT
 
@@ -27,7 +31,6 @@ def main():
     parser.add_argument('--output_path', type=str, required=True)
     args = parser.parse_args()
 
-    # 2. 扩充全局统计，新增传统管道分数追踪
     global_stats = {
         "total_count": 0, "total_score": 0.0, 
         "total_time": 0.0, "total_tool_latency": 0.0, "total_rag_count": 0, 
@@ -35,7 +38,6 @@ def main():
         "total_trad_score": 0.0, "total_trad_abs": 0.0, "trad_sample_size": 0
     }
     
-    # 3. 初始化大类统计容器
     category_totals = {
         cat: {
             "total_score": 0.0, "total_time": 0.0, "total_tool_latency": 0.0,
@@ -52,10 +54,32 @@ def main():
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        # 将 JSON 转为 List 送入传统函数
         items = data.values() if isinstance(data, dict) else data
         items_list = list(items)
         
+        # ==========================================================
+        # 【同步修复 2】：新增数据字段兼容性映射 (还原完整 prompt 与答案)
+        for item in items_list:
+            if "origin_prompt" not in item:
+                instruction = item.get("instruction", "")
+                q_text = item.get("question", "")
+                
+                # 修复换行符截取崩溃问题
+                if instruction.endswith("：") or instruction.endswith(":"):
+                    item["origin_prompt"] = f"{instruction}\n{q_text}"
+                else:
+                    item["origin_prompt"] = f"{instruction}{q_text}"
+                    
+            # 针对 2-1 等依赖特定换行符的任务的双重保险
+            if task_name == "2-1" and "origin_prompt" in item:
+                if "句子：" in item["origin_prompt"] and "句子：\n" not in item["origin_prompt"]:
+                    item["origin_prompt"] = item["origin_prompt"].replace("句子：", "句子：\n")
+            
+            # 兼容答案字段
+            if "answer" not in item and "refr" in item:
+                item["answer"] = item.get("refr", "")
+        # ==========================================================
+
         count = len(items_list)
         if count == 0: continue
         
@@ -73,19 +97,28 @@ def main():
         trad_score = None
         trad_abstention = None
         if task_name in TRADITIONAL_FUNCT_DICT:
+            original_cwd = os.getcwd() # 保存当前工作目录
             try:
+                # 【同步修复 3】：空间跳跃，确保传统脚本能找到它的 utils 目录
+                os.chdir(lawbench_utils_dir)
+                
                 score_res = TRADITIONAL_FUNCT_DICT[task_name](items_list)
                 trad_score = score_res.get("score", 0) * 100.0
                 if "abstention_rate" in score_res:
                     trad_abstention = score_res.get("abstention_rate", 0) * 100.0
             except Exception as e:
-                print(f"[ERROR] 任务 {task_name} 的传统评分计算失败: {e}")
+                # 【同步修复 4】：打印详细报错堆栈，拒绝当哑巴
+                print(f"\n[ERROR] 任务 {task_name} 的传统评分计算失败，详细追踪信息如下:")
+                traceback.print_exc()
+                print("="*50)
+            finally:
+                # 无论成功失败，必须切回原工作目录
+                os.chdir(original_cwd)
         else:
             print(f"[WARN] 找不到任务 {task_name} 的传统评分函数，该项传统分将记为 null。")
 
         task_category = CATEGORY_MAPPING.get(task_name, "unknown")
 
-        # 4. 构建 Task 层级结果
         task_results[task_name] = {
             "category": task_category,
             "avg_score": t_score / count,
@@ -101,7 +134,6 @@ def main():
             "sample_size": count
         }
         
-        # 累加到全局
         global_stats["total_count"] += count
         global_stats["total_score"] += t_score
         global_stats["total_time"] += t_time
@@ -118,7 +150,6 @@ def main():
                 global_stats["total_trad_abs"] += (trad_abstention * count)
             global_stats["trad_sample_size"] += count
 
-        # 累加到分类
         if task_category in category_totals:
             cat_stats = category_totals[task_category]
             cat_stats["total_score"] += t_score
@@ -137,7 +168,6 @@ def main():
                     cat_stats["total_trad_abs"] += (trad_abstention * count)
                 cat_stats["trad_sample_size"] += count
 
-    # 5. 计算分类微平均(Micro-average)
     category_breakdown = {}
     for cat, stats in category_totals.items():
         sz = stats["sample_size"]
@@ -157,7 +187,6 @@ def main():
             "sample_size": sz
         }
 
-    # 6. 构建最终报告
     g_count = global_stats["total_count"] if global_stats["total_count"] > 0 else 1
     g_trad_count = global_stats["trad_sample_size"]
     

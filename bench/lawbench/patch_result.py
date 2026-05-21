@@ -4,15 +4,14 @@ import argparse
 import glob
 import sys
 import traceback
+
 # 1. 动态追踪父目录，跨级引用 shared_eval
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path: 
     sys.path.append(parent_dir)
 
-# 新增：锁定 lawbench_utils 的绝对路径，一会要把执行目录切过去
 lawbench_utils_dir = os.path.join(parent_dir, "lawbench_utils")
-
 from shared_eval import TRADITIONAL_FUNCT_DICT
 
 CATEGORY_MAPPING = {
@@ -24,14 +23,33 @@ CATEGORY_MAPPING = {
     "3-5": "reasoning", "3-6": "reasoning", "3-7": "reasoning", "3-8": "consultation"
 }
 
+# =====================================================================
+# 【配置项】客观题（单选/多选）任务列表
+# 已经严格按照提供的类型标准进行分类
+OBJECTIVE_TASKS = {
+    "1-2", # 单选
+    "2-2", # 多选
+    "2-3", # 多选
+    "2-4", # 单选
+    "2-8", # 单选
+    "2-9", # 多选
+    "3-1", # 多选
+    "3-3", # 多选
+    "3-6"  # 单选
+} 
+# 其他如生成、抽取、回归等皆为主观题，将采用 LLM Judge 评分
+# =====================================================================
+
 def main():
-    parser = argparse.ArgumentParser(description="为旧轨迹文件打上传统得分补丁，生成新版双打分 Result")
+    parser = argparse.ArgumentParser(description="为旧轨迹文件打上传统得分补丁，并按主客观题混合计算总分")
     parser.add_argument('--old_traj_dir', type=str, required=True, help="旧的 Eval 轨迹 JSON 所在目录")
     parser.add_argument('--new_result_path', type=str, required=True, help="输出包含新旧双评分的最终 Result 文件路径")
     args = parser.parse_args()
 
     global_stats = {
-        "total_count": 0, "total_score": 0.0, 
+        "total_count": 0, 
+        "total_llm_score": 0.0,
+        "total_hybrid_score": 0.0, 
         "total_time": 0.0, "total_tool_latency": 0.0, "total_rag_count": 0, 
         "total_tokens": 0, "total_user_tokens": 0, "total_inter_tokens": 0, "total_comp_tokens": 0,
         "total_trad_score": 0.0, "total_trad_abs": 0.0, "trad_sample_size": 0
@@ -39,7 +57,9 @@ def main():
     
     category_totals = {
         cat: {
-            "total_score": 0.0, "total_time": 0.0, "total_tool_latency": 0.0,
+            "total_llm_score": 0.0, 
+            "total_hybrid_score": 0.0,
+            "total_time": 0.0, "total_tool_latency": 0.0,
             "total_rag_count": 0, "total_tokens": 0, "total_user_tokens": 0,
             "total_inter_tokens": 0, "total_comp_tokens": 0, "sample_size": 0,
             "total_trad_score": 0.0, "total_trad_abs": 0.0, "trad_sample_size": 0
@@ -57,34 +77,30 @@ def main():
         
         items = data.values() if isinstance(data, dict) else data
         items_list = list(items)
-
-        # === 新增：数据字段兼容性映射 (为了不修改底层 traditional 脚本) ===
+        
+        # === 兼容性映射 (还原 origin_prompt 防止传统脚本崩溃) ===
         for item in items_list:
             if "origin_prompt" not in item:
                 instruction = item.get("instruction", "")
                 q_text = item.get("question", "")
                 
-                # 关键修复：LawBench 的传统脚本 (如 2-1 wsjd) 严格依赖换行符 "\n" 进行原文截取。
-                # 如果 instruction 是以全角或半角冒号结尾，我们强行给它塞一个换行符进去。
                 if instruction.endswith("：") or instruction.endswith(":"):
                     item["origin_prompt"] = f"{instruction}\n{q_text}"
                 else:
                     item["origin_prompt"] = f"{instruction}{q_text}"
                     
-            # 双重保险：万一有的 origin_prompt 已经有了，但缺换行符
             if task_name == "2-1" and "origin_prompt" in item:
                 if "句子：" in item["origin_prompt"] and "句子：\n" not in item["origin_prompt"]:
                     item["origin_prompt"] = item["origin_prompt"].replace("句子：", "句子：\n")
             
-            # 兼容答案字段
             if "answer" not in item and "refr" in item:
                 item["answer"] = item.get("refr", "")
 
         count = len(items_list)
         if count == 0: continue
         
-        # === 读取旧管道分数 (LLM) ===
-        t_score = sum(item.get("eval_score", 0) for item in items_list)
+        # === 旧管道分数获取 (LLM) ===
+        t_llm_score = sum(item.get("eval_score", 0) for item in items_list)
         t_time = sum(item.get("metrics", {}).get("total_time_sec", 0) for item in items_list)
         t_tool = sum(item.get("metrics", {}).get("tool_latency_sec", 0) for item in items_list)
         t_rag = sum(item.get("metrics", {}).get("rag_count", 0) for item in items_list)
@@ -93,36 +109,44 @@ def main():
         t_inter = sum(item.get("metrics", {}).get("inter_agent_tokens", 0) for item in items_list)
         t_comp = sum(item.get("metrics", {}).get("completion_tokens", 0) for item in items_list)
 
-        # === 实时计算新管道分数 (传统打分) ===
-        # === 实时计算新管道分数 (传统打分) ===
+        # === 新管道分数计算 (传统精确匹配) ===
         trad_score = None
         trad_abstention = None
         if task_name in TRADITIONAL_FUNCT_DICT:
-            original_cwd = os.getcwd() # 保存当前的工作目录 (项目根目录)
+            original_cwd = os.getcwd()
             try:
-                # 【空间跳跃】：强行把运行目录切到 lawbench_utils 下，这样 wsjd.py 的 os.chdir('utils') 就能成功找到了
-                os.chdir(lawbench_utils_dir)
-                
+                os.chdir(lawbench_utils_dir) # 空间跳跃，读取词典文件
                 score_res = TRADITIONAL_FUNCT_DICT[task_name](items_list)
                 trad_score = score_res.get("score", 0) * 100.0
                 if "abstention_rate" in score_res:
                     trad_abstention = score_res.get("abstention_rate", 0) * 100.0
             except Exception as e:
-                
                 print(f"\n[ERROR] 任务 {task_name} 的传统评分计算失败，详细追踪信息如下:")
                 traceback.print_exc()
                 print("="*50)
             finally:
-                # 【强制拉回】：无论成功还是报错崩溃，绝对要把运行目录切回到原来的位置，防止后续读写文件路径错乱！
                 os.chdir(original_cwd)
         else:
-            print(f"[WARN] 找不到任务 {task_name} 的传统评分函数，该项记为 null。")
+            print(f"[WARN] 找不到任务 {task_name} 的传统评分函数，传统分记为 null。")
+
+        # =================================================================
+        # === 判断题型并计算混合得分 (Hybrid Score) ===
+        # =================================================================
+        is_objective = task_name in OBJECTIVE_TASKS
+        if is_objective:
+            # 客观题：优先使用传统得分。如果传统得分为 None (如运行出错)，则保底记 0 分。
+            t_hybrid_score = (trad_score if trad_score is not None else 0.0) * count
+        else:
+            # 主观题：使用 LLM Judge 得分。
+            t_hybrid_score = t_llm_score
 
         task_category = CATEGORY_MAPPING.get(task_name, "unknown")
 
         task_results[task_name] = {
             "category": task_category,
-            "avg_score": t_score / count,
+            "task_type": "objective" if is_objective else "subjective",
+            "avg_score": t_hybrid_score / count,             
+            "llm_judge_avg_score": t_llm_score / count,      
             "traditional_avg_score": trad_score,              
             "traditional_abstention_rate": trad_abstention,   
             "avg_time": t_time / count,
@@ -135,8 +159,10 @@ def main():
             "sample_size": count
         }
         
+        # 累加到全局
         global_stats["total_count"] += count
-        global_stats["total_score"] += t_score
+        global_stats["total_llm_score"] += t_llm_score
+        global_stats["total_hybrid_score"] += t_hybrid_score
         global_stats["total_time"] += t_time
         global_stats["total_tool_latency"] += t_tool
         global_stats["total_rag_count"] += t_rag
@@ -151,9 +177,11 @@ def main():
                 global_stats["total_trad_abs"] += (trad_abstention * count)
             global_stats["trad_sample_size"] += count
 
+        # 累加到大类统计
         if task_category in category_totals:
             cat_stats = category_totals[task_category]
-            cat_stats["total_score"] += t_score
+            cat_stats["total_llm_score"] += t_llm_score
+            cat_stats["total_hybrid_score"] += t_hybrid_score
             cat_stats["total_time"] += t_time
             cat_stats["total_tool_latency"] += t_tool
             cat_stats["total_rag_count"] += t_rag
@@ -169,13 +197,15 @@ def main():
                     cat_stats["total_trad_abs"] += (trad_abstention * count)
                 cat_stats["trad_sample_size"] += count
 
+    # === 计算大类微平均 (Micro-average) ===
     category_breakdown = {}
     for cat, stats in category_totals.items():
         sz = stats["sample_size"]
         t_sz = stats["trad_sample_size"]
         if sz == 0: continue
         category_breakdown[cat] = {
-            "avg_score": stats["total_score"] / sz,
+            "avg_score": stats["total_hybrid_score"] / sz,           
+            "llm_judge_avg_score": stats["total_llm_score"] / sz,    
             "traditional_avg_score": stats["total_trad_score"] / t_sz if t_sz > 0 else None,
             "traditional_abstention_rate": stats["total_trad_abs"] / t_sz if t_sz > 0 else None,
             "avg_time": stats["total_time"] / sz,
@@ -188,12 +218,14 @@ def main():
             "sample_size": sz
         }
 
+    # === 构建最终报告 ===
     g_count = global_stats["total_count"] if global_stats["total_count"] > 0 else 1
     g_trad_count = global_stats["trad_sample_size"]
     
     final_report = {
         "bench_name": "LawBench",
-        "global_average_score": global_stats["total_score"] / g_count,
+        "global_average_score": global_stats["total_hybrid_score"] / g_count,
+        "global_llm_judge_score": global_stats["total_llm_score"] / g_count,
         "traditional_global_average_score": global_stats["total_trad_score"] / g_trad_count if g_trad_count > 0 else None,
         "traditional_global_abstention_rate": global_stats["total_trad_abs"] / g_trad_count if g_trad_count > 0 else None,
         "efficiency": {
@@ -212,7 +244,7 @@ def main():
     os.makedirs(os.path.dirname(args.new_result_path), exist_ok=True)
     with open(args.new_result_path, "w", encoding="utf-8") as f:
         json.dump(final_report, f, indent=4, ensure_ascii=False)
-    print(f"\n✅ 补丁修复完成！包含双打分的全新报告已保存至: {args.new_result_path}")
+    print(f"\n✅ 补丁修复完成！包含主客观混合双打分的全新报告已保存至: {args.new_result_path}")
 
 if __name__ == "__main__":
     main()

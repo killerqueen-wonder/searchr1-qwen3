@@ -77,13 +77,10 @@ import os
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 lawbench_utils_dir = os.path.join(current_dir, "lawbench_utils")
-current_dir = os.path.dirname(os.path.abspath(__file__))
-lawbench_utils_dir = os.path.join(current_dir, "lawbench_utils")
 if lawbench_utils_dir not in sys.path:
     sys.path.append(lawbench_utils_dir)
 
 try:
-    # 2. 此时可以直接从 evaluation_functions 导入，因为上一句已经把环境配好了
     from evaluation_functions import (
         jec_ac, jec_kd, cjft, ydlj, ftcs, jdzy, jetq, 
         ljp_accusation, ljp_article, ljp_imprison, 
@@ -101,5 +98,5 @@ try:
         "2-9": sjjc.compute_sjjc, "2-10": sjjc.compute_cfcy
     }
 except ImportError as e:
-    logger.warning(f"未能导入 traditional evaluation_functions，若当前只运行评测推导可忽略: {e}")
+    logger.warning(f"未能导入 traditional evaluation_functions: {e}")
     TRADITIONAL_FUNCT_DICT = {}
