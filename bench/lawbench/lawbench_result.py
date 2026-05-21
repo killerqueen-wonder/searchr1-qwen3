@@ -11,9 +11,7 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path: 
     sys.path.append(parent_dir)
 
-# 【同步修复 1】：锁定 lawbench_utils 的绝对路径，用于后续的“空间跳跃”
 lawbench_utils_dir = os.path.join(parent_dir, "lawbench_utils")
-
 from shared_eval import TRADITIONAL_FUNCT_DICT
 
 CATEGORY_MAPPING = {
@@ -25,6 +23,22 @@ CATEGORY_MAPPING = {
     "3-5": "reasoning", "3-6": "reasoning", "3-7": "reasoning", "3-8": "consultation"
 }
 
+# =====================================================================
+# 【配置项】客观题（单选/多选）任务列表
+# 严格按照类型标准：所有“单选”“多选”的任务为客观题，其余为主观题
+OBJECTIVE_TASKS = {
+    "1-2", # 单选
+    "2-2", # 多选
+    "2-3", # 多选
+    "2-4", # 单选
+    "2-8", # 单选
+    "2-9", # 多选
+    "3-1", # 多选
+    "3-3", # 多选
+    "3-6"  # 单选
+}
+# =====================================================================
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--score_dir', type=str, required=True, help="含有 eval_score 的 JSON 目录")
@@ -32,7 +46,9 @@ def main():
     args = parser.parse_args()
 
     global_stats = {
-        "total_count": 0, "total_score": 0.0, 
+        "total_count": 0, 
+        "total_llm_score": 0.0,
+        "total_hybrid_score": 0.0, # 核心指标：混合得分池
         "total_time": 0.0, "total_tool_latency": 0.0, "total_rag_count": 0, 
         "total_tokens": 0, "total_user_tokens": 0, "total_inter_tokens": 0, "total_comp_tokens": 0,
         "total_trad_score": 0.0, "total_trad_abs": 0.0, "trad_sample_size": 0
@@ -40,7 +56,9 @@ def main():
     
     category_totals = {
         cat: {
-            "total_score": 0.0, "total_time": 0.0, "total_tool_latency": 0.0,
+            "total_llm_score": 0.0, 
+            "total_hybrid_score": 0.0,
+            "total_time": 0.0, "total_tool_latency": 0.0,
             "total_rag_count": 0, "total_tokens": 0, "total_user_tokens": 0,
             "total_inter_tokens": 0, "total_comp_tokens": 0, "sample_size": 0,
             "total_trad_score": 0.0, "total_trad_abs": 0.0, "trad_sample_size": 0
@@ -57,34 +75,29 @@ def main():
         items = data.values() if isinstance(data, dict) else data
         items_list = list(items)
         
-        # ==========================================================
-        # 【同步修复 2】：新增数据字段兼容性映射 (还原完整 prompt 与答案)
+        # === 数据字段兼容性映射 (还原 origin_prompt 与答案字段防止传统脚本崩溃) ===
         for item in items_list:
             if "origin_prompt" not in item:
                 instruction = item.get("instruction", "")
                 q_text = item.get("question", "")
                 
-                # 修复换行符截取崩溃问题
                 if instruction.endswith("：") or instruction.endswith(":"):
                     item["origin_prompt"] = f"{instruction}\n{q_text}"
                 else:
                     item["origin_prompt"] = f"{instruction}{q_text}"
                     
-            # 针对 2-1 等依赖特定换行符的任务的双重保险
             if task_name == "2-1" and "origin_prompt" in item:
                 if "句子：" in item["origin_prompt"] and "句子：\n" not in item["origin_prompt"]:
                     item["origin_prompt"] = item["origin_prompt"].replace("句子：", "句子：\n")
             
-            # 兼容答案字段
             if "answer" not in item and "refr" in item:
                 item["answer"] = item.get("refr", "")
-        # ==========================================================
 
         count = len(items_list)
         if count == 0: continue
         
-        # === 旧管道计算 (LLM) ===
-        t_score = sum(item.get("eval_score", 0) for item in items_list)
+        # === 旧管道分数获取 (LLM) ===
+        t_llm_score = sum(item.get("eval_score", 0) for item in items_list)
         t_time = sum(item.get("metrics", {}).get("total_time_sec", 0) for item in items_list)
         t_tool = sum(item.get("metrics", {}).get("tool_latency_sec", 0) for item in items_list)
         t_rag = sum(item.get("metrics", {}).get("rag_count", 0) for item in items_list)
@@ -93,35 +106,42 @@ def main():
         t_inter = sum(item.get("metrics", {}).get("inter_agent_tokens", 0) for item in items_list)
         t_comp = sum(item.get("metrics", {}).get("completion_tokens", 0) for item in items_list)
 
-        # === 新管道计算 (传统分数) ===
+        # === 新管道分数计算 (传统精确匹配 / F1 等规则) ===
         trad_score = None
         trad_abstention = None
         if task_name in TRADITIONAL_FUNCT_DICT:
-            original_cwd = os.getcwd() # 保存当前工作目录
+            original_cwd = os.getcwd()
             try:
-                # 【同步修复 3】：空间跳跃，确保传统脚本能找到它的 utils 目录
-                os.chdir(lawbench_utils_dir)
-                
+                os.chdir(lawbench_utils_dir) # 空间跳跃，读取词典文件
                 score_res = TRADITIONAL_FUNCT_DICT[task_name](items_list)
                 trad_score = score_res.get("score", 0) * 100.0
                 if "abstention_rate" in score_res:
                     trad_abstention = score_res.get("abstention_rate", 0) * 100.0
             except Exception as e:
-                # 【同步修复 4】：打印详细报错堆栈，拒绝当哑巴
                 print(f"\n[ERROR] 任务 {task_name} 的传统评分计算失败，详细追踪信息如下:")
                 traceback.print_exc()
                 print("="*50)
             finally:
-                # 无论成功失败，必须切回原工作目录
                 os.chdir(original_cwd)
         else:
-            print(f"[WARN] 找不到任务 {task_name} 的传统评分函数，该项传统分将记为 null。")
+            print(f"[WARN] 找不到任务 {task_name} 的传统评分函数，传统分记为 null。")
+
+        # === 判断题型并计算混合得分 (Hybrid Score) ===
+        is_objective = task_name in OBJECTIVE_TASKS
+        if is_objective:
+            # 客观题：采用传统评分。如果传统评分为 None，保底记 0 分
+            t_hybrid_score = (trad_score if trad_score is not None else 0.0) * count
+        else:
+            # 主观题：采用 LLM Judge 评分
+            t_hybrid_score = t_llm_score
 
         task_category = CATEGORY_MAPPING.get(task_name, "unknown")
 
         task_results[task_name] = {
             "category": task_category,
-            "avg_score": t_score / count,
+            "task_type": "objective" if is_objective else "subjective",
+            "avg_score": t_hybrid_score / count,             # 最终呈现：混合后分数
+            "llm_judge_avg_score": t_llm_score / count,      # 保留纯 LLM 判定分数供比对
             "traditional_avg_score": trad_score,              
             "traditional_abstention_rate": trad_abstention,   
             "avg_time": t_time / count,
@@ -134,8 +154,10 @@ def main():
             "sample_size": count
         }
         
+        # 累加到全局
         global_stats["total_count"] += count
-        global_stats["total_score"] += t_score
+        global_stats["total_llm_score"] += t_llm_score
+        global_stats["total_hybrid_score"] += t_hybrid_score
         global_stats["total_time"] += t_time
         global_stats["total_tool_latency"] += t_tool
         global_stats["total_rag_count"] += t_rag
@@ -150,9 +172,11 @@ def main():
                 global_stats["total_trad_abs"] += (trad_abstention * count)
             global_stats["trad_sample_size"] += count
 
+        # 累加到大类统计
         if task_category in category_totals:
             cat_stats = category_totals[task_category]
-            cat_stats["total_score"] += t_score
+            cat_stats["total_llm_score"] += t_llm_score
+            cat_stats["total_hybrid_score"] += t_hybrid_score
             cat_stats["total_time"] += t_time
             cat_stats["total_tool_latency"] += t_tool
             cat_stats["total_rag_count"] += t_rag
@@ -168,13 +192,15 @@ def main():
                     cat_stats["total_trad_abs"] += (trad_abstention * count)
                 cat_stats["trad_sample_size"] += count
 
+    # === 计算大类微平均 (Micro-average) ===
     category_breakdown = {}
     for cat, stats in category_totals.items():
         sz = stats["sample_size"]
         t_sz = stats["trad_sample_size"]
         if sz == 0: continue
         category_breakdown[cat] = {
-            "avg_score": stats["total_score"] / sz,
+            "avg_score": stats["total_hybrid_score"] / sz,           # 大类平均分采用混合分数
+            "llm_judge_avg_score": stats["total_llm_score"] / sz,    # 保留纯 LLM 大类平均分
             "traditional_avg_score": stats["total_trad_score"] / t_sz if t_sz > 0 else None,
             "traditional_abstention_rate": stats["total_trad_abs"] / t_sz if t_sz > 0 else None,
             "avg_time": stats["total_time"] / sz,
@@ -187,12 +213,14 @@ def main():
             "sample_size": sz
         }
 
+    # === 构建最终报告 ===
     g_count = global_stats["total_count"] if global_stats["total_count"] > 0 else 1
     g_trad_count = global_stats["trad_sample_size"]
     
     final_report = {
         "bench_name": "LawBench",
-        "global_average_score": global_stats["total_score"] / g_count,
+        "global_average_score": global_stats["total_hybrid_score"] / g_count, # 最终总分采用混合分数
+        "global_llm_judge_score": global_stats["total_llm_score"] / g_count,  # 保留纯 LLM 总分供对比
         "traditional_global_average_score": global_stats["total_trad_score"] / g_trad_count if g_trad_count > 0 else None,
         "traditional_global_abstention_rate": global_stats["total_trad_abs"] / g_trad_count if g_trad_count > 0 else None,
         "efficiency": {
@@ -211,7 +239,7 @@ def main():
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
     with open(args.output_path, "w", encoding="utf-8") as f:
         json.dump(final_report, f, indent=4, ensure_ascii=False)
-    print(f"LawBench 统计报告已生成: {args.output_path}")
+    print(f"LawBench 统计报告已成功生成: {args.output_path}")
 
 if __name__ == "__main__":
     main()

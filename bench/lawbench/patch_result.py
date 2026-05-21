@@ -23,33 +23,39 @@ CATEGORY_MAPPING = {
     "3-5": "reasoning", "3-6": "reasoning", "3-7": "reasoning", "3-8": "consultation"
 }
 
-# =====================================================================
-# 【配置项】客观题（单选/多选）任务列表
-# 已经严格按照提供的类型标准进行分类
+# 严格按照分类标准：所有“单选”“多选”的任务为客观题，其余为主观题
 OBJECTIVE_TASKS = {
-    "1-2", # 单选
-    "2-2", # 多选
-    "2-3", # 多选
-    "2-4", # 单选
-    "2-8", # 单选
-    "2-9", # 多选
-    "3-1", # 多选
-    "3-3", # 多选
-    "3-6"  # 单选
-} 
-# 其他如生成、抽取、回归等皆为主观题，将采用 LLM Judge 评分
+    "1-2", "2-2", "2-3", "2-4", "2-8", "2-9", "3-1", "3-3", "3-6"
+}
+
+# =====================================================================
+# 【新增：批量处理配置项】
+# 1. 在此处放入你想批量跑分数的旧轨迹文件夹路径列表（支持同时配置多个路径）
+BATCH_TRAJ_DIRS = [
+    "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/deepseek-v4-flash_scored",
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/A2Search-0516_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/lawgpt_0519_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/legalone-0517_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/luwen-0517_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-0503_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-AR-0520_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-AR-0521_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-no-RAG-0519-0143_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-SFT-AR-0521_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-post-train-0519_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/R-Search-0516_scored'
+
+]
+
+# 2. 批量处理时，默认生成的 fix 文件的输出保存根目录
+DEFAULT_OUTPUT_DIR = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench"
 # =====================================================================
 
-def main():
-    parser = argparse.ArgumentParser(description="为旧轨迹文件打上传统得分补丁，并按主客观题混合计算总分")
-    parser.add_argument('--old_traj_dir', type=str, required=True, help="旧的 Eval 轨迹 JSON 所在目录")
-    parser.add_argument('--new_result_path', type=str, required=True, help="输出包含新旧双评分的最终 Result 文件路径")
-    args = parser.parse_args()
 
+def run_single_evaluation(old_traj_dir, new_result_path):
+    """封装的单个目录核心打分计算逻辑"""
     global_stats = {
-        "total_count": 0, 
-        "total_llm_score": 0.0,
-        "total_hybrid_score": 0.0, 
+        "total_count": 0, "total_llm_score": 0.0, "total_hybrid_score": 0.0, 
         "total_time": 0.0, "total_tool_latency": 0.0, "total_rag_count": 0, 
         "total_tokens": 0, "total_user_tokens": 0, "total_inter_tokens": 0, "total_comp_tokens": 0,
         "total_trad_score": 0.0, "total_trad_abs": 0.0, "trad_sample_size": 0
@@ -57,8 +63,7 @@ def main():
     
     category_totals = {
         cat: {
-            "total_llm_score": 0.0, 
-            "total_hybrid_score": 0.0,
+            "total_llm_score": 0.0, "total_hybrid_score": 0.0,
             "total_time": 0.0, "total_tool_latency": 0.0,
             "total_rag_count": 0, "total_tokens": 0, "total_user_tokens": 0,
             "total_inter_tokens": 0, "total_comp_tokens": 0, "sample_size": 0,
@@ -67,10 +72,13 @@ def main():
     }
     
     task_results = {}
-
-    print(f"正在读取旧轨迹文件: {args.old_traj_dir} ...")
+    json_files = glob.glob(os.path.join(old_traj_dir, "*.json"))
     
-    for file_path in glob.glob(os.path.join(args.old_traj_dir, "*.json")):
+    if not json_files:
+        print(f"[WARN] 目录 {old_traj_dir} 中未扫描到任何 *.json 轨迹文件，跳过该项。")
+        return
+
+    for file_path in json_files:
         task_name = os.path.basename(file_path).replace(".json", "")
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -78,12 +86,11 @@ def main():
         items = data.values() if isinstance(data, dict) else data
         items_list = list(items)
         
-        # === 兼容性映射 (还原 origin_prompt 防止传统脚本崩溃) ===
+        # === 兼容性映射 (还原 origin_prompt 防止传统评分脚本因换行符切割失败崩溃) ===
         for item in items_list:
             if "origin_prompt" not in item:
                 instruction = item.get("instruction", "")
                 q_text = item.get("question", "")
-                
                 if instruction.endswith("：") or instruction.endswith(":"):
                     item["origin_prompt"] = f"{instruction}\n{q_text}"
                 else:
@@ -99,7 +106,7 @@ def main():
         count = len(items_list)
         if count == 0: continue
         
-        # === 旧管道分数获取 (LLM) ===
+        # === 旧管道分数获取 ===
         t_llm_score = sum(item.get("eval_score", 0) for item in items_list)
         t_time = sum(item.get("metrics", {}).get("total_time_sec", 0) for item in items_list)
         t_tool = sum(item.get("metrics", {}).get("tool_latency_sec", 0) for item in items_list)
@@ -109,35 +116,31 @@ def main():
         t_inter = sum(item.get("metrics", {}).get("inter_agent_tokens", 0) for item in items_list)
         t_comp = sum(item.get("metrics", {}).get("completion_tokens", 0) for item in items_list)
 
-        # === 新管道分数计算 (传统精确匹配) ===
+        # === 新管道传统分值计算 ===
         trad_score = None
         trad_abstention = None
         if task_name in TRADITIONAL_FUNCT_DICT:
             original_cwd = os.getcwd()
             try:
-                os.chdir(lawbench_utils_dir) # 空间跳跃，读取词典文件
+                os.chdir(lawbench_utils_dir) # 空间跳阅切换工作路径，确保内部依赖字典可被查阅
                 score_res = TRADITIONAL_FUNCT_DICT[task_name](items_list)
                 trad_score = score_res.get("score", 0) * 100.0
                 if "abstention_rate" in score_res:
                     trad_abstention = score_res.get("abstention_rate", 0) * 100.0
             except Exception as e:
-                print(f"\n[ERROR] 任务 {task_name} 的传统评分计算失败，详细追踪信息如下:")
+                print(f"\n[ERROR] 任务 {task_name} 的传统评分计算失败，详细堆栈如下:")
                 traceback.print_exc()
-                print("="*50)
+                print("=" * 50)
             finally:
-                os.chdir(original_cwd)
+                os.chdir(original_cwd) # 强制回归原始路径
         else:
             print(f"[WARN] 找不到任务 {task_name} 的传统评分函数，传统分记为 null。")
 
-        # =================================================================
-        # === 判断题型并计算混合得分 (Hybrid Score) ===
-        # =================================================================
+        # === 主客观分类计算最终合并得分 (Hybrid Score) ===
         is_objective = task_name in OBJECTIVE_TASKS
         if is_objective:
-            # 客观题：优先使用传统得分。如果传统得分为 None (如运行出错)，则保底记 0 分。
             t_hybrid_score = (trad_score if trad_score is not None else 0.0) * count
         else:
-            # 主观题：使用 LLM Judge 得分。
             t_hybrid_score = t_llm_score
 
         task_category = CATEGORY_MAPPING.get(task_name, "unknown")
@@ -159,7 +162,6 @@ def main():
             "sample_size": count
         }
         
-        # 累加到全局
         global_stats["total_count"] += count
         global_stats["total_llm_score"] += t_llm_score
         global_stats["total_hybrid_score"] += t_hybrid_score
@@ -177,7 +179,6 @@ def main():
                 global_stats["total_trad_abs"] += (trad_abstention * count)
             global_stats["trad_sample_size"] += count
 
-        # 累加到大类统计
         if task_category in category_totals:
             cat_stats = category_totals[task_category]
             cat_stats["total_llm_score"] += t_llm_score
@@ -193,11 +194,10 @@ def main():
             
             if trad_score is not None:
                 cat_stats["total_trad_score"] += (trad_score * count)
-                if trad_abstention is not None:
-                    cat_stats["total_trad_abs"] += (trad_abstention * count)
+                if whitespace_rate := trad_abstention:
+                    cat_stats["total_trad_abs"] += (whitespace_rate * count)
                 cat_stats["trad_sample_size"] += count
 
-    # === 计算大类微平均 (Micro-average) ===
     category_breakdown = {}
     for cat, stats in category_totals.items():
         sz = stats["sample_size"]
@@ -218,7 +218,6 @@ def main():
             "sample_size": sz
         }
 
-    # === 构建最终报告 ===
     g_count = global_stats["total_count"] if global_stats["total_count"] > 0 else 1
     g_trad_count = global_stats["trad_sample_size"]
     
@@ -241,10 +240,52 @@ def main():
         "task_breakdown": task_results
     }
 
-    os.makedirs(os.path.dirname(args.new_result_path), exist_ok=True)
-    with open(args.new_result_path, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(new_result_path), exist_ok=True)
+    with open(new_result_path, "w", encoding="utf-8") as f:
         json.dump(final_report, f, indent=4, ensure_ascii=False)
-    print(f"\n✅ 补丁修复完成！包含主客观混合双打分的全新报告已保存至: {args.new_result_path}")
+    print(f"--> [SUCCESS] 报告成功生成: {new_result_path}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="主客观分类混合评估补丁脚本 - 支持硬编码批量和单文件回归模式")
+    parser.add_argument('--old_traj_dir', type=str, required=False, default=None, help="旧的单任务 Eval 轨迹 JSON 所在目录")
+    parser.add_argument('--new_result_path', type=str, required=False, default=None, help="输出包含新旧双评分的单文件路径")
+    args = parser.parse_args()
+
+    # 1. 检测 BATCH_TRAJ_DIRS 列表是否包含元素，若不为空则执行【批量模式】
+    if BATCH_TRAJ_DIRS:
+        print(f"🚀 [检测到硬编码列表] 正在启动批量合并计算，预计处理 {len(BATCH_TRAJ_DIRS)} 个目录...")
+        for traj_dir in BATCH_TRAJ_DIRS:
+            traj_dir = traj_dir.rstrip("/")
+            if not os.path.isdir(traj_dir):
+                print(f"[ERROR] 目录不存在，跳过处理: {traj_dir}")
+                continue
+                
+            # 演绎文件名：提取最后一层文件夹名
+            folder_name = os.path.basename(traj_dir)
+            if "_scored" in folder_name:
+                base_model_name = folder_name.split("_scored")[0]
+            else:
+                base_model_name = folder_name
+                
+            # 构建输出相对路径名加上 _fix 后缀
+            target_filename = f"{base_model_name}_fix.json"
+            computed_output_path = os.path.join(DEFAULT_OUTPUT_DIR, target_filename)
+            
+            print(f"\n⚡ 正在处理: {folder_name} -> 目标文件名: {target_filename}")
+            run_single_evaluation(traj_dir, computed_output_path)
+        print("\n✨ 所有批量任务均已执行完毕。")
+        
+    # 2. 如果 BATCH_TRAJ_DIRS 列表为空，自动回归到接收终端参数的【旧单任务模式】
+    else:
+        print("ℹ️ [硬编码列表为空] 正在自动回归至旧有的命令行单条处理模式...")
+        if not args.old_traj_dir or not args.new_result_path:
+            print("\n[ERROR] 回归旧单任务模式失败：未通过命令行检测到 --old_traj_dir 或 --new_result_path 参数！")
+            print("请检查顶部列表变量 BATCH_TRAJ_DIRS 是否未正确配置，或在参数中补齐单文件路径。")
+            sys.exit(1)
+            
+        run_single_evaluation(args.old_traj_dir, args.new_result_path)
+
 
 if __name__ == "__main__":
     main()
