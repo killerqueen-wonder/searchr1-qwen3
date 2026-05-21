@@ -69,3 +69,27 @@ def parse_score_100(result_text):
         return 0 # 解析失败默认给0分
     except:
         return 0
+    
+
+# ================= 新增：传统评分管道配置 =================
+# 在此集中配置传统规则/F1的打分函数，供 lawbench_result.py 在统计阶段调用
+try:
+    from lawbench_evaluation_functions import (
+        jec_ac, jec_kd, cjft, ydlj, ftcs, jdzy, jetq, 
+        ljp_accusation, ljp_article, ljp_imprison, 
+        wbfl, xxcq, flzx, wsjd, yqzy, lblj, zxfl, sjjc
+    )
+    
+    TRADITIONAL_FUNCT_DICT = {
+        "3-6": jec_ac.compute_jec_ac, "1-2": jec_kd.compute_jec_kd, "3-2": cjft.compute_cjft,
+        "3-8": flzx.compute_flzx, "1-1": ftcs.compute_ftcs, "2-2": jdzy.compute_jdzy,
+        "3-7": jetq.compute_jetq, "3-3": ljp_accusation.compute_ljp_accusation,
+        "3-1": ljp_article.compute_ljp_article, "3-4": ljp_imprison.compute_ljp_imprison,
+        "3-5": ljp_imprison.compute_ljp_imprison, "2-3": wbfl.compute_wbfl,
+        "2-6": xxcq.compute_xxcq, "2-1": wsjd.compute_wsjd, "2-4": zxfl.compute_zxfl,
+        "2-7": yqzy.compute_yqzy, "2-8": lblj.compute_lblj, "2-5": ydlj.compute_ydlj,
+        "2-9": sjjc.compute_sjjc, "2-10": sjjc.compute_cfcy
+    }
+except ImportError as e:
+    logger.warning(f"未能导入 traditional evaluation_functions，若当前只运行评测推导可忽略: {e}")
+    TRADITIONAL_FUNCT_DICT = {}
