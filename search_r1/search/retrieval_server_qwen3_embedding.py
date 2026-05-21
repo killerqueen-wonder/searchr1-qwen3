@@ -150,7 +150,7 @@ args, unknown = parser.parse_known_args()
 
 global_config = Config(
     corpus_path=args.corpus_path,
-    retriever_model_path=args.retriever_model,
+    retrieval_model_path=args.retriever_model,  
     topk=args.topk,
     batch_size=args.batch_size,
     port=args.port,
