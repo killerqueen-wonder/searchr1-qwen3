@@ -3,12 +3,15 @@ import os
 import argparse
 import glob
 import sys
-
+import traceback
 # 1. 动态追踪父目录，跨级引用 shared_eval
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path: 
     sys.path.append(parent_dir)
+
+# 新增：锁定 lawbench_utils 的绝对路径，一会要把执行目录切过去
+lawbench_utils_dir = os.path.join(parent_dir, "lawbench_utils")
 
 from shared_eval import TRADITIONAL_FUNCT_DICT
 
@@ -91,19 +94,27 @@ def main():
         t_comp = sum(item.get("metrics", {}).get("completion_tokens", 0) for item in items_list)
 
         # === 实时计算新管道分数 (传统打分) ===
+        # === 实时计算新管道分数 (传统打分) ===
         trad_score = None
         trad_abstention = None
         if task_name in TRADITIONAL_FUNCT_DICT:
+            original_cwd = os.getcwd() # 保存当前的工作目录 (项目根目录)
             try:
+                # 【空间跳跃】：强行把运行目录切到 lawbench_utils 下，这样 wsjd.py 的 os.chdir('utils') 就能成功找到了
+                os.chdir(lawbench_utils_dir)
+                
                 score_res = TRADITIONAL_FUNCT_DICT[task_name](items_list)
                 trad_score = score_res.get("score", 0) * 100.0
                 if "abstention_rate" in score_res:
                     trad_abstention = score_res.get("abstention_rate", 0) * 100.0
             except Exception as e:
-                import traceback
+                
                 print(f"\n[ERROR] 任务 {task_name} 的传统评分计算失败，详细追踪信息如下:")
                 traceback.print_exc()
                 print("="*50)
+            finally:
+                # 【强制拉回】：无论成功还是报错崩溃，绝对要把运行目录切回到原来的位置，防止后续读写文件路径错乱！
+                os.chdir(original_cwd)
         else:
             print(f"[WARN] 找不到任务 {task_name} 的传统评分函数，该项记为 null。")
 
