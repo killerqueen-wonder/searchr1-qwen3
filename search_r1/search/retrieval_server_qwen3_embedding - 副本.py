@@ -139,7 +139,6 @@ class Qwen3Text2vecRetriever:
 # 预留给 argparse
 parser = argparse.ArgumentParser(description="Qwen3-Embedding RAG Retriever.")
 parser.add_argument("--corpus_path", type=str, required=True, help="知识库语料路径 (.jsonl)")
-parser.add_argument("--ccccc", type=str, required=True, help="知识库语料路径 (.jsonl)")
 parser.add_argument("--retriever_model", type=str, default="Qwen/Qwen3-Embedding-8B", help="Qwen3 模型路径")
 parser.add_argument("--topk", type=int, default=5, help="默认检索返回数")
 parser.add_argument("--batch_size", type=int, default=128, help="建库时的批大小")
