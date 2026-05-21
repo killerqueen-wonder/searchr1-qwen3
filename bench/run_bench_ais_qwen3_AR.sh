@@ -8,8 +8,8 @@ export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}" # 新增：Conda
 
 # ----------------- 模型路径与名称配置 -----------------
 # 1. 主路推理模型 (对应 MAIN_VLLM_PORT)
-export MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.3-0518-H20/global_step_90/actor/actor_merge"
-export MODEL_NAME="qwen3-8b-AR-0520"
+export MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/RL_ckp/legal_exam-ppo-qwen3-8b-RL-7.3-0520-H20/global_step_90/actor/actor_merge"
+export MODEL_NAME="qwen3-8b-AR-0521"
 
 # 2. 裁判模型配置 (对应 JUDGE_VLLM_PORT)
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
