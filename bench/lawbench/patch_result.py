@@ -57,11 +57,21 @@ def main():
 
         # === 新增：数据字段兼容性映射 (为了不修改底层 traditional 脚本) ===
         for item in items_list:
-            # 将 instruction 和 question 拼接，还原传统脚本期望的 origin_prompt
             if "origin_prompt" not in item:
                 instruction = item.get("instruction", "")
-                question = item.get("question", "")
-                item["origin_prompt"] = f"{instruction}{question}"
+                q_text = item.get("question", "")
+                
+                # 关键修复：LawBench 的传统脚本 (如 2-1 wsjd) 严格依赖换行符 "\n" 进行原文截取。
+                # 如果 instruction 是以全角或半角冒号结尾，我们强行给它塞一个换行符进去。
+                if instruction.endswith("：") or instruction.endswith(":"):
+                    item["origin_prompt"] = f"{instruction}\n{q_text}"
+                else:
+                    item["origin_prompt"] = f"{instruction}{q_text}"
+                    
+            # 双重保险：万一有的 origin_prompt 已经有了，但缺换行符
+            if task_name == "2-1" and "origin_prompt" in item:
+                if "句子：" in item["origin_prompt"] and "句子：\n" not in item["origin_prompt"]:
+                    item["origin_prompt"] = item["origin_prompt"].replace("句子：", "句子：\n")
             
             # 兼容答案字段
             if "answer" not in item and "refr" in item:
