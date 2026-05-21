@@ -55,6 +55,16 @@ def main():
         items = data.values() if isinstance(data, dict) else data
         items_list = list(items)
         
+        # === 新增：数据字段兼容性映射 (为了不修改底层 traditional 脚本) ===
+        for item in items_list:
+            # 如果传统脚本需要 'origin_prompt'，我们就把 'question' 复制给它
+            if "origin_prompt" not in item and "question" in item:
+                item["origin_prompt"] = item["question"]
+            
+            # 顺手兼容一下答案字段（有些传统脚本可能用 answer 替代 refr）
+            if "answer" not in item and "refr" in item:
+                item["answer"] = item["refr"]
+
         count = len(items_list)
         if count == 0: continue
         
