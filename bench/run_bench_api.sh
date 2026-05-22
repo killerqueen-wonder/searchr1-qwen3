@@ -47,12 +47,12 @@ export BASE_DIR="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1"
 export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
 export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
 WORKERS="${WORKERS:-32}"
-JUDGE_VLLM_PORT=8009
+JUDGE_VLLM_PORT=809
 PORT_TIMEOUT=1600  
 
 # 假端口，传给 infer 脚本作占位符（由于 shared_agent 做了短路，这些不会被真正请求）
-FAKE_VLLM_PORT=8007
-FAKE_SUMMARY_PORT=8008
+FAKE_VLLM_PORT=807
+FAKE_SUMMARY_PORT=808
 
 export CONDA_SH="/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh"
 
@@ -99,7 +99,7 @@ tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=0; \
     --model ${JUDGE_MODEL_PATH} \
     --served-model-name ${JUDGE_MODEL_NAME} \
     --port ${JUDGE_VLLM_PORT} \
-    --gpu-memory-utilization 0.7 \
+    --gpu-memory-utilization 0.9 \
     --max-model-len 10000 --enforce-eager || sleep 86400"
 info "已触发启动 Judge 裁判服务 (GPU: 1)"
 
