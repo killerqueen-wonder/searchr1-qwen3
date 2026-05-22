@@ -4,10 +4,6 @@ import jieba
 import string
 import re
 from collections import OrderedDict
-import traceback
-import torch
-import torch.nn as nn
-from transformers import BertTokenizer, BartForConditionalGeneration
 
 class BARTScorer:
     def __init__(self, device='cuda:0', max_length=1024, checkpoint='facebook/bart-large-cnn'):
@@ -53,9 +49,10 @@ class BARTScorer:
                     )
                     src_tokens = encoded_src['input_ids'].to(self.device)
                     src_mask = encoded_src['attention_mask'].to(self.device)
+
                     tgt_tokens = encoded_tgt['input_ids'].to(self.device)
-                    tgt_mask = encoded_tgt['attention_mask'].to(self.device)
-                    tgt_len = tgt_mask.sum(dim=1)
+                    tgt_mask = encoded_tgt['attention_mask']
+                    tgt_len = tgt_mask.sum(dim=1).to(self.device)
 
                     output = self.model(
                         input_ids=src_tokens,
@@ -76,81 +73,30 @@ class BARTScorer:
                 exit(0)
         return score_list
 
-# =====================================================================
-# 新版：基于关键词倒序定位的自定义抽取逻辑
-# =====================================================================
 def find_valid_substrings(s):
-    if not s:
-        return ""
-        
-    # 内部辅助函数：清洗并提取文本块中的 ABCDE
-    def extract_abcde_from_block(block_text):
-        # 1. 移除常见干扰标点和词汇
-        clean_text = block_text.replace("、", "").replace(".", "").replace(",", "").replace(";", "").replace("，", "").replace("和", "").replace(", ", "")
-        
-        # 2. 正则贪婪扫描大写的 ABCDE
-        pattern = r'[ABCDE]{1,5}'
-        substrings = re.findall(pattern, clean_text)
-        
-        # 3. 过滤出不包含重复字符的子串（如去掉 AAB，保留 AB）
-        valid_substrings = [sub for sub in substrings if len(sub) == len(set(sub))]
-        
-        # 4. 拼接并按首次出现顺序去重
-        merged_string = "".join(valid_substrings)
-        final_result = "".join(OrderedDict.fromkeys(merged_string))
-        
-        return final_result
-
-    # 1. 按换行符分割文本块
-    # 注意兼容大模型可能输出的多种换行格式
-    blocks = re.split(r'\n+', s.strip())
-    if not blocks:
-        return ""
-
-    # 2. 定义触发提取的关键词
-    keywords = ["答案", "回答","answer"]
-    
-    # 3. 寻找包含关键词的候选块
-    keyword_blocks = []
-    for block in blocks:
-        if any(kw in block for kw in keywords):
-            keyword_blocks.append(block)
-            
-    # --- 策略 A：存在包含关键词的文本块 ---
-    if keyword_blocks:
-        # 取最靠后的一个带关键词的文本块
-        target_block = keyword_blocks[-1]
-        return extract_abcde_from_block(target_block)
-        
-    # --- 策略 B：不存在包含关键词的文本块 ---
-    else:
-        # 倒序遍历所有文本块，寻找第一个能提取出非空结果的块
-        for block in reversed(blocks):
-            extracted = extract_abcde_from_block(block)
-            if extracted: # 只要提取结果不为空，就立刻返回
-                return extracted
-                
-    # 如果以上都没找到，返回空字符串
-    return ""
-
+    s = s.split('解析')[0].split('分析')[0]
+    s = s.replace("、", "").replace(".", "").replace(",", "").replace(";", "").replace("，", "").replace("和", "").replace(", ", "")
+    # 匹配长度为1到4的、不包含重复字符的子串
+    pattern = r'[ABCDE]{1,5}'
+    substrings = re.findall(pattern, s)
+    # 过滤出不包含重复字符的子串
+    valid_substrings = [substring for substring in substrings if len(substring) == len(set(substring))]
+    valid_substrings = "".join(valid_substrings)
+    valid_substrings= ''.join(OrderedDict.fromkeys(valid_substrings))
+    return valid_substrings
 
 def normalize_zh_answer(s):
     """Lower text and remove punctuation, extra whitespace."""
-    if s is None:
-        return ""
 
     def white_space_fix(text):
         return "".join(text.split())
 
     def remove_punc(text):
         cn_punctuation = "！？｡。＂＃＄％＆＇（）＊＋，－／：；＜＝＞＠［＼］＾＿｀｛｜｝～｟｠｢｣､、〃》「」『』【】〔〕〖〗〘〙〚〛〜〝〞〟〰〾〿–—‘’‛“”„‟…‧﹏."
-        en_punctuation = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'
-        punctuation = cn_punctuation + en_punctuation
-        return "".join(ch for ch in text if ch not in punctuation)
+        all_punctuation = set(string.punctuation + cn_punctuation)
+        return "".join(ch for ch in text if ch not in all_punctuation)
 
     def lower(text):
-        if text is None:
-            return ""
-        return str(text).lower()
+        return text.lower()
 
     return white_space_fix(remove_punc(lower(s)))

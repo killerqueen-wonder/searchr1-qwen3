@@ -6,47 +6,13 @@ import sys
 import re
 from collections import OrderedDict
 import traceback
-
+from process import BARTScorer, find_valid_substrings, normalize_zh_answer
 # 1. 放开递归限制，防止 Rouge-L 计算长文本时崩溃
 sys.setrecursionlimit(20000)
 
 import jieba
 from rouge import Rouge
 
-# =====================================================================
-# 底层文本处理与提取逻辑 (完全复刻 evaluate.py & process.py)
-# =====================================================================
-def find_valid_substrings(s):
-    if not s:
-        return ""
-    # 截断解析部分
-    s = s.split('解析')[0].split('分析')[0]
-    # 清洗标点
-    s = s.replace("、", "").replace(".", "").replace(",", "").replace(";", "").replace("，", "").replace("和", "").replace(", ", "")
-    # 正则提取 ABCDE 组合
-    pattern = r'[ABCDE]{1,5}'
-    substrings = re.findall(pattern, s)
-    # 过滤重复字符块，合并并去重
-    valid_substrings = [sub for sub in substrings if len(sub) == len(set(sub))]
-    valid_substrings = "".join(valid_substrings)
-    valid_substrings = ''.join(OrderedDict.fromkeys(valid_substrings))
-    return valid_substrings
-
-def normalize_zh_answer(s):
-    if s is None:
-        return ""
-    def white_space_fix(text):
-        return "".join(text.split())
-    def remove_punc(text):
-        cn_punctuation = "！？｡。＂＃＄％＆＇（）＊＋，－／：；＜＝＞＠［＼］＾＿｀｛｜｝～｟｠｢｣､、〃》「」『』【】〔〕〖〗〘〙〚〛〜〝〞〟〰〾〿–—‘’‛“”„‟…‧﹏."
-        en_punctuation = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'
-        punctuation = cn_punctuation + en_punctuation
-        return "".join(ch for ch in text if ch not in punctuation)
-    def lower(text):
-        if text is None:
-            return ""
-        return str(text).lower()
-    return white_space_fix(remove_punc(lower(s)))
 
 
 CATEGORY_MAPPING = {
