@@ -62,14 +62,15 @@ CATEGORY_MAPPING = {
 
 def main():
     parser = argparse.ArgumentParser(description="LexEval 传统评分白盒验证脚本")
-    parser.add_argument('--input_dir', type=str, required=True, help="模型输出目录 (含有 jsonl 文件)")
+    parser.add_argument('--input_dir', type=str, required=True, help="含有 LLM 评分的 _scored 目录")
     parser.add_argument('--output_dir', type=str, required=True, help="验证结果输出目录")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
     
-    # 动态推导模型名称（取输入路径的最后一级目录名）
-    model_name = os.path.basename(os.path.normpath(args.input_dir))
+    # 动态推导模型名称（自动剔除 _scored 后缀，保持命名整洁）
+    raw_model_name = os.path.basename(os.path.normpath(args.input_dir))
+    model_name = raw_model_name.replace("_scored", "")
     
     jsonl_files = glob.glob(os.path.join(args.input_dir, "*.jsonl"))
     if not jsonl_files:
@@ -78,19 +79,14 @@ def main():
 
     rouge_scorer = Rouge()
     
-    # 建立与 patch 完全一致的全局统计结构
     global_stats = {
         "total_count": 0, "total_llm_score": 0.0, "total_hybrid_score": 0.0, 
-        "total_time": 0.0, "total_tool_latency": 0.0, "total_rag_count": 0, 
-        "total_tokens": 0, "total_user_tokens": 0, "total_inter_tokens": 0, "total_comp_tokens": 0,
-        "total_trad_score": 0.0, "total_trad_abs": 0.0, "trad_sample_size": 0
+        "total_trad_score": 0.0, "trad_sample_size": 0
     }
     category_totals = {
         cat: {
-            "total_llm_score": 0.0, "total_hybrid_score": 0.0, "total_time": 0.0, "total_tool_latency": 0.0,
-            "total_rag_count": 0, "total_tokens": 0, "total_user_tokens": 0, "total_inter_tokens": 0, 
-            "total_comp_tokens": 0, "sample_size": 0, "total_trad_score": 0.0, "total_trad_abs": 0.0, 
-            "trad_sample_size": 0
+            "total_llm_score": 0.0, "total_hybrid_score": 0.0, "sample_size": 0, 
+            "total_trad_score": 0.0, "trad_sample_size": 0
         } for cat in set(CATEGORY_MAPPING.values())
     }
     task_results = {}
@@ -99,6 +95,7 @@ def main():
 
     for file_path in jsonl_files:
         raw_name = os.path.basename(file_path).replace(".jsonl", "")
+        # 正则提取真实任务ID
         match = re.search(r'(\d+_\d+)$', raw_name)
         task_name = match.group(1) if match else raw_name
         
@@ -113,7 +110,7 @@ def main():
                 if not line.strip(): continue
                 item = json.loads(line)
                 
-                # 1. 踢除 metrics 字段
+                # 1. 踢除 metrics 字段，让文件变清爽
                 item.pop("metrics", None)
                 
                 ans = item.get("output", "")
@@ -137,7 +134,6 @@ def main():
                         trad_score = scores[0]['rouge-l']['f'] * 100.0
                     except:
                         trad_score = 0.0
-                    # 对于主观题，将它最终被分词清洗后的序列放入 extracted_ans，便于你比对它是怎么算 Rouge 的
                     item["extracted_ans"] = norm_ans 
                     item["trad_score"] = trad_score
                 
@@ -152,7 +148,7 @@ def main():
             for item in processed_items:
                 out_f.write(json.dumps(item, ensure_ascii=False) + '\n')
                 
-        # 3. 统计汇总
+        # 3. 统计汇总 (完美读取已有的 LLM Score)
         t_llm_score = sum(item.get("eval_score", 0) for item in processed_items)
         t_trad_score = sum(item["trad_score"] for item in processed_items)
         
@@ -165,7 +161,7 @@ def main():
             "avg_score": t_hybrid_score / count,
             "llm_judge_avg_score": t_llm_score / count,
             "traditional_avg_score": t_trad_score / count,
-            "traditional_abstention_rate": 0, # 本白盒脚本不计算弃权率
+            "traditional_abstention_rate": 0,
             "avg_time": 0.0, "avg_tool_latency": 0.0, "avg_rag": 0.0,
             "avg_total_tokens": 0.0, "avg_user_tokens": 0.0, "avg_inter_tokens": 0.0, "avg_comp_tokens": 0.0,
             "sample_size": count
@@ -221,7 +217,7 @@ def main():
         json.dump(final_report, f, indent=4, ensure_ascii=False)
     
     print(f"\n✅ 传统评分白盒验证完毕！")
-    print(f"📁 带有 extracted_ans 和 trad_score 的轨迹文件已保存至: {args.output_dir}")
+    print(f"📁 包含 eval_score 与 trad_score 对比的轨迹文件已保存至: {args.output_dir}")
     print(f"📊 最终聚合报告已保存至: {result_json_path}")
 
 if __name__ == "__main__":
