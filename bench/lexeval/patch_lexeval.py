@@ -12,7 +12,6 @@ import torch
 import torch.nn as nn
 import pandas as pd
 import bert_score
-import argparse
 import jieba
 from transformers import BertTokenizer, BartForConditionalGeneration
 from typing import List
@@ -22,19 +21,14 @@ from tqdm import tqdm
 
 import numpy as np
 
+# =====================================================================
+# 内联 Evaluator 类：完美规避第三方库包名冲突
+# =====================================================================
 class Evaluator:
     '''
     Evaluating the score for a given task on a given metric from one model's output
     '''
     def __init__(self, file_path, task_type, metric, device='cpu', model_path=None):
-        '''
-        Args:
-            file_path: Input file path for the model's output
-            task_type: generation or multiple_choice task
-            metric: metrics for evaluation, f1 or accuracy for multiple choice and rouge-l, bertscore or bartscore for generation task
-            device: Using cuda or cpu to do evaluation
-            model_path: path for bert model or bart model, only useful if using bertscore or bartscore to evaluate
-        '''
         self.file_path = file_path
         if task_type == 'generation':
             self.task_type = task_type
@@ -45,114 +39,148 @@ class Evaluator:
                 if model_path != None:
                     self.model_path = model_path
                 else:
-                    raise ValueError(f"Lacking bert model for evaluation")
+                    raise ValueError(f"Lacking bert model path for bertscore")
             elif metric == 'Bartscore':
                 self.metric = metric
                 if model_path != None:
                     self.model_path = model_path
                 else:
-                    raise ValueError(f"Lacking bart model for evaluation")
+                    raise ValueError(f"Lacking bart model path for bartscore")
             else:
-                raise ValueError(f"Wrong metric for generation evaluation. It has to be 'Rouge_L', 'Bertscore' or 'Bartscore' but get {metric}")
+                raise ValueError(f"No metric {metric} for generation task!")
+
         elif task_type == 'multiple_choice':
             self.task_type = task_type
-            if metric == 'Accuracy' or metric == 'F1':
+            if metric == 'Accuracy':
+                self.metric = metric
+            elif metric == 'F1':
                 self.metric = metric
             else:
-                raise ValueError(f"Wrong metric for multiple choice evaluation. It has to be 'Accuracy' or 'F1' but get {metric}")
+                raise ValueError(f"No metric {metric} for multiple choice task!")
         else:
-            raise ValueError(f"Wrong task type for evaluation. It has to be 'generation' or 'multiple_choice', but get {task_type}")
+            raise ValueError(f"No task type {task_type}")
+
         self.device = device
         
+    def read_jsonl(self):
+        with jsonlines.open(self.file_path, "r") as r:
+            for obj in r:
+                yield obj
+                
     def eval_accuracy(self):
-        '''
-        Output the accuracy for the given file
-        '''
-        score = 0
-        num = 0
-        with jsonlines.open(self.file_path) as f:
-            for qa_one in f:
-                pred = find_valid_substrings(qa_one['output'])
-                if pred == qa_one['answer']:
-                    score += 1
-                num += 1
-        acc = score / num
-        return acc
-    
+        total_number = 0
+        correct_number = 0
+        for qa_one in self.read_jsonl():
+            if qa_one['output'] == "":
+                ans = ""
+            else:
+                ans = find_valid_substrings(qa_one['output'])
+            if qa_one['answer'] == ans:
+                correct_number += 1
+            total_number += 1
+        if total_number == 0:
+            return 0
+        return correct_number/total_number
+
     def eval_f1(self):
-        '''
-        Output the f1-score for the given file, refers to lawbench
-        '''    
-        with jsonlines.open(self.file_path) as f:
-            score = []
-            for qa_one in f:
-                pred = find_valid_substrings(qa_one['output'])
-                pred_set = set(pred)
-                gt_set = set(qa_one['answer'])
-                precision = len(pred_set.intersection(gt_set)) / len(pred_set) if len(pred_set) > 0 else 0
-                recall = len(pred_set.intersection(gt_set)) / len(gt_set) if len(gt_set) > 0 else 0
-                f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0
-                score.append(f1)
-            f1 = sum(score) / len(score)   
-        return f1
-    
+        total_number = 0
+        score = 0
+        for qa_one in self.read_jsonl():
+            if qa_one['output'] == "":
+                ans = ""
+            else:
+                ans = find_valid_substrings(qa_one['output'])
+            s1 = set(ans)
+            s2 = set(qa_one['answer'])
+            if len(s1) == 0:
+                p = 0
+            else:
+                p = len(s1 & s2) / len(s1)
+            
+            if len(s2) == 0:
+                r = 0
+            else:
+                r = len(s1 & s2) / len(s2)
+            
+            if p+r == 0:
+                f1 = 0
+            else:
+                f1 = 2*p*r/(p+r)
+            score += f1
+            total_number += 1
+        if total_number == 0:
+            return 0
+        return score/total_number
+
     def eval_rougel(self):
-        '''
-        Output the Rouge-L score for the given file
-        '''
-        with jsonlines.open(self.file_path) as f:
-            score = []
-            for qa_one in f:
-                pred = " ".join(list(jieba.cut(normalize_zh_answer(qa_one['output']), cut_all=False)))
-                ans = " ".join(list(jieba.cut(normalize_zh_answer(qa_one['answer']), cut_all=False)))
-                rouge = Rouge()
-                try:
-                    score.append(rouge.get_scores([pred], [ans], avg=True)["rouge-l"]["f"])
-                except:
-                    score.append(0.0)
-        rouge_l = sum(score) / len(score)
-        return rouge_l
-    
-    def eval_bertscore(self, batch_size=10):
-        '''
-        Output the bertscore for the given file
-        '''
-        with jsonlines.open(self.file_path) as f:
-            all_qa = [qa_one for qa_one in f]
-        all_pred, all_gt = [qa_one['output'] for qa_one in all_qa], [qa_one['answer'] for qa_one in all_qa]
-        assert (len(all_pred) == len(all_gt))
-        score_p, score_r, score_f1 = bert_score.score(all_pred, all_gt, lang='zh', verbose=False, model_type=self.model_path, num_layers=8, device=self.device, batch_size=batch_size)
-        bertscore = (sum(score_f1) / len(score_f1)).item()
-        return bertscore
-    
-    def eval_bartscore(self, batch_size=10):
-        '''
-        Output the bartscore for the given file
-        '''
-        with jsonlines.open(self.file_path) as f:
-            all_qa = [qa_one for qa_one in f]
-        all_pred, all_gt = [qa_one['output'] for qa_one in all_qa], [qa_one['answer'] for qa_one in all_qa]
-        bart_calculator = BARTScorer(checkpoint=self.model_path)
-        score = bart_calculator.score(all_pred, all_gt, batch_size=batch_size)
-        bartscore = sum(score) / len(score)
-        return bartscore
-    
+        total_number = 0
+        score = 0
+        rouge = Rouge()
+        for qa_one in self.read_jsonl():
+            if qa_one['output'] == "":
+                ans = "没有 答案"
+            else:
+                ans = " ".join(list(jieba.cut(normalize_zh_answer(qa_one['output']), cut_all=False)))
+            
+            ref = " ".join(list(jieba.cut(normalize_zh_answer(qa_one['answer']), cut_all=False)))
+            
+            if len(ans) == 0:
+                ans = "没有 答案"
+            if len(ref) == 0:
+                ref = "没有 答案"
+            s = rouge.get_scores(ans, ref)
+            score += s[0]['rouge-l']['f']
+            total_number += 1
+        if total_number == 0:
+            return 0
+        return score/total_number
+
+    def eval_bertscore(self):
+        import logging
+        import transformers
+        transformers.tokenization_utils.logger.setLevel(logging.ERROR)
+        transformers.configuration_utils.logger.setLevel(logging.ERROR)
+        transformers.modeling_utils.logger.setLevel(logging.ERROR)
+
+        preds = []
+        refs = []
+        for qa_one in self.read_jsonl():
+            if qa_one['output'] == "":
+                preds.append("没有答案")
+            else:
+                preds.append(qa_one['output'])
+            refs.append(qa_one['answer'])
+        _, _, F1 = bert_score.score(preds, refs, model_type=self.model_path, num_layers=9, device=self.device)
+        return F1.mean().item()
+
+    def eval_bartscore(self):
+        bart_scorer = BARTScorer(device=self.device, checkpoint=self.model_path)
+        preds = []
+        refs = []
+        for qa_one in self.read_jsonl():
+            if qa_one['output'] == "":
+                preds.append("没有答案")
+            else:
+                preds.append(qa_one['output'])
+            refs.append(qa_one['answer'])
+        score = bart_scorer.score(preds, refs)
+        return np.mean(score)
+            
     def eval(self):
-        '''
-        Output the evaluation result for the given file on the given metric
-        '''
-        if self.task_type == 'generation':
-            if self.metric == 'Rouge_L':
-                return self.eval_rougel()
-            elif self.metric == 'Bertscore':
-                return self.eval_bertscore()
-            elif self.metric == 'Bartscore':
-                return self.eval_bartscore()
-        elif self.task_type == 'multiple_choice':
-            if self.metric == 'Accuracy':
-                return self.eval_accuracy()
-            elif self.metric == 'F1':
-                return self.eval_f1()
+        if self.metric == 'Accuracy':
+            return self.eval_accuracy()
+        elif self.metric == 'F1':
+            return self.eval_f1()
+        elif self.metric == 'Rouge_L':
+            return self.eval_rougel()
+        elif self.metric == 'Bertscore':
+            return self.eval_bertscore()
+        elif self.metric == 'Bartscore':
+            return self.eval_bartscore()
+            
+# =====================================================================
+# 常量及参数配置
+# =====================================================================
 
 CATEGORY_MAPPING = {
     "1_1": "understanding", "1_2": "knowledge", "1_3": "reasoning",
@@ -167,6 +195,17 @@ CATEGORY_MAPPING = {
 
 BATCH_TRAJ_DIRS = [
     "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/deepseek-v4-flash_scored",
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/A2Search-0516_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/lawgpt_0517_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/legalone-0517_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/luwen-0517_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/qwen3-8b-0503_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/qwen3-8b-AR-0520_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/qwen3-8b-AR-0521_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/qwen3-8b-no-RAG-0519-0143_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/qwen3-8b-SFT-AR-0521_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/qwen3-post-train-0519_scored',
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/LexEval/evaluation_output/R-Search-0516_scored'
 ]
 
 DEFAULT_OUTPUT_DIR = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lexeval"
@@ -199,13 +238,11 @@ def run_single_evaluation(old_traj_dir, new_result_path):
     for file_path in jsonl_files:
         raw_name = os.path.basename(file_path).replace(".jsonl", "")
         
-        # 【核心修复】：使用正则提取真实的 task ID（如从 deepseek-v4-flash_5_1 提取出 5_1）
         match = re.search(r'(\d+_\d+)$', raw_name)
         task_name = match.group(1) if match else raw_name
         
         items_list = []
         
-        # === 【分类逻辑】：基于干净的 task_name 进行判断 ===
         is_subjective = task_name.startswith("5_")
         is_objective = not is_subjective
         
@@ -214,7 +251,6 @@ def run_single_evaluation(old_traj_dir, new_result_path):
             for line in f:
                 if line.strip():
                     item = json.loads(line)
-                    # 处理 null 答案，保护底层 evaluate.py 不崩溃，单条0分逻辑不变
                     if item.get("answer") is None:
                         item["answer"] = ""  
                         has_null = True
@@ -230,7 +266,6 @@ def run_single_evaluation(old_traj_dir, new_result_path):
                 for item in items_list:
                     tf.write(json.dumps(item, ensure_ascii=False) + '\n')
         
-        # === LLM 管道分数获取 ===
         t_llm_score = sum(item.get("eval_score", 0) for item in items_list)
         t_time = sum(item.get("metrics", {}).get("total_time_sec", 0) for item in items_list)
         t_tool = sum(item.get("metrics", {}).get("tool_latency_sec", 0) for item in items_list)
@@ -240,18 +275,18 @@ def run_single_evaluation(old_traj_dir, new_result_path):
         t_inter = sum(item.get("metrics", {}).get("inter_agent_tokens", 0) for item in items_list)
         t_comp = sum(item.get("metrics", {}).get("completion_tokens", 0) for item in items_list)
 
-        # === 调用 evaluate.py 的传统评分 ===
         trad_score = None
         trad_abstention = None
 
         if Evaluator is not None:
             try:
+                # 恢复了全量传统评分：无论是多选还是生成题，都会算出自己的 trad_score
                 if is_objective:
                     evaluator = Evaluator(file_path=safe_file_path, task_type='multiple_choice', metric='Accuracy')
                 else:
                     evaluator = Evaluator(file_path=safe_file_path, task_type='generation', metric='Rouge_L')
                 trad_score_val = evaluator.eval()
-                trad_score = trad_score_val * 100.0 # 转百分制
+                trad_score = trad_score_val * 100.0 
             except Exception as e:
                 print(f"\n[ERROR] 任务 {task_name} 的传统评分计算失败:")
                 traceback.print_exc()
@@ -259,7 +294,7 @@ def run_single_evaluation(old_traj_dir, new_result_path):
                 if has_null and os.path.exists(safe_file_path):
                     os.remove(safe_file_path)
 
-        # === 主客观融合计分 (Hybrid Score) ===
+        # 核心：半传统融合打分规则，客观题采用传统分数，主观题采用大模型分数
         if is_objective:
             t_hybrid_score = (trad_score if trad_score is not None else 0.0) * count
         else:
@@ -267,7 +302,6 @@ def run_single_evaluation(old_traj_dir, new_result_path):
 
         task_category = CATEGORY_MAPPING.get(task_name, "unknown")
 
-        # 写入 task_results 时使用干净的任务名（如 "5_1"）
         task_results[task_name] = {
             "category": task_category,
             "task_type": "subjective" if is_subjective else "objective",
@@ -386,6 +420,14 @@ def main():
             base_model_name = folder_name.split("_scored")[0] if "_scored" in folder_name else folder_name
             target_filename = f"{base_model_name}_lexeval_fix.json"
             computed_output_path = os.path.join(DEFAULT_OUTPUT_DIR, target_filename)
+            
+            # ===============================================================
+            # 新增逻辑：提前检查目标输出路径是否存在
+            # 如果存在则打印跳过信息，进入下一个循环，节约时间
+            # ===============================================================
+            if os.path.exists(computed_output_path):
+                print(f"\n⏭️  [缓存命中] 已检测到目标文件存在: {target_filename}，避免重复计算，正在跳过...")
+                continue
             
             print(f"\n⚡ 正在处理: {folder_name} -> 目标文件名: {target_filename}")
             run_single_evaluation(traj_dir, computed_output_path)
