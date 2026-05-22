@@ -12,12 +12,12 @@ export EMBEDDING_MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal
 export MODEL_NAME="qwen3-embedding-0522-1557"
 
 # 2. 裁判模型配置 (对应 JUDGE_VLLM_PORT)
-export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
-export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
+export JUDGE_MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B"
+export JUDGE_MODEL_NAME="Qwen3-8B-Judge"
 
 # 3. 总结模型配置 (对应 SUMMARY_VLLM_PORT)
-export SUMMARY_MODEL_PATH="${SUMMARY_MODEL_PATH:-/F00120250029/lixiang_share/Models/Qwen3-8B}"
-export SUMMARY_MODEL_NAME="${SUMMARY_MODEL_NAME:-Qwen3-8B}"
+export SUMMARY_MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B"
+export SUMMARY_MODEL_NAME="Qwen3-8B"
 
 WORKERS="${WORKERS:-32}"
 
