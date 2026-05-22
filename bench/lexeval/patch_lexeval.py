@@ -20,6 +20,7 @@ from process import BARTScorer, find_valid_substrings, normalize_zh_answer
 from tqdm import tqdm
 
 import numpy as np
+sys.setrecursionlimit(20000)
 
 # =====================================================================
 # 内联 Evaluator 类：完美规避第三方库包名冲突
