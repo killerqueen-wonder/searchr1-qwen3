@@ -18,6 +18,7 @@ from typing import List
 from rouge import Rouge
 from process import BARTScorer, find_valid_substrings, normalize_zh_answer
 from tqdm import tqdm
+import tempfile
 
 import numpy as np
 
