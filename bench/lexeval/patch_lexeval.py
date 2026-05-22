@@ -7,16 +7,152 @@ import traceback
 import tempfile
 import re
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path: 
-    sys.path.append(parent_dir)
+import jsonlines
+import torch
+import torch.nn as nn
+import pandas as pd
+import bert_score
+import argparse
+import jieba
+from transformers import BertTokenizer, BartForConditionalGeneration
+from typing import List
+from rouge import Rouge
+from process import BARTScorer, find_valid_substrings, normalize_zh_answer
+from tqdm import tqdm
 
-try:
-    from evaluate import Evaluator
-except ImportError:
-    print("[WARN] 无法从 evaluate.py 导入 Evaluator。传统评分可能无法正常工作。")
-    Evaluator = None
+import numpy as np
+
+class Evaluator:
+    '''
+    Evaluating the score for a given task on a given metric from one model's output
+    '''
+    def __init__(self, file_path, task_type, metric, device='cpu', model_path=None):
+        '''
+        Args:
+            file_path: Input file path for the model's output
+            task_type: generation or multiple_choice task
+            metric: metrics for evaluation, f1 or accuracy for multiple choice and rouge-l, bertscore or bartscore for generation task
+            device: Using cuda or cpu to do evaluation
+            model_path: path for bert model or bart model, only useful if using bertscore or bartscore to evaluate
+        '''
+        self.file_path = file_path
+        if task_type == 'generation':
+            self.task_type = task_type
+            if metric == 'Rouge_L':
+                self.metric = metric
+            elif metric == 'Bertscore':
+                self.metric = metric
+                if model_path != None:
+                    self.model_path = model_path
+                else:
+                    raise ValueError(f"Lacking bert model for evaluation")
+            elif metric == 'Bartscore':
+                self.metric = metric
+                if model_path != None:
+                    self.model_path = model_path
+                else:
+                    raise ValueError(f"Lacking bart model for evaluation")
+            else:
+                raise ValueError(f"Wrong metric for generation evaluation. It has to be 'Rouge_L', 'Bertscore' or 'Bartscore' but get {metric}")
+        elif task_type == 'multiple_choice':
+            self.task_type = task_type
+            if metric == 'Accuracy' or metric == 'F1':
+                self.metric = metric
+            else:
+                raise ValueError(f"Wrong metric for multiple choice evaluation. It has to be 'Accuracy' or 'F1' but get {metric}")
+        else:
+            raise ValueError(f"Wrong task type for evaluation. It has to be 'generation' or 'multiple_choice', but get {task_type}")
+        self.device = device
+        
+    def eval_accuracy(self):
+        '''
+        Output the accuracy for the given file
+        '''
+        score = 0
+        num = 0
+        with jsonlines.open(self.file_path) as f:
+            for qa_one in f:
+                pred = find_valid_substrings(qa_one['output'])
+                if pred == qa_one['answer']:
+                    score += 1
+                num += 1
+        acc = score / num
+        return acc
+    
+    def eval_f1(self):
+        '''
+        Output the f1-score for the given file, refers to lawbench
+        '''    
+        with jsonlines.open(self.file_path) as f:
+            score = []
+            for qa_one in f:
+                pred = find_valid_substrings(qa_one['output'])
+                pred_set = set(pred)
+                gt_set = set(qa_one['answer'])
+                precision = len(pred_set.intersection(gt_set)) / len(pred_set) if len(pred_set) > 0 else 0
+                recall = len(pred_set.intersection(gt_set)) / len(gt_set) if len(gt_set) > 0 else 0
+                f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0
+                score.append(f1)
+            f1 = sum(score) / len(score)   
+        return f1
+    
+    def eval_rougel(self):
+        '''
+        Output the Rouge-L score for the given file
+        '''
+        with jsonlines.open(self.file_path) as f:
+            score = []
+            for qa_one in f:
+                pred = " ".join(list(jieba.cut(normalize_zh_answer(qa_one['output']), cut_all=False)))
+                ans = " ".join(list(jieba.cut(normalize_zh_answer(qa_one['answer']), cut_all=False)))
+                rouge = Rouge()
+                try:
+                    score.append(rouge.get_scores([pred], [ans], avg=True)["rouge-l"]["f"])
+                except:
+                    score.append(0.0)
+        rouge_l = sum(score) / len(score)
+        return rouge_l
+    
+    def eval_bertscore(self, batch_size=10):
+        '''
+        Output the bertscore for the given file
+        '''
+        with jsonlines.open(self.file_path) as f:
+            all_qa = [qa_one for qa_one in f]
+        all_pred, all_gt = [qa_one['output'] for qa_one in all_qa], [qa_one['answer'] for qa_one in all_qa]
+        assert (len(all_pred) == len(all_gt))
+        score_p, score_r, score_f1 = bert_score.score(all_pred, all_gt, lang='zh', verbose=False, model_type=self.model_path, num_layers=8, device=self.device, batch_size=batch_size)
+        bertscore = (sum(score_f1) / len(score_f1)).item()
+        return bertscore
+    
+    def eval_bartscore(self, batch_size=10):
+        '''
+        Output the bartscore for the given file
+        '''
+        with jsonlines.open(self.file_path) as f:
+            all_qa = [qa_one for qa_one in f]
+        all_pred, all_gt = [qa_one['output'] for qa_one in all_qa], [qa_one['answer'] for qa_one in all_qa]
+        bart_calculator = BARTScorer(checkpoint=self.model_path)
+        score = bart_calculator.score(all_pred, all_gt, batch_size=batch_size)
+        bartscore = sum(score) / len(score)
+        return bartscore
+    
+    def eval(self):
+        '''
+        Output the evaluation result for the given file on the given metric
+        '''
+        if self.task_type == 'generation':
+            if self.metric == 'Rouge_L':
+                return self.eval_rougel()
+            elif self.metric == 'Bertscore':
+                return self.eval_bertscore()
+            elif self.metric == 'Bartscore':
+                return self.eval_bartscore()
+        elif self.task_type == 'multiple_choice':
+            if self.metric == 'Accuracy':
+                return self.eval_accuracy()
+            elif self.metric == 'F1':
+                return self.eval_f1()
 
 CATEGORY_MAPPING = {
     "1_1": "understanding", "1_2": "knowledge", "1_3": "reasoning",
