@@ -93,13 +93,13 @@ wait_for_port() {
 }
 
 kill_session "vllm_judge"
-tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=1; \
+tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=0; \
     source $CONDA_SH && conda activate vllm_server; \
     python -m vllm.entrypoints.openai.api_server \
     --model ${JUDGE_MODEL_PATH} \
     --served-model-name ${JUDGE_MODEL_NAME} \
     --port ${JUDGE_VLLM_PORT} \
-    --gpu-memory-utilization 0.9 \
+    --gpu-memory-utilization 0.7 \
     --max-model-len 10000 --enforce-eager || sleep 86400"
 info "已触发启动 Judge 裁判服务 (GPU: 1)"
 
@@ -109,41 +109,41 @@ info "Judge 模型就绪！开始执行 API 评测！🚀"
 
 
 # ================= 3. UCL Bench =================
-# info "================== [1/3] UCL Bench (API Mode) =================="
-# source $CONDA_SH
-# conda activate searchr1_new
+info "================== [1/3] UCL Bench (API Mode) =================="
+source $CONDA_SH
+conda activate searchr1_new
 
-# UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
-# UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score.json"
-# UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl.json"
-# UCL_CHATGPT_REF="${BASE_DIR}/dataset/result/res_result/qwen3_8B_eval_result.json" 
+UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
+UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score.json"
+UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl.json"
+UCL_CHATGPT_REF="${BASE_DIR}/dataset/result/res_result/qwen3_8B_eval_result.json" 
 
-# # infer_脚本的参数原样传递，但在 shared_agent 内部会被短路
-# info " -> 1. 推理阶段"
-# python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_infer.py \
-#     --data_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
-#     --result_path "${UCL_RES_PATH}" \
-#     --model_name "${MODEL_NAME}" \
-#     --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
-#     --summary_port ${FAKE_SUMMARY_PORT} \
-#     --retrieve_path "http://127.0.0.1:8005/retrieve" \
-#     --max_turn 12 --topk 10 --workers ${WORKERS} --retriever True
+# infer_脚本的参数原样传递，但在 shared_agent 内部会被短路
+info " -> 1. 推理阶段"
+python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_infer.py \
+    --data_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
+    --result_path "${UCL_RES_PATH}" \
+    --model_name "${MODEL_NAME}" \
+    --vllm_url "http://127.0.0.1:${FAKE_VLLM_PORT}" \
+    --summary_port ${FAKE_SUMMARY_PORT} \
+    --retrieve_path "http://127.0.0.1:8005/retrieve" \
+    --max_turn 12 --topk 10 --workers ${WORKERS} --retriever True
 
-# info " -> 2. 评测阶段"
-# python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval.py \
-#     --chatgpt_result_path "${UCL_CHATGPT_REF}" \
-#     --model_result_path "${UCL_RES_PATH}" \
-#     --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
-#     --result_path "${UCL_SCORE_PATH}" \
-#     --judge_port ${JUDGE_VLLM_PORT} \
-#     --judge_model_name "${JUDGE_MODEL_NAME}" \
-#     --workers ${WORKERS}
+info " -> 2. 评测阶段"
+python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval.py \
+    --chatgpt_result_path "${UCL_CHATGPT_REF}" \
+    --model_result_path "${UCL_RES_PATH}" \
+    --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
+    --result_path "${UCL_SCORE_PATH}" \
+    --judge_port ${JUDGE_VLLM_PORT} \
+    --judge_model_name "${JUDGE_MODEL_NAME}" \
+    --workers ${WORKERS}
 
-# info " -> 3. 统计汇总"
-# python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
-#     --score_path "${UCL_SCORE_PATH}" \
-#     --inference_path "${UCL_RES_PATH}" \
-#     --output_path "${UCL_RESULT_PATH}"
+info " -> 3. 统计汇总"
+python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
+    --score_path "${UCL_SCORE_PATH}" \
+    --inference_path "${UCL_RES_PATH}" \
+    --output_path "${UCL_RESULT_PATH}"
 
 
 # ================= 4. LawBench =================
