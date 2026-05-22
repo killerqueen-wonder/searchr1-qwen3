@@ -193,16 +193,7 @@ CATEGORY_MAPPING = {
     "6_3": "consultation"
 }
 
-# Define objective tasks based on lexeval format (from evaluate.py logic)
-# As per instructions: multiple_choice -> traditional, generation -> LLM
-# I need to infer which task is multiple_choice. The evaluate.py shows:
-# 1_2, 2_1, 2_2, 2_4, 3_1, 3_2, 3_3, 4_1, 4_2 are multiple_choice (usually these output "Accuracy")
-# Let's map it based on common lexeval setups, or we can look inside the files if needed.
-# From evaluate.py, it seems we might need to know the task type.
-# A safe way is to check the format of the output/answer, but let's define the standard LexEval objective tasks:
-OBJECTIVE_TASKS = {
-    "1_2", "2_1", "2_2", "2_4", "3_1", "3_2", "3_3", "4_1", "4_2"
-}
+
 
 # =====================================================================
 # [Configuration] Batch Processing
@@ -237,21 +228,40 @@ def run_single_evaluation(old_traj_dir, new_result_path):
     jsonl_files = glob.glob(os.path.join(old_traj_dir, "*.jsonl"))
     
     if not jsonl_files:
-        print(f"[WARN] 目录 {old_traj_dir} 中未扫描到任何 *.jsonl 轨迹文件，跳过该项。")
+        print(f"[WARN] 目录 {old_traj_dir} 中未扫描到任何 *.jsonl 轨迹文件。")
         return
 
     for file_path in jsonl_files:
         task_name = os.path.basename(file_path).replace(".jsonl", "")
         items_list = []
+        
+        # === 【核心逻辑】：只有 5_ 开头的是主观题 ===
+        is_subjective = task_name.startswith("5_")
+        is_objective = not is_subjective
+        
+        has_null = False
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
                 if line.strip():
-                    items_list.append(json.loads(line))
+                    item = json.loads(line)
+                    # 【核心拦截】：处理 null 答案，保护底层 evaluate.py 不崩溃
+                    if item.get("answer") is None:
+                        item["answer"] = ""  # 置空，底层计算时自然会判定错并得 0 分
+                        has_null = True
+                    items_list.append(item)
         
         count = len(items_list)
         if count == 0: continue
         
-        # === LLM Pipeline Scores ===
+        # 如果存在 null 数据，创建一个安全的沙盒临时文件给 evaluate.py 读取
+        safe_file_path = file_path
+        if has_null:
+            fd, safe_file_path = tempfile.mkstemp(suffix='.jsonl', text=True)
+            with os.fdopen(fd, 'w', encoding='utf-8') as tf:
+                for item in items_list:
+                    tf.write(json.dumps(item, ensure_ascii=False) + '\n')
+        
+        # === LLM 管道分数获取 ===
         t_llm_score = sum(item.get("eval_score", 0) for item in items_list)
         t_time = sum(item.get("metrics", {}).get("total_time_sec", 0) for item in items_list)
         t_tool = sum(item.get("metrics", {}).get("tool_latency_sec", 0) for item in items_list)
@@ -261,26 +271,27 @@ def run_single_evaluation(old_traj_dir, new_result_path):
         t_inter = sum(item.get("metrics", {}).get("inter_agent_tokens", 0) for item in items_list)
         t_comp = sum(item.get("metrics", {}).get("completion_tokens", 0) for item in items_list)
 
-        # === Traditional Scoring using evaluate.py ===
+        # === 调用 evaluate.py 的传统评分 ===
         trad_score = None
         trad_abstention = None
-        is_objective = task_name in OBJECTIVE_TASKS
 
         if Evaluator is not None:
             try:
                 if is_objective:
-                    evaluator = Evaluator(file_path=file_path, task_type='multiple_choice', metric='Accuracy')
-                    trad_score_val = evaluator.eval()
-                    trad_score = trad_score_val * 100.0 # Convert to percentage
+                    evaluator = Evaluator(file_path=safe_file_path, task_type='multiple_choice', metric='Accuracy')
                 else:
-                    evaluator = Evaluator(file_path=file_path, task_type='generation', metric='Rouge_L')
-                    trad_score_val = evaluator.eval()
-                    trad_score = trad_score_val * 100.0
+                    evaluator = Evaluator(file_path=safe_file_path, task_type='generation', metric='Rouge_L')
+                trad_score_val = evaluator.eval()
+                trad_score = trad_score_val * 100.0 # 转百分制
             except Exception as e:
                 print(f"\n[ERROR] 任务 {task_name} 的传统评分计算失败:")
                 traceback.print_exc()
+            finally:
+                # 销毁沙盒临时文件
+                if has_null and os.path.exists(safe_file_path):
+                    os.remove(safe_file_path)
 
-        # === Hybrid Score Calculation ===
+        # === 主客观融合计分 (Hybrid Score) ===
         if is_objective:
             t_hybrid_score = (trad_score if trad_score is not None else 0.0) * count
         else:
@@ -290,7 +301,7 @@ def run_single_evaluation(old_traj_dir, new_result_path):
 
         task_results[task_name] = {
             "category": task_category,
-            "task_type": "objective" if is_objective else "subjective",
+            "task_type": "subjective" if is_subjective else "objective",
             "avg_score": t_hybrid_score / count,             
             "llm_judge_avg_score": t_llm_score / count,      
             "traditional_avg_score": trad_score,              
@@ -388,7 +399,6 @@ def run_single_evaluation(old_traj_dir, new_result_path):
         json.dump(final_report, f, indent=4, ensure_ascii=False)
     print(f"--> [SUCCESS] 报告成功生成: {new_result_path}")
 
-
 def main():
     parser = argparse.ArgumentParser(description="LexEval 主客观分类混合评估补丁脚本")
     parser.add_argument('--old_traj_dir', type=str, required=False, default=None)
@@ -404,11 +414,7 @@ def main():
                 continue
                 
             folder_name = os.path.basename(traj_dir)
-            if "_scored" in folder_name:
-                base_model_name = folder_name.split("_scored")[0]
-            else:
-                base_model_name = folder_name
-                
+            base_model_name = folder_name.split("_scored")[0] if "_scored" in folder_name else folder_name
             target_filename = f"{base_model_name}_lexeval_fix.json"
             computed_output_path = os.path.join(DEFAULT_OUTPUT_DIR, target_filename)
             
@@ -416,10 +422,6 @@ def main():
             run_single_evaluation(traj_dir, computed_output_path)
         print("\n✨ 所有批量任务均已执行完毕。")
     else:
-        print("ℹ️ [硬编码列表为空] 正在自动回归至旧有的命令行单条处理模式...")
-        if not args.old_traj_dir or not args.new_result_path:
-            print("\n[ERROR] 回归旧单任务模式失败：未通过命令行检测到 --old_traj_dir 或 --new_result_path 参数！")
-            sys.exit(1)
         run_single_evaluation(args.old_traj_dir, args.new_result_path)
 
 if __name__ == "__main__":

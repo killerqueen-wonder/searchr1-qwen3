@@ -66,17 +66,45 @@ def evaluate_file(input_file, output_file, port, model_name, workers):
     dataset = []
     with open(input_file, 'r', encoding='utf-8') as f:
         for line in f:
-            if line.strip(): 
-                dataset.append(json.loads(line.strip()))
-    
+            if line.strip():
+                dataset.append(json.loads(line))
+                
     results = [None] * len(dataset)
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        # 传入 idx
-        futures = {executor.submit(process_single_item, item, idx, port, model_name): idx for idx, item in enumerate(dataset)}
-        for future in tqdm(as_completed(futures), total=len(dataset), desc=f"Eval {os.path.basename(input_file)}"):
-            idx = futures[future]
-            results[idx] = future.result()[1]
-            
+    task_name = os.path.basename(input_file).replace(".jsonl", "")
+
+    # 【核心修改 1】：只有 5_ 开头的任务才是主观题
+    is_subjective = task_name.startswith("5_")
+
+    if not is_subjective:
+        logger.info(f"⏩ 任务 {task_name} 是客观题，跳过 LLM Judge 打分...")
+        for idx, item in enumerate(dataset):
+            out_item = item.copy()
+            # 【核心修改 2】：拦截 null 答案
+            if out_item.get("answer") is None:
+                out_item["eval_score"] = 0
+                out_item["eval_reason"] = "[系统拦截] 答案为 null，直接判 0 分。"
+            else:
+                out_item["eval_score"] = 0
+                out_item["eval_reason"] = "[系统拦截] 客观题，直接走传统精确匹配评测，无需大模型裁判。"
+            results[idx] = out_item
+    else:
+        logger.info(f"🧠 任务 {task_name} 是主观题，启动 LLM Judge 打分...")
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {}
+            for idx, item in enumerate(dataset):
+                # 主观题同样拦截 null 答案
+                if item.get("answer") is None:
+                    out_item = item.copy()
+                    out_item["eval_score"] = 0
+                    out_item["eval_reason"] = "[系统拦截] 答案为 null，直接判 0 分。"
+                    results[idx] = out_item
+                else:
+                    futures[executor.submit(process_single_item, item, idx, port, model_name)] = idx
+                    
+            for future in tqdm(as_completed(futures), total=len(futures), desc=f"Eval {os.path.basename(input_file)}"):
+                idx = futures[future]
+                results[idx] = future.result()[1]
+                
     with open(output_file, 'w', encoding='utf-8') as f:
         for res in results:
             if res is not None:

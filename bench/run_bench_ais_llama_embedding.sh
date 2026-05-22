@@ -108,7 +108,7 @@ info "已触发启动 Llama-Nemotron 检索器 (Port: $RETRIEVER_PORT, GPU: 3)"
 
 sleep 15
 
-# --- 3.2 启动总结与评测 vLLM (独占 1, 2 卡) ---
+# --- 3.2 启动总结与评测 vLLM ---
 kill_session "vllm_summary_llama"
 tmux new -d -s vllm_summary_llama "export TRITON_CACHE_DIR=~/.triton/cache_vllm_summary_llama; export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${SUMMARY_MODEL_PATH} --served-model-name ${SUMMARY_MODEL_NAME} --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.85 --max-model-len 20000 || sleep 86400"
 info "已触发启动 vLLM 总结模型 (Port: $SUMMARY_VLLM_PORT, GPU: 3)"
