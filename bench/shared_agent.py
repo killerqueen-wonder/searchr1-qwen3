@@ -454,7 +454,7 @@ class VLLM_Retriever_Agent:
                         if not content: # 兼容不同的键名
                             content = doc_item.get("document", {}).get("contents", "")
                         doc_texts.append(f"[文档 {idx+1}] {content}")
-                    doc_texts.append("总结性回答：")
+                    doc_texts.append("回答：")
                     retrieved_text = "\n".join(doc_texts)
                     if not retrieved_text.strip():
                         retrieved_text = "未检索到相关文档。"
