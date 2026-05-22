@@ -6,7 +6,7 @@ import sys
 import re
 from collections import OrderedDict
 import traceback
-from process import BARTScorer, find_valid_substrings, normalize_zh_answer
+from process import find_valid_substrings, normalize_zh_answer
 # 1. 放开递归限制，防止 Rouge-L 计算长文本时崩溃
 sys.setrecursionlimit(20000)
 
