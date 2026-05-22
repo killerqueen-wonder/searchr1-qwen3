@@ -434,6 +434,53 @@ class VLLM_Retriever_Agent:
             elif "r-search" in self.model_name.lower() or "r_search" in self.model_name.lower():
                 return self._gen_r_search(question)
             
+            elif "embedding" in self.model_name.lower():
+                # 直接将问题组装为法律检索格式
+                payload = {
+                    "query": {
+                        "检索类型": "法律检索",
+                        "关键词": question
+                    },
+                    "topk": self.topk
+                }
+                
+                t0 = time.time()
+                try:
+                    res = requests.post(self.retrieve_path, json=payload, timeout=1200).json()
+                    docs = res.get("result", [])
+                    doc_texts = []
+                    for idx, doc_item in enumerate(docs):
+                        content = doc_item.get("document", {}).get("content", "")
+                        if not content: # 兼容不同的键名
+                            content = doc_item.get("document", {}).get("contents", "")
+                        doc_texts.append(f"[文档 {idx+1}] {content}")
+                    
+                    retrieved_text = "\n".join(doc_texts)
+                    if not retrieved_text.strip():
+                        retrieved_text = "未检索到相关文档。"
+                except Exception as e:
+                    logger.error(f"Embedding 检索异常: {str(e)}")
+                    retrieved_text = f"检索失败: {str(e)}"
+                    
+                # 伪造 metrics 返回，供下游统计
+                agent_metrics = {
+                    "tool_latency_sec": time.time() - t0, 
+                    "rag_count": 1,
+                    "user_prompt_tokens": len(question),
+                    "main_total_prompt_tokens": len(question), 
+                    "main_total_comp_tokens": len(retrieved_text)
+                }
+                
+                if random.randint(1, 64) == 1:
+                    logger.info(
+                        f"\n========== [Trace Monitor 1/64] Model: {self.model_name} ==========\n"
+                        f"[Prompt (Keyword)]: {question}\n\n"
+                        f"[Retrieved Docs]:\n{retrieved_text[:500]}...\n"
+                        f"==================================================================\n"
+                    )
+                # 直接将检索结果当作 history 返回
+                return retrieved_text, agent_metrics
+            
             # ===== 修复区：新增 Qwen3 的本地直通专线 =====
             elif "qwen" in self.model_name.lower():
                 formatted_prompt = f"<|im_start|>user\n{question}<|im_end|>\n<|im_start|>assistant\n"
@@ -642,16 +689,25 @@ def get_universal_vllm_summary(query, history, port, model_name="Qwen3-8B"):
         return history, 0, 0
     # ================================================================
 
-    prompt = (
-        "你是一个专业、严谨的法律AI助手。请根据下方提供的【原问题】与系统的【思维链解析】，提取并整理出最终答案。\n\n"
-        "【核心规则】：\n"
-        "1. 请针对原问题，给出一份具备精准证据支撑、逻辑推理清晰深刻、结论完全正确且表述专业的总结性回答。\n"
-        "2. 必须剔除所有 `<search>`, `<syllogism>`, `<answer>` 等内部标签及机器检索痕迹，将相关法条和类案的核心内容无缝融汇到你的最终解答中。\n"
-        "3. 直接向用户呈现最终结果，不要包含“根据系统解析”等机器视角的客套话。\n\n"
-        f"【原问题】：{query}\n"
-        f"【思维链解析】：{history}\n\n"
-        "最终答案："
-    )
+    if os.getenv("EMBEDDING_PIPELINE", "false").lower() == "true":
+        prompt = (
+            "请严格根据以下问题和检索结果，给出一份表述专业的总结性回答。\n"
+            f"【原问题】：{query}\n"
+            f"【检索结果】：{history}\n"
+        )
+    else:
+        # 原有的推理大模型 Prompt
+        prompt = (
+            "你是一个专业、严谨的法律AI助手。请根据下方提供的【原问题】与系统的【思维链解析】，提取并整理出最终答案。\n\n"
+            "【核心规则】：\n"
+            "1. 请针对原问题，给出一份具备精准证据支撑、逻辑推理清晰深刻、结论完全正确且表述专业的总结性回答。\n"
+            "2. 必须剔除所有 `<search>`, `<syllogism>`, `<answer>` 等内部标签及机器检索痕迹，将相关法条和类案的核心内容无缝融汇到你的最终解答中。\n"
+            "3. 直接向用户呈现最终结果，不要包含“根据系统解析”等机器视角的客套话。\n\n"
+            f"【原问题】：{query}\n"
+            f"【思维链解析】：{history}\n\n"
+            "最终答案："
+        )
+    
     url = f"http://127.0.0.1:{port}/v1/completions"
     payload = {"model": model_name, "prompt": prompt, "max_tokens": 1024, "temperature": 0.1}
     
