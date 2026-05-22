@@ -16,12 +16,13 @@ import jieba
 from transformers import BertTokenizer, BartForConditionalGeneration
 from typing import List
 from rouge import Rouge
-from process import BARTScorer, find_valid_substrings, normalize_zh_answer
+from process import  find_valid_substrings, normalize_zh_answer
+# from process import BARTScorer, find_valid_substrings, normalize_zh_answer
 from tqdm import tqdm
 
 import numpy as np
 
-
+sys.setrecursionlimit(20000)
 # =====================================================================
 # 内联 Evaluator 类：完美规避第三方库包名冲突
 # =====================================================================
@@ -136,36 +137,36 @@ class Evaluator:
             return 0
         return score/total_number
 
-    def eval_bertscore(self):
-        import logging
-        import transformers
-        transformers.tokenization_utils.logger.setLevel(logging.ERROR)
-        transformers.configuration_utils.logger.setLevel(logging.ERROR)
-        transformers.modeling_utils.logger.setLevel(logging.ERROR)
+    # def eval_bertscore(self):
+    #     import logging
+    #     import transformers
+    #     transformers.tokenization_utils.logger.setLevel(logging.ERROR)
+    #     transformers.configuration_utils.logger.setLevel(logging.ERROR)
+    #     transformers.modeling_utils.logger.setLevel(logging.ERROR)
 
-        preds = []
-        refs = []
-        for qa_one in self.read_jsonl():
-            if qa_one['output'] == "":
-                preds.append("没有答案")
-            else:
-                preds.append(qa_one['output'])
-            refs.append(qa_one['answer'])
-        _, _, F1 = bert_score.score(preds, refs, model_type=self.model_path, num_layers=9, device=self.device)
-        return F1.mean().item()
+    #     preds = []
+    #     refs = []
+    #     for qa_one in self.read_jsonl():
+    #         if qa_one['output'] == "":
+    #             preds.append("没有答案")
+    #         else:
+    #             preds.append(qa_one['output'])
+    #         refs.append(qa_one['answer'])
+    #     _, _, F1 = bert_score.score(preds, refs, model_type=self.model_path, num_layers=9, device=self.device)
+    #     return F1.mean().item()
 
-    def eval_bartscore(self):
-        bart_scorer = BARTScorer(device=self.device, checkpoint=self.model_path)
-        preds = []
-        refs = []
-        for qa_one in self.read_jsonl():
-            if qa_one['output'] == "":
-                preds.append("没有答案")
-            else:
-                preds.append(qa_one['output'])
-            refs.append(qa_one['answer'])
-        score = bart_scorer.score(preds, refs)
-        return np.mean(score)
+    # def eval_bartscore(self):
+    #     bart_scorer = BARTScorer(device=self.device, checkpoint=self.model_path)
+    #     preds = []
+    #     refs = []
+    #     for qa_one in self.read_jsonl():
+    #         if qa_one['output'] == "":
+    #             preds.append("没有答案")
+    #         else:
+    #             preds.append(qa_one['output'])
+    #         refs.append(qa_one['answer'])
+    #     score = bart_scorer.score(preds, refs)
+    #     return np.mean(score)
             
     def eval(self):
         if self.metric == 'Accuracy':
@@ -174,10 +175,10 @@ class Evaluator:
             return self.eval_f1()
         elif self.metric == 'Rouge_L':
             return self.eval_rougel()
-        elif self.metric == 'Bertscore':
-            return self.eval_bertscore()
-        elif self.metric == 'Bartscore':
-            return self.eval_bartscore()
+        # elif self.metric == 'Bertscore':
+        #     return self.eval_bertscore()
+        # elif self.metric == 'Bartscore':
+        #     return self.eval_bartscore()
             
 # =====================================================================
 # 常量及参数配置
