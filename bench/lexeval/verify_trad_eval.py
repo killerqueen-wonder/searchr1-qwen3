@@ -38,7 +38,8 @@ def main():
     raw_model_name = os.path.basename(os.path.normpath(args.input_dir))
     model_name = raw_model_name.replace("_scored", "")
     
-    jsonl_files = glob.glob(os.path.join(args.input_dir, "*.jsonl"))
+    jsonl_files = ['panghuaiwen_share/legal_R1/LexEval/evaluation_output/deepseek-v4-flash_scored/deepseek-v4-flash_2_2.jsonl']
+    # jsonl_files = glob.glob(os.path.join(args.input_dir, "*.jsonl"))
     if not jsonl_files:
         print(f"[WARN] 输入目录 {args.input_dir} 中未扫描到任何 *.jsonl 文件。")
         return
