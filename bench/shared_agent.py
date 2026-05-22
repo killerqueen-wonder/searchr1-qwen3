@@ -684,7 +684,7 @@ def get_universal_vllm_summary(query, history, port, model_name="Qwen3-8B"):
     
     
     # ================== 新增：纯 API 模式下直接透传 ==================
-    if os.getenv("USE_DIRECT_API", "false").lower() == "true":
+    if os.getenv("USE_DIRECT_API", "false").lower() == "true" and os.getenv("EMBEDDING_PIPELINE", "false").lower() != "true":
         # 直接把 gen() 跑出来的原始回答当做 summary 返回，跳过额外请求
         return history, 0, 0
     # ================================================================
