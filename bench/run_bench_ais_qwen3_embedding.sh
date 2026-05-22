@@ -9,7 +9,7 @@ export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 # 1. Embedding 模型配置 (RAG 组件)
 export EMBEDDING_MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/models--Qwen--Qwen3-Embedding-8B"
 # 注意：MODEL_NAME 必须包含 "embedding"，以触发 shared_agent 的专属线路
-export MODEL_NAME="qwen3-embedding-0522-1557"
+export MODEL_NAME="qwen3-embedding-0522-2130"
 
 # 2. 裁判模型配置 (对应 JUDGE_VLLM_PORT)
 export JUDGE_MODEL_PATH="/F00120250029/lixiang_share/Models/Qwen3-8B"
