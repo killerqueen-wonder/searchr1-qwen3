@@ -419,7 +419,7 @@ def main():
                 
             folder_name = os.path.basename(traj_dir)
             base_model_name = folder_name.split("_scored")[0] if "_scored" in folder_name else folder_name
-            target_filename = f"{base_model_name}_lexeval_fix.json"
+            target_filename = f"{base_model_name}_lexeval_fix_0522.json"
             computed_output_path = os.path.join(DEFAULT_OUTPUT_DIR, target_filename)
             
             # ===============================================================
