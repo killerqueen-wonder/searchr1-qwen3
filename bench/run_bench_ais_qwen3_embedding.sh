@@ -213,29 +213,29 @@ LEXEVAL_PRED_DIR="${BASE_DIR}/LexEval/model_output/zero_shot/${MODEL_NAME}"
 LEXEVAL_SCORE_DIR="${BASE_DIR}/LexEval/evaluation_output/${MODEL_NAME}_scored"
 LEXEVAL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lexeval/${MODEL_NAME}_lexeval.json"
 
-info " -> 1. 推理阶段 (Embedding + Summary)"
-for folder_id in {1..6}; do
-    if [ "$folder_id" -eq 1 ]; then max_file=3
-    elif [ "$folder_id" -eq 2 ]; then max_file=5
-    elif [ "$folder_id" -eq 3 ]; then max_file=6
-    elif [ "$folder_id" -eq 4 ]; then max_file=2
-    elif [ "$folder_id" -eq 5 ]; then max_file=4
-    elif [ "$folder_id" -eq 6 ]; then max_file=3
-    fi
-    for (( j=1; j<=$max_file; j++ )); do
-        FILE_PATH="${BASE_DIR}/LexEval/data/${folder_id}_${j}.json"
-        if [ -f "$FILE_PATH" ]; then
-            python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_infer.py \
-                --f_path "$FILE_PATH" \
-                --model_name "${MODEL_NAME}" \
-                --output_dir "${LEXEVAL_PRED_DIR}" \
-                --vllm_url "http://127.0.0.1:${SUMMARY_VLLM_PORT}" \
-                --summary_port ${SUMMARY_VLLM_PORT} \
-                --retrieve_path "${RETRIEVE_PATH}" \
-                --workers ${WORKERS}
-        fi
-    done
-done
+# info " -> 1. 推理阶段 (Embedding + Summary)"
+# for folder_id in {1..6}; do
+#     if [ "$folder_id" -eq 1 ]; then max_file=3
+#     elif [ "$folder_id" -eq 2 ]; then max_file=5
+#     elif [ "$folder_id" -eq 3 ]; then max_file=6
+#     elif [ "$folder_id" -eq 4 ]; then max_file=2
+#     elif [ "$folder_id" -eq 5 ]; then max_file=4
+#     elif [ "$folder_id" -eq 6 ]; then max_file=3
+#     fi
+#     for (( j=1; j<=$max_file; j++ )); do
+#         FILE_PATH="${BASE_DIR}/LexEval/data/${folder_id}_${j}.json"
+#         if [ -f "$FILE_PATH" ]; then
+#             python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_infer.py \
+#                 --f_path "$FILE_PATH" \
+#                 --model_name "${MODEL_NAME}" \
+#                 --output_dir "${LEXEVAL_PRED_DIR}" \
+#                 --vllm_url "http://127.0.0.1:${SUMMARY_VLLM_PORT}" \
+#                 --summary_port ${SUMMARY_VLLM_PORT} \
+#                 --retrieve_path "${RETRIEVE_PATH}" \
+#                 --workers ${WORKERS}
+#         fi
+#     done
+# done
 
 info " -> 2. 评测阶段"
 python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_eval.py \

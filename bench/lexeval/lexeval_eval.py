@@ -81,6 +81,7 @@ def evaluate_file(input_file, output_file, port, model_name, workers):
 
     if not is_subjective:
         logger.info(f"⏩ 任务 {task_name} 是客观题，跳过 LLM Judge 打分...")
+        print(f"⏩ 任务 {task_name} 是客观题，跳过 LLM Judge 打分...")
         for idx, item in enumerate(dataset):
             out_item = item.copy()
             # 【核心修改 2】：拦截 null 答案
@@ -93,6 +94,7 @@ def evaluate_file(input_file, output_file, port, model_name, workers):
             results[idx] = out_item
     else:
         logger.info(f"🧠 任务 {task_name} 是主观题，启动 LLM Judge 打分...")
+        print(f"🧠 任务 {task_name} 是主观题，启动 LLM Judge 打分...")
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = {}
             for idx, item in enumerate(dataset):
