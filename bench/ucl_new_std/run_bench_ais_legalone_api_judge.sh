@@ -131,7 +131,7 @@ info " -> 1. 推理阶段"
 #     --max_turn 1 --workers ${WORKERS}
 
 info " -> 2. 评测阶段 (API 并发打分)"
-python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_new_std/ucl_eval_api_judge.py \
+python ${BASE_DIR}/searchr1-qwen3/bench/ucl_new_std/ucl_eval_api_judge.py \
     --chatgpt_result_path "${UCL_CHATGPT_REF}" \
     --model_result_path "${UCL_RES_PATH}" \
     --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
