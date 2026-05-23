@@ -34,13 +34,13 @@ fi
 # ================= 2. 配置全局变量 =================
 export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal_R1}"
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
-WORKERS="${WORKERS:-16}"
+WORKERS=64
 
 # ================= 3. 定义模型列表 (硬编码) =================
 # 在此列表中添加你需要循环执行的所有模型名称
 MODEL_LIST=(
-    "qwen3-8b-AR-0521"
-    "legalone-0517"
+    # "qwen3-8b-AR-0521"
+    # "legalone-0517"
     "qwen3-post-train-0519"
     # "添加其他模型名称"
 )
