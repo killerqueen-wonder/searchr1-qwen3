@@ -39,13 +39,13 @@ WORKERS=64
 # ================= 3. 定义模型列表 (硬编码) =================
 # 在此列表中添加你需要循环执行的所有模型名称
 MODEL_LIST=(
-    # "qwen3-8b-AR-0521"
-    # "legalone-0517"
-    # "qwen3-post-train-0519"
-    # 'A2Search-0516'
-    # lawgpt_0519
-    # llama-nemotron-embedding-0522
-    # luwen-0517
+    "qwen3-8b-AR-0521"
+    "legalone-0517"
+    "qwen3-post-train-0519"
+    'A2Search-0516'
+    lawgpt_0519
+    llama-nemotron-embedding-0522
+    luwen-0517
     qwen3-8b-0503
     qwen3-8b-AR-0520
     qwen3-embedding-0522-2130
@@ -97,35 +97,102 @@ for MODEL_NAME in "${MODEL_LIST[@]}"; do
     info " 正在评测模型: ${MODEL_NAME}"
     info "========================================================="
 
-    # 针对当前模型动态生成路径
-    UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
-    UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score_api_judge_0524.json"
-    UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl_api_judge_0524.json"
-    UCL_CHATGPT_REF="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/res_result/deepseek_eval_result.json" 
+    # # 针对当前模型动态生成路径
+    # UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
+    # UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score_api_judge_0524.json"
+    # UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl_api_judge_0524.json"
+    # UCL_CHATGPT_REF="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/res_result/deepseek_eval_result.json" 
 
-    info " -> 2. 评测阶段 (API 并发打分) [模型: ${MODEL_NAME}]"
-    python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval_api_judge.py \
-        --chatgpt_result_path "${UCL_CHATGPT_REF}" \
-        --model_result_path "${UCL_RES_PATH}" \
-        --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
-        --result_path "${UCL_SCORE_PATH}" \
-        --judge_model_name "${JUDGE_MODEL_NAME}" \
-        --api_key "${JUDGE_API_KEY}" \
-        --api_url "${JUDGE_API_URL}" \
-        --workers ${WORKERS}
+    # info " -> 2. 评测阶段 (API 并发打分) [模型: ${MODEL_NAME}]"
+    # python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval_api_judge.py \
+    #     --chatgpt_result_path "${UCL_CHATGPT_REF}" \
+    #     --model_result_path "${UCL_RES_PATH}" \
+    #     --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
+    #     --result_path "${UCL_SCORE_PATH}" \
+    #     --judge_model_name "${JUDGE_MODEL_NAME}" \
+    #     --api_key "${JUDGE_API_KEY}" \
+    #     --api_url "${JUDGE_API_URL}" \
+    #     --workers ${WORKERS}
 
-    info " -> 3. 统计汇总 [模型: ${MODEL_NAME}]"
-    python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
-        --score_path "${UCL_SCORE_PATH}" \
-        --inference_path "${UCL_RES_PATH}" \
-        --output_path "${UCL_RESULT_PATH}"
+    # info " -> 3. 统计汇总 [模型: ${MODEL_NAME}]"
+    # python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
+    #     --score_path "${UCL_SCORE_PATH}" \
+    #     --inference_path "${UCL_RES_PATH}" \
+    #     --output_path "${UCL_RESULT_PATH}"
+
+    # # 收尾与报告打印
+    # info "---------------------------------------------------------"
+    # info "🎉 模型 ${MODEL_NAME} 评测任务圆满结束！报告已生成于："
+    # info "   - UCL:      ${UCL_RESULT_PATH}"
+    # info "---------------------------------------------------------"
+    # echo "" # 打印空行，方便阅读日志
+
+    info "================== [2/3] LawBench =================="
+
+    info " -> 切换为 LawBench 环境..."
+    conda deactivate # 安全起见先退出当前环境
+    conda activate lawbench
+
+    LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
+    LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored_api_judge_0524"
+    LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench_api_judge_0524.json"
+
+    if [ ! -d "$LAWBENCH_PRED_DIR" ]; then
+        error "未找到模型 ${MODEL_NAME} 的 LawBench 预测结果目录。跳过该评测。"
+    else
+        info " -> 1. 评测阶段 (API 并发打分) [模型: ${MODEL_NAME}]"
+        python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_eval_api_judge.py \
+            --input_dir "${LAWBENCH_PRED_DIR}" \
+            --output_dir "${LAWBENCH_SCORE_DIR}" \
+            --api_key "${JUDGE_API_KEY}" \
+            --api_url "${JUDGE_API_URL}" \
+            --judge_model_name "${JUDGE_MODEL_NAME}" \
+            --workers ${WORKERS}
+
+        info " -> 2. 统计汇总 [模型: ${MODEL_NAME}]"
+        python ${BASE_DIR}/searchr1-qwen3/bench/lawbench/lawbench_result.py \
+            --score_dir "${LAWBENCH_SCORE_DIR}" \
+            --output_path "${LAWBENCH_RESULT_PATH}"
+    fi
+
+    # ================= 6. LexEval =================
+    info "================== [3/3] LexEval =================="
+
+    info " -> 切换回 searchr1_new 环境..."
+    conda deactivate
+    conda activate searchr1_new
+
+    LEXEVAL_PRED_DIR="${BASE_DIR}/LexEval/model_output/zero_shot/${MODEL_NAME}"
+    LEXEVAL_SCORE_DIR="${BASE_DIR}/LexEval/evaluation_output/${MODEL_NAME}_scored_api_judge_0524"
+    LEXEVAL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lexeval/${MODEL_NAME}_lexeval_api_judge_0524.json"
+
+    if [ ! -d "$LEXEVAL_PRED_DIR" ]; then
+        error "未找到模型 ${MODEL_NAME} 的 LexEval 预测结果目录。跳过该评测。"
+    else
+        info " -> 1. 评测阶段 (API 并发打分) [模型: ${MODEL_NAME}]"
+        python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_eval_api_judge.py \
+            --input_dir "${LEXEVAL_PRED_DIR}" \
+            --output_dir "${LEXEVAL_SCORE_DIR}" \
+            --api_key "${JUDGE_API_KEY}" \
+            --api_url "${JUDGE_API_URL}" \
+            --judge_model_name "${JUDGE_MODEL_NAME}" \
+            --workers ${WORKERS}
+
+        info " -> 2. 统计汇总 [模型: ${MODEL_NAME}]"
+        python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_result.py \
+            --score_dir "${LEXEVAL_SCORE_DIR}" \
+            --output_path "${LEXEVAL_RESULT_PATH}"
+    fi
 
     # 收尾与报告打印
     info "---------------------------------------------------------"
-    info "🎉 模型 ${MODEL_NAME} 评测任务圆满结束！报告已生成于："
+    info "🎉 模型 ${MODEL_NAME} 评测任务结束！报告生成于："
     info "   - UCL:      ${UCL_RESULT_PATH}"
+    info "   - LawBench: ${LAWBENCH_RESULT_PATH}"
+    info "   - LexEval:  ${LEXEVAL_RESULT_PATH}"
     info "---------------------------------------------------------"
-    echo "" # 打印空行，方便阅读日志
+    echo ""
+
 done
 
 info "========================================================="
