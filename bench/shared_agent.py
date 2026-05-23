@@ -5,6 +5,7 @@ import time
 import requests
 import os
 import random
+import httpx
 from transformers import AutoTokenizer
 
 logger = logging.getLogger(__name__)
@@ -524,7 +525,7 @@ class VLLM_Retriever_Agent:
                 }
                 # ⚠️ 故意不传 max_tokens 和 temperature，严格对齐你测试通过的配置
                 fallback_prompt_len = len(question)
-                
+
             else:
                 # --- 标准 OpenAI Chat API 格式 (如 DeepSeek-v3, GPT-4) ---
                 payload = {
@@ -544,7 +545,10 @@ class VLLM_Retriever_Agent:
             
             start_time = time.time()
             try:
-                res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=2000).json()
+                # res = requests.post(self.vllm_url, headers=headers, json=payload, timeout=2000).json()
+                with httpx.Client(http2=True, timeout=2000.0) as client:
+                    response = client.post(self.vllm_url, headers=headers, json=payload)
+                    res = response.json()
                 if "error" in res:
                     logger.error(f"API 返回错误: {res['error']}")
                     output_text = f"API Error: {res['error']}"
