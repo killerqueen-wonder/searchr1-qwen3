@@ -513,6 +513,18 @@ class VLLM_Retriever_Agent:
                 fallback_prompt_len = len(formatted_prompt)
             # ===============================================
             
+            elif "gpt-5.4" in self.model_name.lower():
+                payload = {
+                    "model": self.model_name,
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": question}
+                    ],
+                    "stream": False
+                }
+                # ⚠️ 故意不传 max_tokens 和 temperature，严格对齐你测试通过的配置
+                fallback_prompt_len = len(question)
+                
             else:
                 # --- 标准 OpenAI Chat API 格式 (如 DeepSeek-v3, GPT-4) ---
                 payload = {
