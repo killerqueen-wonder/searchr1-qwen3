@@ -5,7 +5,7 @@ import time
 import requests
 import os
 import random
-import httpx
+from openai import OpenAI
 from transformers import AutoTokenizer
 
 logger = logging.getLogger(__name__)
@@ -515,16 +515,60 @@ class VLLM_Retriever_Agent:
             # ===============================================
             
             elif "gpt-5.4" in self.model_name.lower():
-                payload = {
-                    "model": self.model_name,
-                    "messages": [
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": question}
-                    ],
-                    "stream": False
+                # 1. 清理 base_url 
+                # 因为原始评测管道可能把 url 写成了 /v1/chat/completions
+                # 而 OpenAI SDK 会自动拼接后面的路径，所以要去掉尾巴
+                clean_base_url = self.vllm_url
+                if clean_base_url.endswith("/chat/completions"):
+                    clean_base_url = clean_base_url.replace("/chat/completions", "")
+                elif clean_base_url.endswith("/completions"):
+                    clean_base_url = clean_base_url.replace("/completions", "")
+                
+                # 2. 初始化官方 SDK 客户端
+                client = OpenAI(api_key=self.api_key, base_url=clean_base_url)
+                
+                start_time = time.time()
+                try:
+                    completion = client.chat.completions.create(
+                        model=self.model_name,
+                        messages=[
+                            {"role": "system", "content": "You are a helpful assistant."},
+                            {"role": "user", "content": question}
+                        ],
+                        stream=False
+                    )
+                    # 提取回答
+                    output_text = completion.choices[0].message.content
+                    
+                    # 提取 Token (兼容防崩设计)
+                    usage = completion.usage
+                    prompt_tokens = usage.prompt_tokens if usage else len(question)
+                    comp_tokens = usage.completion_tokens if usage else len(output_text)
+                    
+                except Exception as e:
+                    logger.error(f"OpenAI SDK 请求异常: {e}")
+                    output_text = f"Error: {e}"
+                    prompt_tokens, comp_tokens = 0, 0
+
+                # 组装下游需要的性能指标
+                agent_metrics = {
+                    "tool_latency_sec": time.time() - start_time, 
+                    "rag_count": 0,
+                    "user_prompt_tokens": prompt_tokens,
+                    "main_total_prompt_tokens": prompt_tokens, 
+                    "main_total_comp_tokens": comp_tokens
                 }
-                # ⚠️ 故意不传 max_tokens 和 temperature，严格对齐你测试通过的配置
-                fallback_prompt_len = len(question)
+
+                if random.randint(1, 64) == 1:
+                    logger.info(
+                        f"\n========== [Trace Monitor 1/64] Model: {self.model_name} (SDK) ==========\n"
+                        f"[Prompt]:\n{question}\n\n"
+                        f"[Output]:\n{output_text}\n"
+                        f"==================================================================\n"
+                    )
+                    
+                # 3. ⚠️ 核心：处理完毕后直接 return，跳过下方原有的 requests 发包逻辑
+                return output_text, agent_metrics
 
             else:
                 # --- 标准 OpenAI Chat API 格式 (如 DeepSeek-v3, GPT-4) ---
