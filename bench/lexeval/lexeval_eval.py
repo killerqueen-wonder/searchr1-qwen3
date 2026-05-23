@@ -5,7 +5,7 @@ import glob
 import argparse
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+import re
 import time
 import logging
 import random
@@ -70,9 +70,13 @@ def evaluate_file(input_file, output_file, port, model_name, workers):
                 dataset.append(json.loads(line))
                 
     results = [None] * len(dataset)
-    task_name = os.path.basename(input_file).replace(".jsonl", "")
+    raw_name = os.path.basename(input_file).replace(".jsonl", "")
+    
+    # 提取真实的任务 ID (例如从 qwen3-embedding-0522-2130_5_3 提取 5_3)
+    match = re.search(r'(\d+_\d+)$', raw_name)
+    task_name = match.group(1) if match else raw_name
 
-    # 【核心修改 1】：只有 5_ 开头的任务才是主观题
+    # 只有 5_ 开头的任务才是主观题
     is_subjective = task_name.startswith("5_")
 
     if not is_subjective:
