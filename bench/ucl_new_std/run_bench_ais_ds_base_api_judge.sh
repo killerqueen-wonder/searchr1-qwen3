@@ -34,17 +34,16 @@ fi
 # ================= 2. 配置全局变量 =================
 export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal_R1}"
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
-
-# export MODEL_NAME="${MODEL_NAME:-legalone-0517}"
-# export MODEL_PATH="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/model/models--CSHaitao--LegalOne-8B"
-
-export MODEL_NAME="qwen3-8b-AR-0521"
 WORKERS="${WORKERS:-16}"
 
-# 端口配置
-MAIN_VLLM_PORT=8007
-SUMMARY_VLLM_PORT=8008 # 保留虚假端口供 argparse 使用
-PORT_TIMEOUT=1600  
+# ================= 3. 定义模型列表 (硬编码) =================
+# 在此列表中添加你需要循环执行的所有模型名称
+MODEL_LIST=(
+    "qwen3-8b-AR-0521"
+    "legalone-0517"
+    "qwen3-post-train-0519"
+    # "添加其他模型名称"
+)
 
 # 开启强制直通模式 (极其重要：将屏蔽 RAG 与 Summary)
 export USE_DIRECT_API="true"
@@ -53,35 +52,6 @@ export CONDA_SH="/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh"
 
 info() { echo -e "\033[32m[INFO]\033[0m $1"; }
 error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
-
-wait_for_port() {
-    local port=$1
-    local timeout=$2
-    local session_name=$3
-    local start=$(date +%s)
-    info "等待端口 $port 就绪（超时 ${timeout}s）..."
-    
-    while true; do
-        if curl -s -f --noproxy '*' "http://127.0.0.1:$port/health" > /dev/null 2>&1; then
-            info "端口 $port 已就绪"
-            return 0
-        fi
-        
-        local now=$(date +%s)
-        if [ $((now - start)) -ge $timeout ]; then
-            error "端口 $port 未在 ${timeout}s 内就绪。"
-            return 1
-        fi
-        sleep 3
-    done
-}
-
-kill_session() {
-    if tmux has-session -t "$1" 2>/dev/null; then
-        tmux kill-session -t "$1"
-        sleep 1
-    fi
-}
 
 # ----------------- 环境预检 -----------------
 if ! command -v tmux &> /dev/null; then
@@ -97,44 +67,55 @@ if ! command -v nvidia-smi &> /dev/null || ! nvidia-smi &> /dev/null; then
 fi
 
 info "========================================================="
-info " 🚀 legalone 极速直通评测启动 (无需 RAG 与 Summary)"
+info " 🚀 极速直通评测启动 (批量模式)"
 info " 方案： API [裁判: ${JUDGE_MODEL_NAME}]"
 info " API 地址: ${JUDGE_API_URL}"
+info " 待评测模型数量: ${#MODEL_LIST[@]}"
 info "========================================================="
 
-
-
-# --- 4. 运行评测 ---
-info "================== [1/3] UCL Bench =================="
+# 激活 Conda 环境 (只需在循环外激活一次)
 source $CONDA_SH
 conda activate searchr1_new
 
-UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
-UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score_api_judge.json"
-UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl_api_judge.json"
-UCL_CHATGPT_REF="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/res_result/deepseek_eval_result.json" 
+# ================= 4. 循环遍历模型列表进行评测 =================
+for MODEL_NAME in "${MODEL_LIST[@]}"; do
+    export MODEL_NAME # 导出当前循环的模型名称供后续环境使用
+    
+    info "========================================================="
+    info " 正在评测模型: ${MODEL_NAME}"
+    info "========================================================="
 
+    # 针对当前模型动态生成路径
+    UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
+    UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score_api_judge.json"
+    UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl_api_judge.json"
+    UCL_CHATGPT_REF="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/res_result/deepseek_eval_result.json" 
 
+    info " -> 2. 评测阶段 (API 并发打分) [模型: ${MODEL_NAME}]"
+    python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval_api_judge.py \
+        --chatgpt_result_path "${UCL_CHATGPT_REF}" \
+        --model_result_path "${UCL_RES_PATH}" \
+        --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
+        --result_path "${UCL_SCORE_PATH}" \
+        --judge_model_name "${JUDGE_MODEL_NAME}" \
+        --api_key "${JUDGE_API_KEY}" \
+        --api_url "${JUDGE_API_URL}" \
+        --workers ${WORKERS}
 
-info " -> 2. 评测阶段 (API 并发打分)"
-python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_eval_api_judge.py \
-    --chatgpt_result_path "${UCL_CHATGPT_REF}" \
-    --model_result_path "${UCL_RES_PATH}" \
-    --datasource_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
-    --result_path "${UCL_SCORE_PATH}" \
-    --judge_model_name "${JUDGE_MODEL_NAME}" \
-    --api_key "${JUDGE_API_KEY}" \
-    --api_url "${JUDGE_API_URL}" \
-    --workers ${WORKERS}
+    info " -> 3. 统计汇总 [模型: ${MODEL_NAME}]"
+    python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
+        --score_path "${UCL_SCORE_PATH}" \
+        --inference_path "${UCL_RES_PATH}" \
+        --output_path "${UCL_RESULT_PATH}"
 
-info " -> 3. 统计汇总"
-python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_result.py \
-    --score_path "${UCL_SCORE_PATH}" \
-    --inference_path "${UCL_RES_PATH}" \
-    --output_path "${UCL_RESULT_PATH}"
+    # 收尾与报告打印
+    info "---------------------------------------------------------"
+    info "🎉 模型 ${MODEL_NAME} 评测任务圆满结束！报告已生成于："
+    info "   - UCL:      ${UCL_RESULT_PATH}"
+    info "---------------------------------------------------------"
+    echo "" # 打印空行，方便阅读日志
+done
 
-# ================= 5. 收尾清理 =================
 info "========================================================="
-info "🎉 评测任务圆满结束！报告已生成于："
-info "   - UCL:      ${UCL_RESULT_PATH}"
+info " ✅ 所有模型 (${#MODEL_LIST[@]} 个) 的评测任务均已执行完毕！"
 info "========================================================="
