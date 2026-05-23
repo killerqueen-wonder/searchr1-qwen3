@@ -124,7 +124,7 @@ info " -> 1. 推理阶段"
 # python ${BASE_DIR}/searchr1-qwen3/bench/ucl/ucl_infer.py \
 #     --data_path "${BASE_DIR}/UCL-bench/dataset/legal_data_sample.json" \
 #     --result_path "${UCL_RES_PATH}" \
-#     --model_name "${MODEL_NAME}" \
+#     --model_name "${MODEL_NAME}" 
 #     --vllm_url "http://127.0.0.1:${MAIN_VLLM_PORT}" \
 #     --summary_port ${SUMMARY_VLLM_PORT} \
 #     --retrieve_path "" \
