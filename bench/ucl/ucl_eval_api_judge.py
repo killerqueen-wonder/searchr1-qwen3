@@ -39,7 +39,8 @@ def call_api(prompt, model_name, api_key, api_url):
     支持多 worker 并发请求 API
     加入指数退避重试机制，防止高并发时触发速率限制 (Rate Limit)
     """
-    url = f"{api_url.rstrip('/')}/chat/completions"
+    # url = f"{api_url.rstrip('/')}/chat/completions"
+    url = api_url
     
     # 兼容 DeepSeek 官方或类似 OpenAI 格式的鉴权
     headers = {
