@@ -102,7 +102,7 @@ def process_single_evaluation(chatgpt_item, model_item, data_info, api_key, api_
             information=information, needs=needs, evaluation_hints=evaluation_hints,
             dialogue1=chatgpt_item["dialogue"].strip(), dialogue2=model_content.strip()
         ).strip()
-        input_text += '如果某个助手提到的评估参考中的项目更多，那么该助手表现更好；如果两个助手都提到了评估参考中的所有项目，则判断平局。'
+        # input_text += '如果某个助手提到的评估参考中的项目更多，那么该助手表现更好；如果两个助手都提到了评估参考中的所有项目，则判断平局。'
         
         evaluate_result = call_api(input_text, model_name=model_name, api_key=api_key, api_url=api_url)
         evaluate_score = compute_ucl_score(evaluate_result)

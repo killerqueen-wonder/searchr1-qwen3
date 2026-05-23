@@ -41,7 +41,21 @@ WORKERS=64
 MODEL_LIST=(
     # "qwen3-8b-AR-0521"
     # "legalone-0517"
-    "qwen3-post-train-0519"
+    # "qwen3-post-train-0519"
+    'A2Search-0516'
+    lawgpt_0519
+    llama-nemotron-embedding-0522
+    luwen-0517
+    qwen3-8b-0517
+    qwen3-8b-AR-0520
+    qwen3-embedding-0522-2130
+    qwen3-8b-no-RAG-0519-0143
+    qwen3-8b-SFT-AR-0521
+    R-Search-0516
+    gpt-5.4-mini
+
+
+
     # "添加其他模型名称"
 )
 
@@ -87,8 +101,8 @@ for MODEL_NAME in "${MODEL_LIST[@]}"; do
 
     # 针对当前模型动态生成路径
     UCL_RES_PATH="${BASE_DIR}/dataset/result/res_result/${MODEL_NAME}_ucl_eval_result.json"
-    UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score_api_judge.json"
-    UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl_api_judge.json"
+    UCL_SCORE_PATH="${BASE_DIR}/dataset/result/score_result/${MODEL_NAME}_ucl_score_api_judge_0524.json"
+    UCL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/UCL/${MODEL_NAME}_ucl_api_judge_0524.json"
     UCL_CHATGPT_REF="/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/res_result/deepseek_eval_result.json" 
 
     info " -> 2. 评测阶段 (API 并发打分) [模型: ${MODEL_NAME}]"
