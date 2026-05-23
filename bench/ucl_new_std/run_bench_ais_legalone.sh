@@ -76,16 +76,16 @@ info " 方案：GPU 0 [legalone] | GPU 1 [裁判]"
 info "========================================================="
 
 # --- 2. 启动服务 ---
-# 启动主路推理 LawGPT (GPU 0)
+# 启动主路推理 LawGPT 
 kill_session "vllm_main"
 # 使用 MODEL_PATH 和 MODEL_NAME
-tmux new -d -s vllm_main "export TRITON_CACHE_DIR=~/.triton/cache_vllm_main; export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${MODEL_PATH} --served-model-name ${MODEL_NAME} --port ${MAIN_VLLM_PORT} --gpu-memory-utilization 0.9 --max-model-len 10000 || sleep 86400"
-info "已触发启动 vLLM 主路推理 (Port: $MAIN_VLLM_PORT, GPU: 0)"
+tmux new -d -s vllm_main "export TRITON_CACHE_DIR=~/.triton/cache_vllm_main; export CUDA_VISIBLE_DEVICES=1; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${MODEL_PATH} --served-model-name ${MODEL_NAME} --port ${MAIN_VLLM_PORT} --gpu-memory-utilization 0.9 --max-model-len 10000 || sleep 86400"
+info "已触发启动 vLLM 主路推理 (Port: $MAIN_VLLM_PORT, GPU: 1)"
 
 
-# 启动裁判模型 (GPU 1)
+# 启动裁判模型 
 kill_session "vllm_judge"
-tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=1; \
+tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=3; \
     source $CONDA_SH && conda activate vllm_server; \
     python -m vllm.entrypoints.openai.api_server \
     --model ${JUDGE_MODEL_PATH} \
@@ -93,7 +93,7 @@ tmux new -d -s vllm_judge "export CUDA_VISIBLE_DEVICES=1; \
     --port ${JUDGE_VLLM_PORT} \
     --gpu-memory-utilization 0.9 \
     --max-model-len 10000 --enforce-eager || sleep 86400"
-info "已触发启动 Judge 裁判服务 (GPU: 1)"
+info "已触发启动 Judge 裁判服务 (GPU: 3)"
 
 wait_for_port $MAIN_VLLM_PORT $PORT_TIMEOUT "vllm_main"
 wait_for_port $JUDGE_VLLM_PORT $PORT_TIMEOUT "vllm_judge"
