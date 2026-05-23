@@ -103,20 +103,20 @@ tmux_send_commands "retriever_llama_8215" \
     "export HF_HUB_OFFLINE=1" \
     "export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True" \
     "cd ${BASE_DIR}/searchr1-qwen3" \
-    "python search_r1/search/retrieval_server_llama_embedding.py --corpus_path '${BASE_DIR}/dataset/dataset/law/法律法规3.0.jsonl' --retriever_model '${EMBEDDING_MODEL_PATH}' --batch_size 4 --port $RETRIEVER_PORT --gpu_ids 3 --max_concurrency 4"
+    "python search_r1/search/retrieval_server_llama_embedding.py --corpus_path '${BASE_DIR}/dataset/dataset/law/法律法规3.0.jsonl' --retriever_model '${EMBEDDING_MODEL_PATH}' --batch_size 4 --port $RETRIEVER_PORT --gpu_ids 0 --max_concurrency 4"
 info "已触发启动 Llama-Nemotron 检索器 (Port: $RETRIEVER_PORT, GPU: 3)"
 
 sleep 15
 
 # --- 3.2 启动总结与评测 vLLM ---
 kill_session "vllm_summary_llama"
-tmux new -d -s vllm_summary_llama "export TRITON_CACHE_DIR=~/.triton/cache_vllm_summary_llama; export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${SUMMARY_MODEL_PATH} --served-model-name ${SUMMARY_MODEL_NAME} --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.5 --max-model-len 10000 || sleep 86400"
+tmux new -d -s vllm_summary_llama "export TRITON_CACHE_DIR=~/.triton/cache_vllm_summary_llama; export CUDA_VISIBLE_DEVICES=0; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${SUMMARY_MODEL_PATH} --served-model-name ${SUMMARY_MODEL_NAME} --port ${SUMMARY_VLLM_PORT} --gpu-memory-utilization 0.4 --max-model-len 10000 || sleep 86400"
 info "已触发启动 vLLM 总结模型 (Port: $SUMMARY_VLLM_PORT)"
 
 sleep 15
 
 kill_session "vllm_judge_llama"
-tmux new -d -s vllm_judge_llama "export TRITON_CACHE_DIR=~/.triton/cache_vllm_judge_llama; export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${JUDGE_MODEL_PATH} --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.65 --max-model-len 20000 || sleep 86400"
+tmux new -d -s vllm_judge_llama "export TRITON_CACHE_DIR=~/.triton/cache_vllm_judge_llama; export CUDA_VISIBLE_DEVICES=3; source $CONDA_SH && conda activate vllm_server; export LD_LIBRARY_PATH=\$CONDA_PREFIX/lib:\$LD_LIBRARY_PATH; python -m vllm.entrypoints.openai.api_server --model ${JUDGE_MODEL_PATH} --served-model-name ${JUDGE_MODEL_NAME} --port ${JUDGE_VLLM_PORT} --gpu-memory-utilization 0.5 --max-model-len 15000 || sleep 86400"
 info "已触发启动 vLLM 裁判模型 (Port: $JUDGE_VLLM_PORT)"
 
 info "等待所有服务拉起..."
