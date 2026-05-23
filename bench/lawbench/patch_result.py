@@ -32,20 +32,26 @@ OBJECTIVE_TASKS = {
 # 【新增：批量处理配置项】
 # 1. 在此处放入你想批量跑分数的旧轨迹文件夹路径列表（支持同时配置多个路径）
 BATCH_TRAJ_DIRS = [
-    "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/deepseek-v4-flash_scored",
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/A2Search-0516_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/lawgpt_0519_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/legalone-0517_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/luwen-0517_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-0503_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-AR-0520_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-AR-0521_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-no-RAG-0519-0143_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-SFT-AR-0521_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-post-train-0519_scored',
-    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/R-Search-0516_scored'
+
+    '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/lawgpt_0519_scored'
+
 
 ]
+# BATCH_TRAJ_DIRS = [
+#     "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/deepseek-v4-flash_scored",
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/A2Search-0516_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/lawgpt_0519_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/legalone-0517_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/luwen-0517_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-0503_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-AR-0520_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-AR-0521_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-no-RAG-0519-0143_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-8b-SFT-AR-0521_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/qwen3-post-train-0519_scored',
+#     '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/lawbench/test/result/R-Search-0516_scored'
+
+# ]
 
 # 2. 批量处理时，默认生成的 fix 文件的输出保存根目录
 DEFAULT_OUTPUT_DIR = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench"
