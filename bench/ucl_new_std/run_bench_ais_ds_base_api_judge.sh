@@ -43,7 +43,6 @@ MODEL_LIST=(
     # "legalone-0517"
     # "qwen3-post-train-0519"
     # 'A2Search-0516'
-    # lawgpt_0519
     # llama-nemotron-embedding-0522
     # luwen-0517
     # qwen3-8b-0503
@@ -55,6 +54,7 @@ MODEL_LIST=(
     # gpt-5.4-mini
     # deepseek-v4-flash
     qwen3-8b-hybrid-0524
+    lawgpt_0517
 
 
     # "添加其他模型名称"
