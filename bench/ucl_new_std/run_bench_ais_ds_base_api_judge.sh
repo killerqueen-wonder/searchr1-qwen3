@@ -53,7 +53,9 @@ MODEL_LIST=(
     # qwen3-8b-SFT-AR-0521
     # R-Search-0516
     # gpt-5.4-mini
-    deepseek-v4-flash
+    # deepseek-v4-flash
+    qwen3-8b-hybrid-0524
+
 
     # "添加其他模型名称"
 )
