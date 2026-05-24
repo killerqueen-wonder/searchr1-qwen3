@@ -51,8 +51,10 @@ wait_for_port() {
     info "等待端口 $port 就绪（超时 ${timeout}s）..."
     
     while true; do
-        if [ "$port" = "8005" ]; then
-            if curl -s --noproxy '*' "http://127.0.0.1:$port" > /dev/null 2>&1; then
+# 用变量匹配，或者明确指定 805
+        if [ "$port" = "$RETRIEVER_PORT" ]; then
+            # 注意：如果只请求根目录，一定要去掉 curl 的 -f 参数
+            if curl -s --noproxy '*' "http://127.0.0.1:$port/" > /dev/null 2>&1; then
                 info "端口 $port 已就绪 (RAG)"
                 return 0
             fi
