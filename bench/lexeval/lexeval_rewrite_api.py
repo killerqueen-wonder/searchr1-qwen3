@@ -40,20 +40,49 @@ def call_api(prompt, model_name, api_key, api_url):
             time.sleep(2)
     return ""
 def extract_text_segment(text: str) -> str:
+    """
+    处理文本：
+    0. 删除成对的 <think>, <THOUGHT>, <syllogism>, <search> 及其内部文本（非贪婪匹配，支持多行）
+    1. 寻找最后一个 <answer>
+    2. 寻找它之前的最后一个 </xx> (xx长度<=15)
+    3. 根据匹配情况截取并返回对应的字符串片段
+    """
+    
+    # ================= 第0步：数据预处理 =================
+    # 使用 \1 引用第一个捕获组(即匹配到的标签名)
+    # .*? 实现非贪婪匹配（匹配内部最少的文本）
+    # flags=re.DOTALL 确保能够匹配标签内包含换行符的情况
+    remove_pattern = r'<(think|THOUGHT|syllogism|search)>.*?</\1>'
+    text = re.sub(remove_pattern, '', text, flags=re.DOTALL)
 
+
+    # ================= 第1步：寻找 <answer> =================
+    # 寻找最后一个 <answer> 的索引
     ans_idx = text.rfind('<answer>')
+    
+    # 如果没有匹配到 <answer>，直接返回全字符串
     if ans_idx == -1:
         return text
-
+        
+    # 获取最后一个 <answer> 之前的所有文本片段
     prefix_text = text[:ans_idx]
+    
+    
+    # ================= 第2步：寻找之前的 </xx> =================
+    # 使用正则：</ 开头，[^>]{1,15} 表示1到15个非 > 的字符，> 结尾
     pattern = r'</[^>]{1,15}>'
     matches = list(re.finditer(pattern, prefix_text))
-
+    
+    
+    # ================= 第3步：截取结果 =================
     if matches:
-
+        # 获取最后一个匹配项
         last_match = matches[-1]
+        # 返回从开头到该 </xx> 结尾的字符串片段（包含 </xx>）
+        # last_match.end() 返回的是匹配项末尾在 prefix_text 中的索引
         return text[:last_match.end()]
     else:
+        # 如果匹配不到 </xx>，保留字符串开头到 <answer> 的片段
         return prefix_text
 def process_item(item, idx, api_key, api_url, model_name):
     instruction = item.get("instruction", "") or ""
