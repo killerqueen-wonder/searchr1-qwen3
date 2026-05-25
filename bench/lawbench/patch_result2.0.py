@@ -116,7 +116,18 @@ if __name__ == "__main__":
     # 在这里硬编码你需要处理的 JSON 文件路径列表
     # 支持相对路径或绝对路径
     FILES_TO_PROCESS = [
-        "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/qwen3-8b-AR-0521_lawbench_api_judge_0524.json",
+        # "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/qwen3-8b-AR-0521_lawbench_api_judge_0524.json",
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/lawgpt_0505_lawbench_api_judge_0524.json',
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/luwen-0517_lawbench_api_judge_0524.json',
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/legalone-0517_lawbench_api_judge_0524.json',
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/qwen3-8b-no-RAG-0519-0143_lawbench_api_judge_0524.json',
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/A2Search-0516_lawbench_api_judge_0524.json',
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/R-Search-0516_lawbench_api_judge_0524.json',
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/qwen3-embedding-0522-2130_lawbench_api_judge_0524.json',
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/llama-nemotron-embedding-0522_lawbench_api_judge_0524.json',
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/gpt-5.4-mini_lawbench_api_judge_0524.json',
+        '/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/result/bench_result/lawbench/deepseek-v4-flash_lawbench_api_judge_0524.json',
+        
         # "另外一个文件.json", 
         # "./eval_scores/某个结果.json"
     ]
