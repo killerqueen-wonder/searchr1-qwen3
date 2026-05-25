@@ -110,8 +110,8 @@ for MODEL_NAME in "${MODEL_LIST[@]}"; do
 
     LAWBENCH_PRED_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}"
     LAWBENCH_REWRITE_DIR="${LAWBENCH_PRED_DIR}-api-answer"
-    LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored_api_answer_0525_1458"
-    LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench_api_answer_0525_1458.json"
+    LAWBENCH_SCORE_DIR="${BASE_DIR}/lawbench/test/result/${MODEL_NAME}_scored_api_answer_0525_1700"
+    LAWBENCH_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lawbench/${MODEL_NAME}_lawbench_api_answer_0525_1700.json"
 
     if [ ! -d "$LAWBENCH_PRED_DIR" ]; then
         error "未找到模型 ${MODEL_NAME} 的 LawBench 预测结果目录。跳过该评测。"
@@ -151,8 +151,8 @@ for MODEL_NAME in "${MODEL_LIST[@]}"; do
 
     LEXEVAL_PRED_DIR="${BASE_DIR}/LexEval/model_output/zero_shot/${MODEL_NAME}"
     LEXEVAL_REWRITE_DIR="${LEXEVAL_PRED_DIR}-api-answer"
-    LEXEVAL_SCORE_DIR="${BASE_DIR}/LexEval/evaluation_output/${MODEL_NAME}_scored_api_answer_0525"
-    LEXEVAL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lexeval/${MODEL_NAME}_lexeval_api_answer_0525.json"
+    LEXEVAL_SCORE_DIR="${BASE_DIR}/LexEval/evaluation_output/${MODEL_NAME}_scored_api_answer_0525_1700"
+    LEXEVAL_RESULT_PATH="${BASE_DIR}/dataset/result/bench_result/lexeval/${MODEL_NAME}_lexeval_api_answer_0525_1700.json"
 
     if [ ! -d "$LEXEVAL_PRED_DIR" ]; then
         error "未找到模型 ${MODEL_NAME} 的 LexEval 预测结果目录。跳过该评测。"
