@@ -18,9 +18,9 @@ CATEGORY_MAPPING = {
     "1-1": "knowledge", "1-2": "reasoning",
     "2-1": "understanding", "2-2": "understanding", "2-3": "understanding",
     "2-4": "understanding", "2-5": "understanding", "2-6": "understanding",
-    "2-7": "generation", "2-8": "reasoning", "2-9": "understanding", "2-10": "understanding",
-    "3-1": "reasoning", "3-2": "reasoning", "3-3": "reasoning", "3-4": "reasoning",
-    "3-5": "reasoning", "3-6": "reasoning", "3-7": "reasoning", "3-8": "consultation"
+    "2-7": "understanding", "2-8": "reasoning", "2-9": "understanding", "2-10": "understanding",
+    "3-1": "reasoning", "3-2": "reasoning", "3-3": "generation", "3-4": "reasoning",
+    "3-5": "reasoning", "3-6": "generation", "3-7": "reasoning", "3-8": "consultation"
 }
 
 # =====================================================================
