@@ -7,25 +7,26 @@ import argparse
 import requests
 import logging
 from tqdm import tqdm
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 REWRITE_PROMPT = (
-    "你是一个专业、严谨的法律AI助手。请根据下方提供的【原问题】与系统的【思维链解析】，提取并整理出最终答案。\n\n"
+    "你是一个专业、严谨的法律AI助手。请根据下方提供的【原问题】，参考【检索资料】，针对问题进行推理，并给出最终答案。\n\n"
     "【核心规则】：\n"
     "1. 请针对原问题，给出一份具备精准证据支撑、逻辑推理清晰深刻、结论完全正确且表述专业的总结性回答。\n"
-    "2. 必须剔除所有 `<search>`, `<syllogism>`, `<answer>` 等内部标签及机器检索痕迹，将相关法条和类案的核心内容无缝融汇到你的最终解答中。\n"
+    "2. 检索资料仅供参考，你需要做出自己的判断，围绕问题做出正确推理和回答。\n\n"
     "3. 直接向用户呈现最终结果，不要包含“根据系统解析”等机器视角的客套话。\n\n"
     "【原问题】：{query}\n"
-    "【思维链解析】：{history}\n\n"
-    "最终答案："
+    "【检索资料】：{history}\n\n"
+    "最终回答："
 )
 
 def call_api(prompt, model_name, api_key, api_url):
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    data = {"model": model_name, "messages": [{"role": "user", "content": prompt}], "temperature": 0.0}
+    data = {"model": model_name, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2}
     max_retries = 5
     for attempt in range(max_retries):
         try:
@@ -39,12 +40,29 @@ def call_api(prompt, model_name, api_key, api_url):
             logger.error(f"API Error ({attempt + 1}/{max_retries}): {e}")
             time.sleep(2)
     return ""
+def extract_text_segment(text: str) -> str:
 
+    ans_idx = text.rfind('<answer>')
+    if ans_idx == -1:
+        return text
+
+    prefix_text = text[:ans_idx]
+    pattern = r'</[^>]{1,15}>'
+    matches = list(re.finditer(pattern, prefix_text))
+
+    if matches:
+
+        last_match = matches[-1]
+        return text[:last_match.end()]
+    else:
+        return prefix_text
+    
 def process_item(item, item_key, api_key, api_url, model_name):
     instruction = item.get("instruction", "") or ""
     question = item.get("question", "") or ""
     query = f"{instruction}\n{question}".strip()
     history = item.get("thinking", "") or ""
+    history=extract_text_segment(history)
     
     prompt = REWRITE_PROMPT.format(query=query, history=history)
     new_answer = call_api(prompt, model_name, api_key, api_url)
