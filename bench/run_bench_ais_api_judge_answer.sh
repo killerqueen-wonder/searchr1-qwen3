@@ -77,10 +77,10 @@ fi
 
 conda config --add envs_dirs /data/panghuaiwen/legal_R1/env 2>/dev/null || true
 
-if ! command -v nvidia-smi &> /dev/null || ! nvidia-smi &> /dev/null; then
-    error "致命错误：NVIDIA GPU 未正常挂载或驱动损坏！容器环境异常！"
-    exit 1
-fi
+# if ! command -v nvidia-smi &> /dev/null || ! nvidia-smi &> /dev/null; then
+#     error "致命错误：NVIDIA GPU 未正常挂载或驱动损坏！容器环境异常！"
+#     exit 1
+# fi
 
 info "========================================================="
 info " 🚀 极速直通评测启动 (批量模式)"
