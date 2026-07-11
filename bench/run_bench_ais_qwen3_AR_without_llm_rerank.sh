@@ -34,7 +34,7 @@ SUMMARY_VLLM_PORT=808
 JUDGE_VLLM_PORT=809
 
 # 等待超时设置（秒）
-PORT_TIMEOUT=1600  
+PORT_TIMEOUT=3200  
 
 # ================= 2. 环境初始化 =================
 export CONDA_SH="/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh"
