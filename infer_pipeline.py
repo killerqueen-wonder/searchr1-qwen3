@@ -8,7 +8,7 @@ import subprocess
 from typing import List, Dict, Tuple
 from concurrent.futures import ThreadPoolExecutor
 from vllm import LLM, SamplingParams
-
+#construct infer data to train reward model 
 # ================= 配置区 =================
 # 更新为你的 JSON 数据集路径
 DATASET_PATH = "/F00120250029/lixiang_share/panghuaiwen_share/legal_R1/dataset/dataset/SFT_COT/多格式QA合集COT合并.json"
