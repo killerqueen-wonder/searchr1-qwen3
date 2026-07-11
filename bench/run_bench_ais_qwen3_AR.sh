@@ -290,7 +290,7 @@ python ${BASE_DIR}/searchr1-qwen3/bench/lexeval/lexeval_result.py \
 # ================= 7. 收尾清理 =================
 info "========================================================="
 info "🎉 所有评测任务圆满结束！各项报告已生成于："
-info "   - UCL:      ${UCL_RESULT_PATH}"
+# info "   - UCL:      ${UCL_RESULT_PATH}"
 info "   - LawBench: ${LAWBENCH_RESULT_PATH}"
 info "   - LexEval:  ${LEXEVAL_RESULT_PATH}"
 info "========================================================="
