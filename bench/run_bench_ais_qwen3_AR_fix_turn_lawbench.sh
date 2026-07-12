@@ -174,7 +174,7 @@ info " -> 切换为 LawBench 环境..."
 source $CONDA_SH
 conda activate lawbench
 
-FIX_TURNS=(1 3)
+FIX_TURNS=(5)
 RESULT_PATHS=()
 
 for FIX_TURN in "${FIX_TURNS[@]}"; do
