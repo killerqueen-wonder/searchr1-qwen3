@@ -24,12 +24,12 @@ export PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
 info() { echo -e "\033[32m[INFO]\033[0m $1"; }
 error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
 
-if [ ! -f "$CONDA_SH" ]; then
-    error "Conda init script not found: $CONDA_SH"
-    exit 1
-fi
+# if [ ! -f "$CONDA_SH" ]; then
+#     error "Conda init script not found: $CONDA_SH"
+#     exit 1
+# fi
 
-source "$CONDA_SH"
+# source "$CONDA_SH"
 
 mkdir -p "${BASE_DIR}/model"
 

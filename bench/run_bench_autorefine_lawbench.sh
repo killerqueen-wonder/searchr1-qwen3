@@ -25,10 +25,8 @@ AUTOREFINE_TOPK="${AUTOREFINE_TOPK:-5}"
 AUTOREFINE_MAX_TOPK="${AUTOREFINE_MAX_TOPK:-15}"
 
 LAW_CORPUS_PATH="${LAW_CORPUS_PATH:-${BASE_DIR}/dataset/dataset/law/法律法规3.0.jsonl}"
-# The current unified retriever script requires case_corpus_path at startup.
-# AutoRefine only sends legal retrieval requests, so this defaults to the same
-# law corpus as a compatibility placeholder instead of loading a case dataset.
-DUMMY_CASE_CORPUS_PATH="${DUMMY_CASE_CORPUS_PATH:-${LAW_CORPUS_PATH}}"
+# The current unified retriever eagerly initializes the case retriever at startup. AutoRefine never sends case retrieval requests, but the startup path still needs a real case corpus with non-empty `reason`/`fact` fields.
+CASE_CORPUS_PATH="${CASE_CORPUS_PATH:-${BASE_DIR}/dataset/dataset/case/lecard_court_psi.jsonl}"
 
 RETRIEVE_PATH="http://127.0.0.1:805/retrieve"
 RETRIEVER_PORT=805
@@ -119,6 +117,7 @@ info "BASE_DIR: ${BASE_DIR}"
 info "MODEL_PATH: ${MODEL_PATH}"
 info "MODEL_NAME: ${MODEL_NAME}"
 info "LAW_CORPUS_PATH: ${LAW_CORPUS_PATH}"
+info "CASE_CORPUS_PATH(startup only): ${CASE_CORPUS_PATH}"
 info "========================================================="
 
 kill_session "autorefine_retriever_filter8005"
@@ -130,7 +129,7 @@ tmux_send_commands "autorefine_retriever_filter8005" \
     "export TRANSFORMERS_OFFLINE=1" \
     "export HF_HUB_OFFLINE=1" \
     "cd ${BASE_DIR}/searchr1-qwen3" \
-    "bash retrieval_launch_law_text2vec.sh --port $RETRIEVER_PORT --corpus_path '${LAW_CORPUS_PATH}' --case_corpus_path '${DUMMY_CASE_CORPUS_PATH}' --retriever_name hybrid_filter --dictionary_path '${BASE_DIR}/dataset/dataset/dictionary/THUOCL_law.txt' --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 3 --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' --filter_model ${RERANK_MODEL_PATH} --vllm_url http://127.0.0.1:${VLLM_PORT}/v1/completions --gpu_ids 3 --gpu_memory_limit_per_gpu 8"
+    "bash retrieval_launch_law_text2vec.sh --port $RETRIEVER_PORT --corpus_path '${LAW_CORPUS_PATH}' --case_corpus_path '${CASE_CORPUS_PATH}' --retriever_name hybrid_filter --dictionary_path '${BASE_DIR}/dataset/dataset/dictionary/THUOCL_law.txt' --search_depth 5 --bm25_weight 15 --bm25_weight_factor 2 --bm25_k1 0.15 --bm25_b 0.35 --topk 3 --retriever_model 'shibing624/text2vec-base-chinese-paraphrase' --filter_model ${RERANK_MODEL_PATH} --vllm_url http://127.0.0.1:${VLLM_PORT}/v1/completions --gpu_ids 3 --gpu_memory_limit_per_gpu 8"
 info "已触发启动法律 RAG 检索器 (Port: $RETRIEVER_PORT, GPU: 3)"
 
 sleep 15
