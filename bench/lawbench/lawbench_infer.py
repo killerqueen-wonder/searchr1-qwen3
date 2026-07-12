@@ -125,6 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('--retrieve_path', default="http://127.0.0.1:8008/retrieve", type=str)
     parser.add_argument('--model_name', type=str, default="Qwen3-8B")
     parser.add_argument('--max_turn', default=12, type=int)
+    parser.add_argument('--fixed_turn', default=None, type=int, help="固定检索轮次；不传则保持原自主停止策略")
     parser.add_argument('--summary_port', type=int, default=8008)
     parser.add_argument('--topk', default=10, type=int)
     parser.add_argument('--limit', default=None, type=int)#测评问题数量
@@ -140,7 +141,8 @@ if __name__ == '__main__':
         retrieve_path=args.retrieve_path if args.retriever else None,
         model_name=args.model_name,
         max_turn=args.max_turn,
-        topk=args.topk
+        topk=args.topk,
+        fixed_turn=args.fixed_turn
     )
 
     search_path = os.path.join(args.data_dir, "*.json")

@@ -49,6 +49,45 @@ NEW_SYSTEM_PROMPT = """你是一个严谨且专业的法律AI助手。你的任�
 以下是需要回答的问题：{question_text}
 """
 
+FIX_TURN_SYSTEM_PROMPT = """你是一个严谨且专业的法律AI助手。你的任务是通过逐步思考用户请求并回答法律问题。回答必须基于事实，严禁编造法律条文或案例。
+
+### 核心指令：
+0. **第一步思考**: 识别用户请求的核心法律实体，关键事实，并且提出可能涉及的法律条文。
+1. **判断是否需要检索**：你可以使用检索工具。如果问题基础且你非常有把握，也可以不使用工具直接作答。
+2. **支持的检索工具**（两种）：
+   - **法律检索**：需要确认某项罪名的具体刑期、适用条件、或者某一司法解释的原文时使用。
+   - 不要试图一次性把所有关键词都搜完。每次最多只查找两项最相关的法律。
+   - 先搜索最核心的概念。不要用缩写词，尽量用完整的，最有特点的，区别于其他法条的关键词。搜索关键词示例：“刑法 盗窃罪”、“最高人民法院关于适用〈民事诉讼法〉的解释 第501条”。
+   - 如果你搜索了三次依然没有找到相关条文，请直接承认未找到，修改思考思路，搜索其他条文。不要编造内容。
+   - **类案检索**：用来检索相似刑事案件的判例报告（案例库只有刑事），以预测判决结果或量刑，提高置信度。
+3. **如何调用工具**：如果你决定检索，**必须**输出一个严格的 JSON 字符串，并用 `<search>` 和 `</search>` 标签包裹。
+   - 调用【法律检索】示例：
+     <search>
+     {{
+       "检索类型": "法律检索",
+       "关键词": "刑法 第xxx条 盗窃罪",
+       "检索目的": "找到刑法中盗窃罪的刑期判定条文"
+     }}
+     </search>
+   - 调用【类案检索】示例：
+     <search>
+     {{
+       "检索类型": "类案检索",
+       "检索案情": "张三蒙面进入邻居家，偷走现金5000元并持刀威胁屋主。",
+       "罪名": ["盗窃罪", "抢劫罪"],
+       "其他情节": "自首悔过"
+     }}
+     </search>
+4. **三段论推理**：接收到检索结果后，如果事实与法条匹配，必须使用 `<syllogism>` 标签生成三段论 JSON 分析。
+   - 大前提 (Major Premise)：绝对不要重复输出法条原文，使用占位符 [法条参考 X]。
+   - 小前提 (Minor Premise)：将用户平常的语言表述转化为专业的法言法语。
+   - 结论 (Conclusion)：案件事实是否符合该法条，如何定罪或量刑。
+5. **固定轮次检索**：你必须检索{fix_turn}次。
+6. **最终回答**：必须将最终推理结论包裹在 `<answer>` 和 `</answer>` 标签中。
+
+以下是需要回答的问题：{question_text}
+"""
+
 A2S_SYSTEM_PROMPT = """A conversation between User and Assistant. \
 The user asks a question, and the assistant solves it. \
 The assistant first thinks about the reasoning process in the mind and then provides the user with the answer. \
@@ -64,7 +103,7 @@ R_SEARCH_SYSTEM_PROMPT = "You are a helpful assistant that can solve the given q
 
 
 class VLLM_Retriever_Agent:
-    def __init__(self, vllm_url, retrieve_path=None, model_name="Qwen3-8B", max_turn=12, topk=10):
+    def __init__(self, vllm_url, retrieve_path=None, model_name="Qwen3-8B", max_turn=12, topk=10, fixed_turn=None):
         # 新增：读取 API 模式的环境变量配置
         self.use_direct_api = os.getenv("USE_DIRECT_API", "false").lower() == "true"
         self.api_key = os.getenv("API_KEY", "EMPTY")
@@ -79,6 +118,7 @@ class VLLM_Retriever_Agent:
         self.model_name = model_name
         self.max_turn = max_turn
         self.topk = topk
+        self.fixed_turn = fixed_turn
         self.search_template = '\n\n{output_text}<information>{search_results}</information>\n\n'
 
         self.tokenizer = None
@@ -405,6 +445,103 @@ class VLLM_Retriever_Agent:
 
     # ==============================================================================
 
+    def _gen_fixed_turn(self, question):
+        fixed_turn = int(self.fixed_turn)
+        prompt = FIX_TURN_SYSTEM_PROMPT.format(question_text=question, fix_turn=fixed_turn)
+
+        cnt, search_word_before = 0, ""
+        history = []
+
+        sys_tool_latency, sys_rag_count = 0.0, 0
+        sys_user_prompt_tokens, sys_total_prompt_tokens, sys_total_completion_tokens = 0, 0, 0
+        max_loop = max(self.max_turn + 2, fixed_turn + 6)
+
+        while cnt < max_loop:
+            payload = {
+                "model": self.model_name,
+                "prompt": f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n",
+                "max_tokens": 2500,
+                "temperature": 0.3,
+                "stop": ["</search>", "</answer>", "<|im_end|>"],
+                "stop_token_ids": [151645, 151643]
+            }
+            try:
+                res = requests.post(self.vllm_url, json=payload, timeout=2000).json()
+                output_text = res["choices"][0].get("text", "")
+                usage = res.get("usage", {})
+                current_prompt_tokens = usage.get("prompt_tokens", 0)
+                current_completion_tokens = usage.get("completion_tokens", 0)
+            except Exception as e:
+                logger.error(f"vLLM 请求异常: {e}")
+                output_text = "Error"
+                print("[debug] request payload:")
+                print(payload)
+                break
+
+            if cnt == 0:
+                sys_user_prompt_tokens = current_prompt_tokens
+            sys_total_prompt_tokens += current_prompt_tokens
+            sys_total_completion_tokens += current_completion_tokens
+
+            if "<search>" in output_text and "</search>" not in output_text:
+                output_text += "</search>"
+                action = "search"
+            elif "<answer>" in output_text and "</answer>" not in output_text:
+                output_text += "</answer>"
+                action = "answer"
+            elif "<search>" in output_text:
+                action = "search"
+            else:
+                action = "answer"
+
+            history.append(output_text)
+            instruct, search_results = "", ""
+
+            if sys_rag_count >= fixed_turn:
+                if action == "answer":
+                    break
+                instruct = f"固定检索轮次已完成（{fixed_turn}/{fixed_turn}）。请停止检索，立即给出最终回答，并包裹在 <answer> 中。"
+            elif action == "search":
+                tmp_query = self._extract_tag(output_text, "search")
+                if tmp_query == search_word_before:
+                    instruct = f"请勿重复检索。当前已完成 {sys_rag_count}/{fixed_turn} 轮固定检索，请使用新关键词继续输出 <search>。"
+                elif tmp_query:
+                    search_word_before = tmp_query
+                    t0 = time.time()
+                    search_results = self._search(tmp_query)
+                    sys_tool_latency += (time.time() - t0)
+                    sys_rag_count += 1
+                    if sys_rag_count >= fixed_turn:
+                        instruct = f"固定检索轮次已完成（{fixed_turn}/{fixed_turn}）。请基于以上信息给出最终回答，并包裹在 <answer> 中。"
+                    else:
+                        instruct = f"当前已完成 {sys_rag_count}/{fixed_turn} 轮固定检索，请继续进行下一轮检索。"
+                else:
+                    instruct = f"检索格式错误。当前已完成 {sys_rag_count}/{fixed_turn} 轮固定检索，请重新输出严格 JSON 格式的 <search>。"
+            else:
+                instruct = f"固定检索实验要求必须检索 {fixed_turn} 轮；当前仅完成 {sys_rag_count}/{fixed_turn} 轮。请继续输出 <search>，不要提前回答。"
+
+            if search_results:
+                history.append(search_results)
+            prompt += self.search_template.format(output_text=output_text, search_results=search_results) + instruct
+            cnt += 1
+
+        agent_metrics = {
+            "tool_latency_sec": sys_tool_latency, "rag_count": sys_rag_count,
+            "user_prompt_tokens": sys_user_prompt_tokens,
+            "main_total_prompt_tokens": sys_total_prompt_tokens, "main_total_comp_tokens": sys_total_completion_tokens
+        }
+
+        final_output = "\n".join(history)
+
+        if random.randint(1, 64) == 1:
+            logger.info(
+                f"\n========== [Trace Monitor 1/64] Model: {self.model_name} FixedTurn={fixed_turn} ==========\n"
+                f"[Prompt]:\n{prompt}\n\n"
+                f"[Output/History]:\n{final_output}\n"
+                f"==================================================================\n"
+            )
+
+        return final_output, agent_metrics
     def gen(self, query, instruction=""):
 
         # ========= 核心分流：A2S 专属管道拦截 =========
@@ -413,6 +550,9 @@ class VLLM_Retriever_Agent:
 
         question = f"{instruction}\n{query}".strip() if instruction else query.strip()
 
+
+        if self.fixed_turn is not None:
+            return self._gen_fixed_turn(question)
 
         # ================== 纯 API 直连模式 (多模型分流适配) ==================
         if self.use_direct_api:
