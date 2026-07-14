@@ -107,7 +107,7 @@ source "$CONDA_SH"
 conda activate autorefine
 
 # for mode in completion chat qwen_chat_template; do
-for mode in chat qwen_chat_template; do
+for mode in qwen_chat_template; do
     OUT_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}_probe_${mode}"
     rm -rf "$OUT_DIR"
     info "Running probe mode=${mode}, limit=${LIMIT}, workers=${WORKERS}"
