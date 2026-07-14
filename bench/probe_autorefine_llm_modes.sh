@@ -12,7 +12,7 @@ export MODEL_NAME="${MODEL_NAME:-autorefine-qwen2.5-7b-law-adaptivenote}"
 export ADAPTIVE_NOTE_DIR="${ADAPTIVE_NOTE_DIR:-${BASE_DIR}/Adaptive-Note}"
 
 MAIN_VLLM_PORT="${MAIN_VLLM_PORT:-807}"
-LIMIT="${LIMIT:-5}"
+LIMIT="${LIMIT:-3}"
 WORKERS="${WORKERS:-1}"
 RESTART_VLLM="${RESTART_VLLM:-1}"
 PORT_TIMEOUT="${PORT_TIMEOUT:-1600}"
@@ -106,7 +106,8 @@ smoke_test_completions
 source "$CONDA_SH"
 conda activate autorefine
 
-for mode in completion chat qwen_chat_template; do
+# for mode in completion chat qwen_chat_template; do
+for mode in chat qwen_chat_template; do
     OUT_DIR="${BASE_DIR}/lawbench/test/prediction/zero_shot/${MODEL_NAME}_probe_${mode}"
     rm -rf "$OUT_DIR"
     info "Running probe mode=${mode}, limit=${LIMIT}, workers=${WORKERS}"
