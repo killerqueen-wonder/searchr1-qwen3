@@ -72,13 +72,21 @@ FALLBACK_PROMPTS = {
 }
 
 
-def normalize_completion_url(vllm_url: str) -> str:
+def normalize_openai_base_url(vllm_url: str) -> str:
     url = vllm_url.rstrip("/")
-    if url.endswith("/v1/completions"):
-        return url
-    if url.endswith("/v1"):
-        return f"{url}/completions"
-    return f"{url}/v1/completions"
+    for suffix in ["/v1/completions", "/v1/chat/completions", "/v1"]:
+        if url.endswith(suffix):
+            url = url[: -len(suffix)]
+            break
+    return f"{url}/v1"
+
+
+def apply_qwen_chat_template(prompt: str) -> str:
+    return (
+        "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"
+        f"<|im_start|>user\n{prompt}<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
 
 
 def load_prompt(prompt_dir: str, name: str) -> str:
@@ -182,8 +190,11 @@ class AdaptiveNoteVLLMAgent:
         max_fail_step: int,
         request_timeout: int,
         max_tokens: int,
+        llm_api_mode: str,
     ):
-        self.vllm_url = normalize_completion_url(vllm_url)
+        self.openai_base_url = normalize_openai_base_url(vllm_url)
+        self.completion_url = f"{self.openai_base_url}/completions"
+        self.chat_url = f"{self.openai_base_url}/chat/completions"
         self.model_name = model_name
         self.retriever = retriever
         self.retrieve_top_k = retrieve_top_k
@@ -192,6 +203,7 @@ class AdaptiveNoteVLLMAgent:
         self.max_fail_step = max_fail_step
         self.request_timeout = request_timeout
         self.max_tokens = max_tokens
+        self.llm_api_mode = llm_api_mode
         self.prompts = {
             name: load_prompt(prompt_dir, name)
             for name in [
@@ -205,21 +217,42 @@ class AdaptiveNoteVLLMAgent:
 
     def complete(self, template_name: str, values: Dict[str, Any]) -> Tuple[str, int, int]:
         prompt = self.prompts[template_name].format(**values)
-        payload = {
+        common = {
             "model": self.model_name,
-            "prompt": prompt,
             "max_tokens": self.max_tokens,
             "temperature": 0.1,
             "top_p": 0.9,
             "repetition_penalty": 1.08,
         }
+
+        stop_words = None
         if template_name == "gen_answer":
-            payload["stop"] = ["问题：", "问题:", "\n问题：", "\n问题:", "与问题相关的笔记：", "与问题相关的笔记:", "请给出你的回答：", "请给出你的回答:"]
+            stop_words = ["问题：", "问题:", "\n问题：", "\n问题:", "与问题相关的笔记：", "与问题相关的笔记:", "请给出你的回答：", "请给出你的回答:"]
+
+        if self.llm_api_mode == "chat":
+            url = self.chat_url
+            payload = {
+                **common,
+                "messages": [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt},
+                ],
+            }
+        else:
+            url = self.completion_url
+            completion_prompt = apply_qwen_chat_template(prompt) if self.llm_api_mode == "qwen_chat_template" else prompt
+            payload = {**common, "prompt": completion_prompt}
+            if self.llm_api_mode == "qwen_chat_template":
+                payload["stop"] = ["<|im_end|>", "<|endoftext|>"]
+
+        if stop_words:
+            payload["stop"] = payload.get("stop", []) + stop_words
+
         last_error = None
         for attempt in range(3):
             try:
                 response = requests.post(
-                    self.vllm_url,
+                    url,
                     json=payload,
                     timeout=self.request_timeout,
                 )
@@ -227,7 +260,11 @@ class AdaptiveNoteVLLMAgent:
                 data = response.json()
                 if "error" in data:
                     raise RuntimeError(data["error"])
-                text = data.get("choices", [{}])[0].get("text", "")
+                choice = data.get("choices", [{}])[0]
+                if self.llm_api_mode == "chat":
+                    text = choice.get("message", {}).get("content", "")
+                else:
+                    text = choice.get("text", "")
                 usage = data.get("usage", {})
                 return (
                     text.strip(),
@@ -330,6 +367,7 @@ class AdaptiveNoteVLLMAgent:
             "query_log": query_log,
             "note_log": note_log,
             "ref_log": ref_log,
+            "llm_api_mode": self.llm_api_mode,
             "raw_final_answer": answer_raw,
             "answer_postprocess": {
                 "note_len": len(best_note or ""),
@@ -470,6 +508,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--request_timeout", type=int, default=2000)
     parser.add_argument("--max_tokens", type=int, default=1280)
+    parser.add_argument("--llm_api_mode", choices=["completion", "chat", "qwen_chat_template"], default="completion")
     args = parser.parse_args()
 
     if not args.prompt_dir:
@@ -496,6 +535,7 @@ def main() -> None:
         max_fail_step=args.max_fail_step,
         request_timeout=args.request_timeout,
         max_tokens=args.max_tokens,
+        llm_api_mode=args.llm_api_mode,
     )
 
     os.makedirs(args.output_dir, exist_ok=True)
