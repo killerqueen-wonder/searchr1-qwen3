@@ -117,7 +117,7 @@ class AdaptiveNoteLawRetriever:
 
     def retrieve(self, query: str, topk: int) -> Tuple[List[str], float]:
         start = time.time()
-        feature = self.embed_model.encode([query])
+        feature = self.embed_model.encode([query], show_progress_bar=False)
         _, match_id = self.index.search(feature, topk)
         refs = [self.raw_data[i] for i in match_id[0] if 0 <= i < len(self.raw_data)]
         return refs, time.time() - start
