@@ -402,7 +402,7 @@ def main() -> None:
     parser.add_argument("--law_index_path", type=str, required=True)
     parser.add_argument("--law_chunk_path", type=str, required=True)
     parser.add_argument("--embedding_model", type=str, default="BAAI/bge-base-zh-v1.5")
-    parser.add_argument("--embedding_device", type=str, default="cuda:0")
+    parser.add_argument("--embedding_device", type=str, default="cpu")
     parser.add_argument("--max_step", type=int, default=3)
     parser.add_argument("--max_fail_step", type=int, default=1)
     parser.add_argument("--topk", "--retrieve_top_k", dest="retrieve_top_k", type=int, default=5)

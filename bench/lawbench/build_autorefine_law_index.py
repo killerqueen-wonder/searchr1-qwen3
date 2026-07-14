@@ -29,7 +29,7 @@ def main() -> None:
     parser.add_argument("--corpus_path", required=True)
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--embedding_model", default="BAAI/bge-base-zh-v1.5")
-    parser.add_argument("--device", default="cuda:0")
+    parser.add_argument("--device", default="cpu")
     parser.add_argument("--batch_size", type=int, default=256)
     args = parser.parse_args()
 
