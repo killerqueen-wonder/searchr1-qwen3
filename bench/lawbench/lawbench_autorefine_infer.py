@@ -100,6 +100,52 @@ def parse_bool_status(text: str) -> bool:
         return "true" in cleaned.lower()
 
 
+
+def is_prompt_echo(text: str) -> bool:
+    text = text or ""
+    prompt_markers = ["问题：", "问题:", "与问题相关的笔记：", "与问题相关的笔记:", "请给出你的回答：", "请给出你的回答:"]
+    marker_hits = sum(text.count(marker) for marker in prompt_markers)
+    return marker_hits >= 3 or text.count("请给出你的回答") >= 2
+
+
+def clean_final_answer(raw_text: str, query: str) -> str:
+    raw_text = raw_text or ""
+    text = raw_text.strip()
+    if not text:
+        return text
+
+    prompt_echo = is_prompt_echo(text)
+
+    # Some base/completion models continue by echoing the prompt sections.
+    # Keep only the text after the final answer cue when that happens.
+    answer_cues = ["请给出你的回答：", "请给出你的回答:", "回答：", "回答:", "答案：", "答案:", "最终答案：", "最终答案:"]
+    for cue in answer_cues:
+        if cue in text:
+            text = text.split(cue)[-1].strip()
+
+    # Drop common prompt echoes at the beginning of the generated continuation.
+    echo_prefixes = ["问题：", "问题:", "与问题相关的笔记：", "与问题相关的笔记:", "笔记：", "笔记:"]
+    changed = True
+    while changed:
+        changed = False
+        for prefix in echo_prefixes:
+            if text.startswith(prefix):
+                text = text[len(prefix):].strip()
+                changed = True
+
+    # If the model repeats the full query before answering, strip that exact echo.
+    query = (query or "").strip()
+    if query and text.startswith(query):
+        text = text[len(query):].strip()
+        for sep in ["\n", "。", "：", ":"]:
+            if text.startswith(sep):
+                text = text[len(sep):].strip()
+
+    text = text.strip()
+    if prompt_echo and (not text or is_prompt_echo(text) or text.startswith("问题") or text.startswith("与问题相关的笔记")):
+        return ""
+    return text
+
 def format_refs(refs: List[str]) -> str:
     if not refs:
         return "未找到相关的法律条文。"
@@ -165,7 +211,10 @@ class AdaptiveNoteVLLMAgent:
             "max_tokens": self.max_tokens,
             "temperature": 0.1,
             "top_p": 0.9,
+            "repetition_penalty": 1.08,
         }
+        if template_name == "gen_answer":
+            payload["stop"] = ["问题：", "问题:", "\n问题：", "\n问题:", "与问题相关的笔记：", "与问题相关的笔记:", "请给出你的回答：", "请给出你的回答:"]
         last_error = None
         for attempt in range(3):
             try:
@@ -268,10 +317,11 @@ class AdaptiveNoteVLLMAgent:
             if notes_status.count(False) >= self.max_fail_step:
                 break
 
-        answer, p_tok, c_tok = self.complete(
+        answer_raw, p_tok, c_tok = self.complete(
             "gen_answer",
             {"query": query, "note": best_note},
         )
+        answer = clean_final_answer(answer_raw, query)
         total_prompt_tokens += p_tok
         total_comp_tokens += c_tok
 
@@ -280,6 +330,15 @@ class AdaptiveNoteVLLMAgent:
             "query_log": query_log,
             "note_log": note_log,
             "ref_log": ref_log,
+            "raw_final_answer": answer_raw,
+            "answer_postprocess": {
+                "note_len": len(best_note or ""),
+                "raw_len": len(answer_raw or ""),
+                "clean_len": len(answer or ""),
+                "raw_was_empty": not bool((answer_raw or "").strip()),
+                "raw_prompt_echo": is_prompt_echo(answer_raw or ""),
+                "clean_changed": (answer_raw or "").strip() != (answer or "").strip(),
+            },
         }
         metrics = {
             "tool_latency_sec": tool_latency_sec,
