@@ -10,7 +10,7 @@ export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 export CONDA_SH="${CONDA_SH:-/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh}"
 
-export MODEL_PATH="${MODEL_PATH:-${BASE_DIR}/model/AutoRefine-Qwen2.5-7BInstruct}"
+export MODEL_PATH="${MODEL_PATH:-${BASE_DIR}/model/AutoRefine-Qwen2.5-7B-Instruct}"
 # export MODEL_NAME="${MODEL_NAME:-autorefine-qwen2.5-7b-law-adaptivenote}"
 export MODEL_NAME="${MODEL_NAME:-autorefine-qwen2.5-7b-Instruct-4-turn-07141700}"
 export ADAPTIVE_NOTE_DIR="${ADAPTIVE_NOTE_DIR:-${BASE_DIR}/Adaptive-Note}"
