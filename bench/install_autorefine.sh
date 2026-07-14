@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Install Adaptive-Note and download AutoRefine-Qwen2.5-7B-Base.
+# Install Adaptive-Note and download AutoRefine-Qwen2.5-7B-Instruct.
 # This script is designed for the remote Linux server, not for local Windows.
 
 export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal_R1}"
@@ -9,8 +9,8 @@ export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 export CONDA_SH="${CONDA_SH:-${CONDA_HOME}/etc/profile.d/conda.sh}"
 
 export ADAPTIVE_NOTE_DIR="${ADAPTIVE_NOTE_DIR:-${BASE_DIR}/Adaptive-Note}"
-export AUTOREFINE_MODEL_REPO="${AUTOREFINE_MODEL_REPO:-yrshi/AutoRefine-Qwen2.5-7B-Base}"
-export AUTOREFINE_MODEL_DIR="${AUTOREFINE_MODEL_DIR:-${BASE_DIR}/model/AutoRefine-Qwen2.5-7B-Base}"
+export AUTOREFINE_MODEL_REPO="${AUTOREFINE_MODEL_REPO:-yrshi/AutoRefine-Qwen2.5-7B-Instruct}"
+export AUTOREFINE_MODEL_DIR="${AUTOREFINE_MODEL_DIR:-${BASE_DIR}/model/AutoRefine-Qwen2.5-7B-Instruct}"
 export AUTOREFINE_ENV_NAME="${AUTOREFINE_ENV_NAME:-autorefine}"
 
 # China-friendly defaults. Override these before running if your server has a
