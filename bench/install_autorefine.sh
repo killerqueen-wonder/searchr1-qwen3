@@ -51,12 +51,6 @@ python -m pip install -r "${ADAPTIVE_NOTE_DIR}/requirements.txt"
 python -m pip install huggingface_hub requests tqdm
 
 info "Downloading ${AUTOREFINE_MODEL_REPO} to ${AUTOREFINE_MODEL_DIR}"
-# huggingface-cli download \
-#     "$AUTOREFINE_MODEL_REPO" \
-#     --local-dir "$AUTOREFINE_MODEL_DIR" \
-#     --local-dir-use-symlinks False \
-#     --resume-download
-
 hf download "$AUTOREFINE_MODEL_REPO" --local-dir "$AUTOREFINE_MODEL_DIR"
 
 info "Done."

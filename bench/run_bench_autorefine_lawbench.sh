@@ -10,10 +10,12 @@ export BASE_DIR="${BASE_DIR:-/F00120250029/lixiang_share/panghuaiwen_share/legal
 export CONDA_HOME="${CONDA_HOME:-/data/panghuaiwen/miniconda3}"
 export CONDA_SH="${CONDA_SH:-/F00120250029/lixiang_share/Data/conda/etc/profile.d/conda.sh}"
 
-export MODEL_PATH="${MODEL_PATH:-${BASE_DIR}/model/AutoRefine-Qwen2.5-7B-Instruct}"
+export AUTOREFINE_MODEL_REPO="${AUTOREFINE_MODEL_REPO:-yrshi/AutoRefine-Qwen2.5-7B-Instruct}"
+export AUTOREFINE_MODEL_DIR="${AUTOREFINE_MODEL_DIR:-${BASE_DIR}/model/AutoRefine-Qwen2.5-7B-Instruct}"
+export MODEL_PATH="${MODEL_PATH:-${AUTOREFINE_MODEL_DIR}}"
 # export MODEL_PATH="${MODEL_PATH:-${BASE_DIR}/model/AutoRefine-Qwen2.5-7B-Base}"
 # export MODEL_NAME="${MODEL_NAME:-autorefine-qwen2.5-7b-law-adaptivenote}"
-export MODEL_NAME="${MODEL_NAME:-autorefine-qwen2.5-7b-Instruct-4-turn-07142345}"
+export MODEL_NAME="${MODEL_NAME:-autorefine-qwen2.5-7b-Instruct-4-turn-07150100}"
 export ADAPTIVE_NOTE_DIR="${ADAPTIVE_NOTE_DIR:-${BASE_DIR}/Adaptive-Note}"
 export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 export HF_HOME="${HF_HOME:-${BASE_DIR}/model}"
@@ -100,9 +102,16 @@ if [ ! -d "$ADAPTIVE_NOTE_DIR" ]; then
     exit 1
 fi
 
-if [ ! -d "$MODEL_PATH" ]; then
-    error "AutoRefine 模型目录不存在: $MODEL_PATH"
-    error "请先运行: bash ${BASE_DIR}/searchr1-qwen3/bench/install_autorefine.sh"
+if [ ! -f "$MODEL_PATH/config.json" ]; then
+    info "AutoRefine Instruct 模型不存在或不完整，开始下载: ${AUTOREFINE_MODEL_REPO} -> ${AUTOREFINE_MODEL_DIR}"
+    source "$CONDA_SH"
+    conda activate autorefine
+    mkdir -p "$AUTOREFINE_MODEL_DIR"
+    hf download "$AUTOREFINE_MODEL_REPO" --local-dir "$AUTOREFINE_MODEL_DIR"
+fi
+
+if [ ! -f "$MODEL_PATH/config.json" ]; then
+    error "AutoRefine 模型下载后仍未找到 config.json: $MODEL_PATH"
     exit 1
 fi
 
