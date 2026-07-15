@@ -15,7 +15,7 @@ export AUTOREFINE_MODEL_DIR="${AUTOREFINE_MODEL_DIR:-${BASE_DIR}/model/AutoRefin
 export MODEL_PATH="${MODEL_PATH:-${AUTOREFINE_MODEL_DIR}}"
 # export MODEL_PATH="${MODEL_PATH:-${BASE_DIR}/model/AutoRefine-Qwen2.5-7B-Base}"
 # export MODEL_NAME="${MODEL_NAME:-autorefine-qwen2.5-7b-law-adaptivenote}"
-export MODEL_NAME="${MODEL_NAME:-autorefine-qwen2.5-7b-Instruct-4-turn-07150100}"
+export MODEL_NAME="${MODEL_NAME:-autorefine-qwen2.5-7b-Instruct-4-turn-07150922}"
 export ADAPTIVE_NOTE_DIR="${ADAPTIVE_NOTE_DIR:-${BASE_DIR}/Adaptive-Note}"
 export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 export HF_HOME="${HF_HOME:-${BASE_DIR}/model}"
@@ -26,6 +26,7 @@ export JUDGE_MODEL_PATH="${JUDGE_MODEL_PATH:-/F00120250029/lixiang_share/Models/
 export JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-Qwen3-8B-Judge}"
 
 WORKERS="${WORKERS:-32}"
+LAWBENCH_LIMIT="${LAWBENCH_LIMIT:-50}"
 AUTOREFINE_MAX_STEP="${AUTOREFINE_MAX_STEP:-5}"
 AUTOREFINE_MAX_FAIL_STEP="${AUTOREFINE_MAX_FAIL_STEP:-3}"
 AUTOREFINE_TOPK="${AUTOREFINE_TOPK:-5}"
@@ -176,6 +177,7 @@ CUDA_VISIBLE_DEVICES="$EMBEDDING_CUDA_VISIBLE_DEVICES" python ${BASE_DIR}/search
     --max_fail_step ${AUTOREFINE_MAX_FAIL_STEP} \
     --topk ${AUTOREFINE_TOPK} \
     --max_top_k ${AUTOREFINE_MAX_TOPK} \
+    --limit ${LAWBENCH_LIMIT} \
     --workers ${WORKERS}
 
 info " -> 2. 评测阶段"
